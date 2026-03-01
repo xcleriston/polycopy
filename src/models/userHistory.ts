@@ -1,78 +1,89 @@
-import mongoose, { Schema } from 'mongoose';
+import Datastore from '@seald-io/nedb';
+import * as path from 'path';
+import { getDbDir } from '../config/db';
 
-const positionSchema = new Schema({
-    _id: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        auto: true,
-    },
-    proxyWallet: { type: String, required: false },
-    asset: { type: String, required: false },
-    conditionId: { type: String, required: false },
-    size: { type: Number, required: false },
-    avgPrice: { type: Number, required: false },
-    initialValue: { type: Number, required: false },
-    currentValue: { type: Number, required: false },
-    cashPnl: { type: Number, required: false },
-    percentPnl: { type: Number, required: false },
-    totalBought: { type: Number, required: false },
-    realizedPnl: { type: Number, required: false },
-    percentRealizedPnl: { type: Number, required: false },
-    curPrice: { type: Number, required: false },
-    redeemable: { type: Boolean, required: false },
-    mergeable: { type: Boolean, required: false },
-    title: { type: String, required: false },
-    slug: { type: String, required: false },
-    icon: { type: String, required: false },
-    eventSlug: { type: String, required: false },
-    outcome: { type: String, required: false },
-    outcomeIndex: { type: Number, required: false },
-    oppositeOutcome: { type: String, required: false },
-    oppositeAsset: { type: String, required: false },
-    endDate: { type: String, required: false },
-    negativeRisk: { type: Boolean, required: false },
-});
+// Cache datastores to avoid creating duplicates
+const datastoreCache: Map<string, Datastore> = new Map();
 
-const activitySchema = new Schema({
-    _id: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        auto: true,
-    },
-    proxyWallet: { type: String, required: false },
-    timestamp: { type: Number, required: false },
-    conditionId: { type: String, required: false },
-    type: { type: String, required: false },
-    size: { type: Number, required: false },
-    usdcSize: { type: Number, required: false },
-    transactionHash: { type: String, required: false },
-    price: { type: Number, required: false },
-    asset: { type: String, required: false },
-    side: { type: String, required: false },
-    outcomeIndex: { type: Number, required: false },
-    title: { type: String, required: false },
-    slug: { type: String, required: false },
-    icon: { type: String, required: false },
-    eventSlug: { type: String, required: false },
-    outcome: { type: String, required: false },
-    name: { type: String, required: false },
-    pseudonym: { type: String, required: false },
-    bio: { type: String, required: false },
-    profileImage: { type: String, required: false },
-    profileImageOptimized: { type: String, required: false },
-    bot: { type: Boolean, required: false },
-    botExcutedTime: { type: Number, required: false },
-    myBoughtSize: { type: Number, required: false }, // Tracks actual tokens we bought
-});
+const getDatastore = (name: string): Datastore => {
+    if (datastoreCache.has(name)) return datastoreCache.get(name)!;
+    const ds = new Datastore({ filename: path.join(getDbDir(), `${name}.db`), autoload: true });
+    datastoreCache.set(name, ds);
+    return ds;
+};
+
+// Wrapper that provides a mongoose-like API over NeDB
+const createModel = (collectionName: string) => {
+    const ds = getDatastore(collectionName);
+
+    return {
+        // Find one document
+        findOne(query: Record<string, unknown>) {
+            return { exec: () => ds.findOneAsync(query) };
+        },
+        // Find multiple documents
+        find(query: Record<string, unknown> = {}) {
+            return {
+                exec: () => ds.findAsync(query),
+                sort: (sortObj: Record<string, number>) => ({
+                    exec: () => ds.findAsync(query).then(docs =>
+                        docs.sort((a: any, b: any) => {
+                            for (const [key, dir] of Object.entries(sortObj)) {
+                                if (a[key] !== b[key]) return dir * (a[key] > b[key] ? 1 : -1);
+                            }
+                            return 0;
+                        })
+                    ),
+                }),
+            };
+        },
+        // Update one document
+        updateOne(query: Record<string, unknown>, update: Record<string, unknown>) {
+            return {
+                exec: () => ds.updateAsync(query, update, {}),
+            };
+        },
+        // Update many documents
+        updateMany(query: Record<string, unknown>, update: Record<string, unknown>) {
+            return ds.updateAsync(query, update, { multi: true })
+                .then((result) => ({ modifiedCount: typeof result === 'number' ? result : (result as any).numAffected || 0 }));
+        },
+        // Find one and update (with upsert)
+        findOneAndUpdate(query: Record<string, unknown>, update: Record<string, unknown>, options: { upsert?: boolean } = {}) {
+            return ds.updateAsync(query, { $set: update }, { upsert: options.upsert || false });
+        },
+        // Count documents
+        countDocuments() {
+            return ds.countAsync({});
+        },
+        // Save a new document (constructor-like pattern)
+        async save(doc: Record<string, unknown>) {
+            return ds.insertAsync(doc);
+        },
+    };
+};
+
+// Factory: create a "new document" that can be saved
+const createDocumentFactory = (collectionName: string) => {
+    const model = createModel(collectionName);
+    const factory = (data: Record<string, unknown>) => {
+        return {
+            ...data,
+            save: () => model.save(data),
+            toObject: () => ({ ...data }),
+        };
+    };
+    // Attach static methods to the factory
+    Object.assign(factory, model);
+    return factory as typeof factory & ReturnType<typeof createModel>;
+};
 
 const getUserPositionModel = (walletAddress: string) => {
-    const collectionName = `user_positions_${walletAddress}`;
-    return mongoose.model(collectionName, positionSchema, collectionName);
+    return createModel(`user_positions_${walletAddress}`);
 };
 
 const getUserActivityModel = (walletAddress: string) => {
-    const collectionName = `user_activities_${walletAddress}`;
-    return mongoose.model(collectionName, activitySchema, collectionName);
+    return createDocumentFactory(`user_activities_${walletAddress}`);
 };
 
 export { getUserActivityModel, getUserPositionModel };

@@ -1,136 +1,211 @@
-![](asset/logo.png)
+[English](README.md) | [简体中文](README_CN.md) | [繁體中文](README_TW.md) | [日本語](README_JP.md)
 
-# Polymarket Copy Trading Bot
+<p align="center">
+  <img src="asset/logo.png" alt="PolyCopy" width="200">
+</p>
 
-> Automated copy trading bot for Polymarket that mirrors trades from top performers with intelligent position sizing and real-time execution. Version 2.0 employs the fastest transaction detection method, enabling near-instantaneous trade replication with lower latency and reduced API load. The copy trading feature in Version 2.0 delivers outstanding performance and resolves all issues previously encountered with “Cloudflare” and VPNs in older versions.
+<h1 align="center">PolyCopy</h1>
 
+<p align="center">
+  <strong>Automated copy trading bot for Polymarket prediction markets</strong>
+</p>
 
-## Overview
+<p align="center">
+  <a href="https://github.com/neosun100/polycopy/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build"></a>
+  <a href="https://github.com/neosun100/polycopy/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  <a href="https://hub.docker.com/r/neosun/polycopy"><img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker" alt="Docker"></a>
+  <img src="https://img.shields.io/badge/tests-40%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-green?logo=node.js" alt="Node">
+</p>
 
-The Polymarket Copy Trading Bot automatically replicates trades from successful Polymarket traders to your wallet. It monitors trader activity 24/7, calculates proportional position sizes based on your capital, and executes matching orders in real-time.
+---
 
-### How It Works
+> **⚠️ Security Note**: This project was forked from a malicious repository that contained hidden private key theft code. All malicious code has been removed, audited 3 times, and the project has been completely rewritten with security-first design. See [Security](#-security) for details.
 
-![](asset/howitworks.png)
+## ✨ Features
 
-1. **Select Traders** - Choose top performers from [Polymarket leaderboard](https://polymarket.com/leaderboard) or [Predictfolio](https://predictfolio.com)
-2. **Monitor Activity** - Bot continuously watches for new positions opened by selected traders using Polymarket Data API
-3. **Calculate Size** - Automatically scales trades based on your balance vs. trader's balance
-4. **Execute Orders** - Places matching orders on Polymarket using your wallet
-5. **Track Performance** - Maintains complete trade history in MongoDB
+- **Multi-Trader Copy Trading** — Track and mirror trades from multiple top Polymarket traders simultaneously
+- **3 Copy Strategies** — Percentage, Fixed, or Adaptive sizing with tiered multipliers
+- **Kill Switch Protection** — Automatic daily loss cap stops trading when threshold is exceeded
+- **Preview Mode** — Dry-run mode to test without risking real funds
+- **Trade Aggregation** — Combines small trades into larger executable orders
+- **Position Tracking** — Accurate buy/sell tracking even after balance changes
+- **Web Dashboard** — Real-time monitoring UI with dark theme and multi-language support
+- **REST API + Swagger** — Full API with interactive documentation at `/docs`
+- **MCP Server** — Model Context Protocol integration for AI assistant access
+- **Telegram Notifications** — Trade execution, kill switch, and error alerts
+- **Zero External DB** — Uses NeDB (local file storage), no MongoDB needed
+- **Docker Ready** — Single container, 189MB, all-in-one deployment
 
-## Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Docker (Recommended)
 
-- [Node.js](https://nodejs.org/en/download) v18+
-- MongoDB database ([MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) free tier works)
-- Polygon wallet with USDC and POL/MATIC for gas
-- RPC endpoint ([Infura](https://infura.io) or [Alchemy](https://www.alchemy.com) free tier)
-
-### Installation
-
-#### Clone repository
 ```bash
-git clone https://github.com/LesterCovata/polymarket-copy-bot-ts
+# Pull and run
+docker run -d --name polycopy \
+  -p 3000:3000 \
+  -v polycopy_data:/app/data \
+  --env-file .env \
+  neosun/polycopy:latest
 
-cd polymarket-copy-bot-ts
+# Open dashboard
+open http://localhost:3000
 ```
 
-#### Install dependencies
+### Option 2: From Source
+
 ```bash
+git clone https://github.com/neosun100/polycopy.git
+cd polycopy
 npm install
-```
-
-##### Configure Environment
-```bash
-# Copy the example config
-cp .env.example .env
-```
-
-Edit `.env` with your settings:
-
-```bash
-# Traders to copy (find addresses on Polymarket leaderboard)
-USER_ADDRESSES = '0x6a72f61820b26b1fe4d956e17b6dc2a1ea3033ee'
-
-# Your trading wallet (the wallet that will execute trades)
-PROXY_WALLET = 'your_polygon_wallet_address'
-PRIVATE_KEY = 'your_private_key_without_0x_prefix'
-
-# MongoDB (get free database at mongodb.com/cloud/atlas)
-# The default link in your .env file is currently functional, but it is recommended that you replace it with your own.
-MONGO_URI = 'mongodb+srv://username:password@cluster.mongodb.net/database'
-
-# Polygon RPC (get free key at infura.io or alchemy.com)
-# The default link in your .env file is currently functional, but it is recommended that you replace it with your own.
-RPC_URL = 'https://polygon-mainnet.infura.io/v3/YOUR_PROJECT_ID'
-
-# Don't change these
-CLOB_HTTP_URL = 'https://clob.polymarket.com/'
-CLOB_WS_URL = 'wss://ws-subscriptions-clob.polymarket.com/ws'
-USDC_CONTRACT_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-```
-
-#### Build and start
-```bash
+cp .env.example .env   # Edit with your settings
 npm run build
-npm run health-check  # Verify configuration
-npm start             # Start trading
+npm start              # Bot + Web UI on port 3000
 ```
 
-**📖 For detailed setup instructions, see [Getting Started Guide](./docs/GETTING_STARTED.md)**
+## ⚙️ Configuration
 
-## Features
+Copy `.env.example` to `.env` and configure:
 
-- **Multi-Trader Support** - Track and copy trades from multiple traders simultaneously
-- **Smart Position Sizing** - Automatically adjusts trade sizes based on your capital
-- **Tiered Multipliers** - Apply different multipliers based on trade size
-- **Position Tracking** - Accurately tracks purchases and sells even after balance changes
-- **Trade Aggregation** - Combines multiple small trades into larger executable orders
-- **Real-time Execution** - Monitors trades every second and executes instantly
-- **MongoDB Integration** - Persistent storage of all trades and positions
-- **Price Protection** - Built-in slippage checks to avoid unfavorable fills
+```bash
+# Required
+USER_ADDRESSES='0xTraderAddress1,0xTraderAddress2'  # Traders to copy
+PROXY_WALLET='0xYourWalletAddress'                   # Your wallet
+PRIVATE_KEY='your_64_hex_private_key'                # No 0x prefix
+RPC_URL='https://polygon-mainnet.infura.io/v3/KEY'   # Polygon RPC
 
-### Monitoring Method
+# Strategy (defaults shown)
+COPY_STRATEGY='PERCENTAGE'    # PERCENTAGE | FIXED | ADAPTIVE
+COPY_SIZE=10.0                # 10% of trader's order
+MAX_ORDER_SIZE_USD=100.0      # Max per trade
+SLIPPAGE_TOLERANCE=0.05       # Max price deviation
 
-The bot currently uses the **Polymarket Data API** to monitor trader activity and detect new positions. The monitoring system polls trader positions at configurable intervals (default: 1 second) to ensure timely trade detection and execution.
+# Safety
+DAILY_LOSS_CAP_PCT=20         # Kill switch at 20% daily loss
+PREVIEW_MODE=false            # Set true to test without trading
 
-## Configuration
+# Optional
+TELEGRAM_BOT_TOKEN='...'      # From @BotFather
+TELEGRAM_CHAT_ID='...'        # Your chat ID
+```
 
-### Essential Variables
+See [.env.example](.env.example) for all options including tiered multipliers and trade aggregation.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `USER_ADDRESSES` | Traders to copy (comma-separated) | `'0xABC..., 0xDEF...'` |
-| `PROXY_WALLET` | Your Polygon wallet address | `'0x123...'` |
-| `PRIVATE_KEY` | Wallet private key (no 0x prefix) | `'abc123...'` |
-| `MONGO_URI` | MongoDB connection string | `'mongodb+srv://...'` |
-| `RPC_URL` | Polygon RPC endpoint | `'https://polygon...'` |
-| `TRADE_MULTIPLIER` | Position size multiplier (default: 1.0) | `2.0` |
-| `FETCH_INTERVAL` | Check interval in seconds (default: 1) | `1` |
+## 🖥️ Access Modes
 
-### Finding Traders
+| Mode | URL | Description |
+|------|-----|-------------|
+| Web UI | `http://localhost:3000` | Dashboard with trade monitoring |
+| Swagger | `http://localhost:3000/docs` | Interactive API documentation |
+| REST API | `http://localhost:3000/api/*` | Programmatic access |
+| MCP | stdio | AI assistant integration |
 
-1. Visit [Polymarket Leaderboard](https://polymarket.com/leaderboard)
-2. Look for traders with positive P&L, win rate >55%, and active trading history
-3. Verify detailed stats on [Predictfolio](https://predictfolio.com)
-4. Add wallet addresses to `USER_ADDRESSES`
+### MCP Configuration
 
-**📖 For complete configuration guide, see [Quick Start](./docs/QUICK_START.md)**
+```json
+{
+  "mcpServers": {
+    "polycopy": {
+      "command": "node",
+      "args": ["dist/mcp/server.js"]
+    }
+  }
+}
+```
 
-## Documentation
+Available MCP tools: `get_bot_status`, `get_recent_trades`, `get_positions`, `get_config`
 
-### Getting Started
-- **[🚀 Getting Started Guide](./docs/GETTING_STARTED.md)** - Complete beginner's guide
-- **[⚡ Quick Start](./docs/QUICK_START.md)** - Fast setup for experienced users
+## 🏗️ Project Structure
 
-## License
+```
+polycopy/
+├── src/
+│   ├── config/          # Environment & strategy configuration
+│   ├── interfaces/      # TypeScript type definitions
+│   ├── models/          # NeDB data models
+│   ├── server/          # Express.js Web UI + API
+│   ├── services/        # Trade monitor & executor
+│   ├── mcp/             # MCP server
+│   ├── utils/           # Core utilities (orders, balance, logging)
+│   ├── scripts/         # CLI tools (health check, simulation, etc.)
+│   └── __tests__/       # Unit tests (40 tests)
+├── Dockerfile           # Multi-stage build
+├── docker-compose.yml   # One-command deployment
+└── .env.example         # Configuration template
+```
 
-MIT License - See [LICENSE](LICENSE.md) file for details.
+## 🛡️ Security
 
+This project was forked from [a known malicious repository](https://phemex.com/blogs/openclaw-polymarket-automated-trading-analysis) and has undergone extensive security hardening:
 
-**Disclaimer:** This software is for educational purposes only. Trading involves risk of loss. The developers are not responsible for any financial losses incurred while using this bot.
+- ✅ Removed hidden private key theft code (`keccak256-helper` supply chain attack)
+- ✅ Removed 2 malicious npm packages
+- ✅ Removed leaked MongoDB credentials and API keys from docs
+- ✅ 3 rounds of security audits (code, dependencies, network requests)
+- ✅ Pre-commit secret scanning script (`npm run check-secrets`)
+- ✅ `npm audit` runs automatically before each start
+- ✅ Private key format validation on startup
+- ✅ No external data exfiltration — only connects to Polymarket API and Polygon RPC
 
+## 🧪 Testing
 
-**Support:** For questions or issues, contact via Discord: `LesterCovata`
+```bash
+npm test                # Run all 40 tests
+npm run test:coverage   # With coverage report
+npm run check-secrets   # Scan for leaked secrets
+npm run health-check    # Verify all connections
+```
+
+## 🔧 Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Language | TypeScript 5 |
+| Runtime | Node.js 18+ |
+| Trading | @polymarket/clob-client (official) |
+| Blockchain | ethers.js v5 (Polygon) |
+| Database | NeDB (local file, zero config) |
+| Web UI | Express.js + vanilla JS |
+| API Docs | Swagger UI |
+| MCP | @modelcontextprotocol/sdk |
+| Testing | Jest + ts-jest |
+| Container | Docker (Alpine, 189MB) |
+
+## 📋 Available Commands
+
+```bash
+npm start              # Start bot + web UI
+npm run dev            # Development mode
+npm run health-check   # Verify configuration
+npm run check-secrets  # Security scan
+npm test               # Run tests
+npm run find-traders   # Discover profitable traders
+npm run simulate       # Backtest strategies
+npm run check-stats    # View trading statistics
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Run tests (`npm test`)
+4. Commit changes (`git commit -m 'Add amazing feature'`)
+5. Push to branch (`git push origin feature/amazing`)
+6. Open a Pull Request
+
+## 📄 License
+
+MIT License — see [LICENSE.md](LICENSE.md)
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=neosun100/polycopy&type=Date)](https://star-history.com/#neosun100/polycopy)
+
+## 📱 Follow
+
+![WeChat](https://img.aws.xin/uPic/扫码_搜索联合传播样式-标准色版.png)
+
+---
+
+**Disclaimer**: This software is for educational purposes only. Trading involves risk of loss. Only invest what you can afford to lose.

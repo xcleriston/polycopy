@@ -131,7 +131,7 @@ You need two things in your Polygon wallet:
 4. Replace `<password>` with your actual password
 5. Replace `myFirstDatabase` with `polymarket`
 
-Example: `mongodb+srv://myusername676:mypassword676@cluster0.qzpwa2p.mongodb.net/?appName=Cluster0`
+Example: `mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/<database>?appName=Cluster0`
 
 ### 4. Get RPC Endpoint (Free)
 
@@ -142,7 +142,7 @@ Example: `mongodb+srv://myusername676:mypassword676@cluster0.qzpwa2p.mongodb.net
 4. Select "Polygon PoS"
 5. Copy the HTTPS endpoint
 
-Example: `https://polygon-mainnet.infura.io/v3/d11c16c6dd2c45a786ecd9f8877daec4`
+Example: `https://polygon-mainnet.infura.io/v3/YOUR_PROJECT_ID`
 
 **Option B: Alchemy**
 1. Visit [Alchemy.com](https://www.alchemy.com)

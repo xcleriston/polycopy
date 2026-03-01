@@ -19,7 +19,7 @@ const colors = {
 };
 
 console.log(`\n${colors.cyan}${colors.bright}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
-console.log(`${colors.cyan}${colors.bright}  ✅ Polymarket Copy Trading Bot - Installed!${colors.reset}`);
+console.log(`${colors.cyan}${colors.bright}  ✅ PolyCopy - Installed!${colors.reset}`);
 console.log(`${colors.cyan}${colors.bright}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}\n`);
 
 console.log(`${colors.yellow}🚀 Quick Start (3 steps):${colors.reset}\n`);

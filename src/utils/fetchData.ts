@@ -29,7 +29,7 @@ const fetchData = async (url: string) => {
             const response = await axios.get(url, {
                 timeout,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'User-Agent': 'polycopy/2.0 (Node.js)',
                 },
                 // Force IPv4 to avoid IPv6 connectivity issues
                 family: 4,

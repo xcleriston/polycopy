@@ -7,6 +7,7 @@ import { calculateOrderSize, getTradeMultiplier } from '../config/copyStrategy';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const COPY_STRATEGY_CONFIG = ENV.COPY_STRATEGY_CONFIG;
+const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
 
 // Legacy parameters (for backward compatibility in SELL logic)
 const TRADE_MULTIPLIER = ENV.TRADE_MULTIPLIER;
@@ -70,101 +71,10 @@ const postOrder = async (
     user_position: UserPositionInterface | undefined,
     trade: UserActivityInterface,
     my_balance: number,
-    user_balance: number,
     userAddress: string
 ) => {
     const UserActivity = getUserActivityModel(userAddress);
-    //Merge strategy
-    if (condition === 'merge') {
-        Logger.info('Executing MERGE strategy...');
-        if (!my_position) {
-            Logger.warning('No position to merge');
-            await UserActivity.updateOne({ _id: trade._id }, { bot: true });
-            return;
-        }
-        let remaining = my_position.size;
-
-        // Check minimum order size
-        if (remaining < MIN_ORDER_SIZE_TOKENS) {
-            Logger.warning(
-                `Position size (${remaining.toFixed(2)} tokens) too small to merge - skipping`
-            );
-            await UserActivity.updateOne({ _id: trade._id }, { bot: true });
-            return;
-        }
-
-        let retry = 0;
-        let abortDueToFunds = false;
-        while (remaining > 0 && retry < RETRY_LIMIT) {
-            const orderBook = await clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0) {
-                Logger.warning('No bids available in order book');
-                await UserActivity.updateOne({ _id: trade._id }, { bot: true });
-                break;
-            }
-
-            const maxPriceBid = orderBook.bids.reduce((max, bid) => {
-                return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
-            }, orderBook.bids[0]);
-
-            Logger.info(`Best bid: ${maxPriceBid.size} @ $${maxPriceBid.price}`);
-            let order_arges;
-            if (remaining <= parseFloat(maxPriceBid.size)) {
-                order_arges = {
-                    side: Side.SELL,
-                    tokenID: my_position.asset,
-                    amount: remaining,
-                    price: parseFloat(maxPriceBid.price),
-                };
-            } else {
-                order_arges = {
-                    side: Side.SELL,
-                    tokenID: my_position.asset,
-                    amount: parseFloat(maxPriceBid.size),
-                    price: parseFloat(maxPriceBid.price),
-                };
-            }
-            // Order args logged internally
-            const signedOrder = await clobClient.createMarketOrder(order_arges);
-            const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
-            if (resp.success === true) {
-                retry = 0;
-                Logger.orderResult(
-                    true,
-                    `Sold ${order_arges.amount} tokens at $${order_arges.price}`
-                );
-                remaining -= order_arges.amount;
-            } else {
-                const errorMessage = extractOrderError(resp);
-                if (isInsufficientBalanceOrAllowanceError(errorMessage)) {
-                    abortDueToFunds = true;
-                    Logger.warning(
-                        `Order rejected: ${errorMessage || 'Insufficient balance or allowance'}`
-                    );
-                    Logger.warning(
-                        'Skipping remaining attempts. Top up funds or run `npm run check-allowance` before retrying.'
-                    );
-                    break;
-                }
-                retry += 1;
-                Logger.warning(
-                    `Order failed (attempt ${retry}/${RETRY_LIMIT})${errorMessage ? ` - ${errorMessage}` : ''}`
-                );
-            }
-        }
-        if (abortDueToFunds) {
-            await UserActivity.updateOne(
-                { _id: trade._id },
-                { bot: true, botExcutedTime: RETRY_LIMIT }
-            );
-            return;
-        }
-        if (retry >= RETRY_LIMIT) {
-            await UserActivity.updateOne({ _id: trade._id }, { bot: true, botExcutedTime: retry });
-        } else {
-            await UserActivity.updateOne({ _id: trade._id }, { bot: true });
-        }
-    } else if (condition === 'buy') {
+    if (condition === 'buy') {
         //Buy strategy
         Logger.info('Executing BUY strategy...');
 
@@ -214,8 +124,8 @@ const postOrder = async (
             }, orderBook.asks[0]);
 
             Logger.info(`Best ask: ${minPriceAsk.size} @ $${minPriceAsk.price}`);
-            if (parseFloat(minPriceAsk.price) - 0.05 > trade.price) {
-                Logger.warning('Price slippage too high - skipping trade');
+            if (parseFloat(minPriceAsk.price) - SLIPPAGE_TOLERANCE > trade.price) {
+                Logger.warning(`Price slippage $${(parseFloat(minPriceAsk.price) - trade.price).toFixed(4)} exceeds tolerance $${SLIPPAGE_TOLERANCE} - skipping trade`);
                 await UserActivity.updateOne({ _id: trade._id }, { bot: true });
                 break;
             }

@@ -105,73 +105,62 @@ const init = async () => {
     Logger.tradersPositions(USER_ADDRESSES, positionCounts, positionDetails, profitabilities);
 };
 
-const fetchTradeData = async () => {
-    for (const { address, UserActivity, UserPosition } of userModels) {
-        try {
-            // Fetch trade activities from Polymarket API
-            const apiUrl = `https://data-api.polymarket.com/activity?user=${address}&type=TRADE`;
-            const activities = await fetchData(apiUrl);
+const fetchTradeDataForTrader = async ({ address, UserActivity, UserPosition }: typeof userModels[number]) => {
+    try {
+        // Fetch trade activities from Polymarket API
+        const apiUrl = `https://data-api.polymarket.com/activity?user=${address}&type=TRADE`;
+        const activities = await fetchData(apiUrl);
 
-            if (!Array.isArray(activities) || activities.length === 0) {
-                continue;
-            }
+        if (!Array.isArray(activities) || activities.length === 0) {
+            return;
+        }
 
-            // Process each activity
-            for (const activity of activities) {
-                // Skip if too old
-                if (activity.timestamp < TOO_OLD_TIMESTAMP) {
-                    continue;
-                }
+        // Process each activity
+        const cutoffTimestamp = Date.now() / 1000 - TOO_OLD_TIMESTAMP * 3600;
+        for (const activity of activities) {
+            if (activity.timestamp < cutoffTimestamp) continue;
 
-                // Check if this trade already exists in database
-                const existingActivity = await UserActivity.findOne({
-                    transactionHash: activity.transactionHash,
-                }).exec();
+            const exists = await UserActivity.findOne({
+                transactionHash: activity.transactionHash,
+            }).exec();
+            if (exists) continue;
 
-                if (existingActivity) {
-                    continue; // Already processed this trade
-                }
+            await UserActivity({
+                proxyWallet: activity.proxyWallet,
+                timestamp: activity.timestamp,
+                conditionId: activity.conditionId,
+                type: activity.type,
+                size: activity.size,
+                usdcSize: activity.usdcSize,
+                transactionHash: activity.transactionHash,
+                price: activity.price,
+                asset: activity.asset,
+                side: activity.side,
+                outcomeIndex: activity.outcomeIndex,
+                title: activity.title,
+                slug: activity.slug,
+                icon: activity.icon,
+                eventSlug: activity.eventSlug,
+                outcome: activity.outcome,
+                name: activity.name,
+                pseudonym: activity.pseudonym,
+                bio: activity.bio,
+                profileImage: activity.profileImage,
+                profileImageOptimized: activity.profileImageOptimized,
+                bot: false,
+                botExcutedTime: 0,
+            }).save();
+            Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
+        }
 
-                // Save new trade to database
-                const newActivity = new UserActivity({
-                    proxyWallet: activity.proxyWallet,
-                    timestamp: activity.timestamp,
-                    conditionId: activity.conditionId,
-                    type: activity.type,
-                    size: activity.size,
-                    usdcSize: activity.usdcSize,
-                    transactionHash: activity.transactionHash,
-                    price: activity.price,
-                    asset: activity.asset,
-                    side: activity.side,
-                    outcomeIndex: activity.outcomeIndex,
-                    title: activity.title,
-                    slug: activity.slug,
-                    icon: activity.icon,
-                    eventSlug: activity.eventSlug,
-                    outcome: activity.outcome,
-                    name: activity.name,
-                    pseudonym: activity.pseudonym,
-                    bio: activity.bio,
-                    profileImage: activity.profileImage,
-                    profileImageOptimized: activity.profileImageOptimized,
-                    bot: false,
-                    botExcutedTime: 0,
-                });
+        // Also fetch and update positions
+        const positionsUrl = `https://data-api.polymarket.com/positions?user=${address}`;
+        const positions = await fetchData(positionsUrl);
 
-                await newActivity.save();
-                Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
-            }
-
-            // Also fetch and update positions
-            const positionsUrl = `https://data-api.polymarket.com/positions?user=${address}`;
-            const positions = await fetchData(positionsUrl);
-
-            if (Array.isArray(positions) && positions.length > 0) {
-                for (const position of positions) {
-                    // Update or create position
-                    await UserPosition.findOneAndUpdate(
-                        { asset: position.asset, conditionId: position.conditionId },
+        if (Array.isArray(positions) && positions.length > 0) {
+            for (const position of positions) {
+                await UserPosition.findOneAndUpdate(
+                    { asset: position.asset, conditionId: position.conditionId },
                         {
                             proxyWallet: position.proxyWallet,
                             asset: position.asset,
@@ -204,11 +193,15 @@ const fetchTradeData = async () => {
                 }
             }
         } catch (error) {
-            Logger.error(
-                `Error fetching data for ${address.slice(0, 6)}...${address.slice(-4)}: ${error}`
-            );
-        }
+        Logger.error(
+            `Error fetching data for ${address.slice(0, 6)}...${address.slice(-4)}: ${error}`
+        );
     }
+};
+
+// Parallel fetch for all traders
+const fetchTradeData = async () => {
+    await Promise.allSettled(userModels.map(fetchTradeDataForTrader));
 };
 
 // Track if this is the first run

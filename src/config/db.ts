@@ -1,29 +1,29 @@
-import mongoose from 'mongoose';
-import { ENV } from './env';
+import * as path from 'path';
+import * as fs from 'fs';
 import chalk from 'chalk';
 
-const uri = ENV.MONGO_URI || 'mongodb://localhost:27017/polymarket_copytrading';
+const DB_DIR = path.join(process.cwd(), 'data');
+
+const ensureDbDir = () => {
+    if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+};
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(uri);
-        console.log(chalk.green('✓'), 'MongoDB connected');
+        ensureDbDir();
+        console.log(chalk.green('✓'), `NeDB initialized (${DB_DIR})`);
     } catch (error) {
-        console.log(chalk.red('✗'), 'MongoDB connection failed:', error);
+        console.log(chalk.red('✗'), 'NeDB initialization failed:', error);
         process.exit(1);
     }
 };
 
-/**
- * Close MongoDB connection gracefully
- */
 export const closeDB = async (): Promise<void> => {
-    try {
-        await mongoose.connection.close();
-        console.log(chalk.green('✓'), 'MongoDB connection closed');
-    } catch (error) {
-        console.log(chalk.red('✗'), 'Error closing MongoDB connection:', error);
-    }
+    console.log(chalk.green('✓'), 'Database closed');
 };
+
+export const getDbDir = () => DB_DIR;
 
 export default connectDB;

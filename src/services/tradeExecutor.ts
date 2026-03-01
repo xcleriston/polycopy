@@ -6,6 +6,7 @@ import fetchData from '../utils/fetchData';
 import getMyBalance from '../utils/getMyBalance';
 import postOrder from '../utils/postOrder';
 import Logger from '../utils/logger';
+import telegram from '../utils/telegram';
 
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
@@ -13,6 +14,35 @@ const PROXY_WALLET = ENV.PROXY_WALLET;
 const TRADE_AGGREGATION_ENABLED = ENV.TRADE_AGGREGATION_ENABLED;
 const TRADE_AGGREGATION_WINDOW_SECONDS = ENV.TRADE_AGGREGATION_WINDOW_SECONDS;
 const TRADE_AGGREGATION_MIN_TOTAL_USD = 1.0; // Polymarket minimum
+const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
+
+// Daily loss tracking
+let dailyStartBalance: number | null = null;
+let dailyStartDate = '';
+let killSwitchTriggered = false;
+const DAILY_LOSS_CAP_PCT = parseFloat(process.env.DAILY_LOSS_CAP_PCT || '20'); // default 20%
+
+const checkDailyLoss = async (): Promise<boolean> => {
+    const today = new Date().toISOString().split('T')[0];
+    const currentBalance = await getMyBalance(PROXY_WALLET);
+
+    if (dailyStartDate !== today) {
+        dailyStartDate = today;
+        dailyStartBalance = currentBalance;
+        Logger.info(`📅 Daily balance reset: $${currentBalance.toFixed(2)}`);
+    }
+
+    if (dailyStartBalance !== null && dailyStartBalance > 0) {
+        const lossPct = ((dailyStartBalance - currentBalance) / dailyStartBalance) * 100;
+        if (lossPct >= DAILY_LOSS_CAP_PCT) {
+            Logger.error(`🛑 KILL SWITCH: Daily loss ${lossPct.toFixed(1)}% exceeds ${DAILY_LOSS_CAP_PCT}% cap. Trading halted.`);
+            killSwitchTriggered = true;
+            telegram.killSwitch(lossPct);
+            return false;
+        }
+    }
+    return true;
+};
 
 // Create activity models for each user
 const userActivityModels = USER_ADDRESSES.map((address) => ({
@@ -146,6 +176,13 @@ const getReadyAggregatedTrades = (): AggregatedTrade[] => {
 
 const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]) => {
     for (const trade of trades) {
+        // Kill switch check
+        if (killSwitchTriggered) {
+            Logger.warning('🛑 Kill switch active — skipping trade');
+            return;
+        }
+        if (!(await checkDailyLoss())) return;
+
         // Mark trade as being processed immediately to prevent duplicate processing
         const UserActivity = getUserActivityModel(trade.userAddress);
         await UserActivity.updateOne({ _id: trade._id }, { $set: { botExcutedTime: 1 } });
@@ -159,6 +196,14 @@ const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]) => {
             eventSlug: trade.eventSlug,
             transactionHash: trade.transactionHash,
         });
+
+        // Preview mode: log but don't execute
+        if (PREVIEW_MODE) {
+            Logger.info('🔍 PREVIEW MODE — trade logged but NOT executed');
+            await UserActivity.updateOne({ _id: trade._id }, { bot: true });
+            Logger.separator();
+            continue;
+        }
 
         const my_positions: UserPositionInterface[] = await fetchData(
             `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`
@@ -191,7 +236,6 @@ const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]) => {
             user_position,
             trade,
             my_balance,
-            user_balance,
             trade.userAddress
         );
 
@@ -255,7 +299,6 @@ const doAggregatedTrading = async (clobClient: ClobClient, aggregatedTrades: Agg
             user_position,
             syntheticTrade,
             my_balance,
-            user_balance,
             agg.userAddress
         );
 
@@ -276,6 +319,13 @@ export const stopTradeExecutor = () => {
 
 const tradeExecutor = async (clobClient: ClobClient) => {
     Logger.success(`Trade executor ready for ${USER_ADDRESSES.length} trader(s)`);
+    if (telegram.isEnabled()) {
+        Logger.info('📱 Telegram notifications enabled');
+    }
+    if (PREVIEW_MODE) {
+        Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
+    }
+    Logger.info(`🛡️ Daily loss cap: ${DAILY_LOSS_CAP_PCT}% (set DAILY_LOSS_CAP_PCT to adjust)`);
     if (TRADE_AGGREGATION_ENABLED) {
         Logger.info(
             `Trade aggregation enabled: ${TRADE_AGGREGATION_WINDOW_SECONDS}s window, $${TRADE_AGGREGATION_MIN_TOTAL_USD} minimum`

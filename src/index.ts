@@ -3,6 +3,7 @@ import { ENV } from './config/env';
 import createClobClient from './utils/createClobClient';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor';
+import { startServer } from './server';
 import Logger from './utils/logger';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck';
 
@@ -63,14 +64,22 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export const main = async () => {
     try {
-        // Welcome message for first-time users
+        // Private key format validation
+        const pk = ENV.PRIVATE_KEY;
+        if (!/^[0-9a-fA-F]{64}$/.test(pk)) {
+            console.error('\n❌ PRIVATE_KEY must be exactly 64 hex characters (without 0x prefix)\n');
+            process.exit(1);
+        }
+
+        // Security warning
         const colors = {
             reset: '\x1b[0m',
+            red: '\x1b[31m',
             yellow: '\x1b[33m',
             cyan: '\x1b[36m',
         };
-        
-        console.log(`\n${colors.yellow}💡 First time running the bot?${colors.reset}`);
+        console.log(`\n${colors.red}⚠️  SECURITY: Your private key controls real funds. Never share it.${colors.reset}`);
+        console.log(`${colors.yellow}💡 First time running the bot?${colors.reset}`);
         console.log(`   Read the guide: ${colors.cyan}GETTING_STARTED.md${colors.reset}`);
         console.log(`   Run health check: ${colors.cyan}npm run health-check${colors.reset}\n`);
         
@@ -97,7 +106,8 @@ export const main = async () => {
         Logger.info('Starting trade executor...');
         tradeExecutor(clobClient);
 
-        // test(clobClient);
+        // Start web UI + API server
+        startServer();
     } catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);
         await gracefulShutdown('startup-error');

@@ -1,7 +1,5 @@
-import mongoose from 'mongoose';
-
 export interface UserActivityInterface {
-    _id: mongoose.Types.ObjectId;
+    _id?: string;
     proxyWallet: string;
     timestamp: number;
     conditionId: string;
@@ -25,11 +23,11 @@ export interface UserActivityInterface {
     profileImageOptimized: string;
     bot: boolean;
     botExcutedTime: number;
-    myBoughtSize?: number; // Tracks actual tokens we bought
+    myBoughtSize?: number;
 }
 
 export interface UserPositionInterface {
-    _id: mongoose.Types.ObjectId;
+    _id?: string;
     proxyWallet: string;
     asset: string;
     conditionId: string;

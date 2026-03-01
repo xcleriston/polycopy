@@ -139,9 +139,9 @@ async function computeGnosisSafeAddress() {
 
     // Alternative method - check specific address
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    console.log('📋 Checking known address 0xd62531...\n');
+    console.log('📋 Checking known Gnosis Safe address...\n');
 
-    const suspectAddress = '0xd62531bc536bff72394fc5ef715525575787e809';
+    const suspectAddress = process.env.GNOSIS_SAFE_ADDRESS || ENV.PROXY_WALLET;
 
     try {
         const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
