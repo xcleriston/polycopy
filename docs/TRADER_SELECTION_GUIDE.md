@@ -325,7 +325,7 @@ const customFilter = (trader: TraderAnalysis) => {
 ## Resources
 
 - [Polymarket Leaderboard](https://polymarket.com/leaderboard)
-- [Predictfolio](https://predictfolio.com) - Detailed trader analytics
+- [Polymarket Leaderboard](https://polymarket.com/leaderboard) - Detailed trader analytics
 - [Sharpe Ratio Explained](https://www.investopedia.com/terms/s/sharperatio.asp)
 - [Maximum Drawdown Explained](https://www.investopedia.com/terms/m/maximum-drawdown-mdd.asp)
 

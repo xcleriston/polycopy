@@ -185,5 +185,4 @@ MongoDB Collections:
 
 For questions or issues:
 
-- GitHub Issues: [Create an issue](https://github.com/vladmeer/polymarket-copy-trading-bot/issues)
-- Telegram: https://t.me/vladmeer67
+- GitHub Issues: [Create an issue](https://github.com/neosun100/polycopy/issues)

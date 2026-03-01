@@ -172,7 +172,7 @@ Visit the [Polymarket Leaderboard](https://polymarket.com/leaderboard) and look 
 3. Example: `https://polymarket.com/profile/0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b`
 4. The address is: `0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b`
 
-**Pro tip:** Use [Predictfolio](https://predictfolio.com) to analyze traders in detail!
+**Pro tip:** Use [Polymarket Leaderboard](https://polymarket.com/leaderboard) to analyze traders in detail!
 
 ---
 

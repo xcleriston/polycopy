@@ -106,9 +106,9 @@ The sandglass icon (⏳⌛) will animate while waiting for trades.
 4. Copy their wallet address from the URL
 5. Add to `USER_ADDRESSES` in `.env`
 
-### Method 2: Predictfolio
+### Method 2: Polymarket Leaderboard
 
-1. Visit [Predictfolio](https://predictfolio.com)
+1. Visit [Polymarket Leaderboard](https://polymarket.com/leaderboard)
 2. Browse top performers
 3. Check detailed stats (win rate, P&L, trade history)
 4. Copy wallet address

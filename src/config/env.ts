@@ -177,7 +177,7 @@ const parseUserAddresses = (input: string): string[] => {
                         console.error('Expected format: 0x followed by 40 hexadecimal characters\n');
                         console.error('💡 Where to find trader addresses:');
                         console.error('   • Polymarket Leaderboard: https://polymarket.com/leaderboard');
-                        console.error('   • Predictfolio: https://predictfolio.com\n');
+                        console.error('   • Polymarket Leaderboard: https://polymarket.com/leaderboard\n');
                         console.error('Example: USER_ADDRESSES=\'0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b\'\n');
                         throw new Error(`Invalid Ethereum address in USER_ADDRESSES: ${addr}`);
                     }
@@ -206,7 +206,7 @@ const parseUserAddresses = (input: string): string[] => {
             console.error('Expected format: 0x followed by 40 hexadecimal characters\n');
             console.error('💡 Where to find trader addresses:');
             console.error('   • Polymarket Leaderboard: https://polymarket.com/leaderboard');
-            console.error('   • Predictfolio: https://predictfolio.com\n');
+            console.error('   • Polymarket Leaderboard: https://polymarket.com/leaderboard\n');
             console.error('Example: USER_ADDRESSES=\'0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b\'\n');
             throw new Error(`Invalid Ethereum address in USER_ADDRESSES: ${addr}`);
         }
