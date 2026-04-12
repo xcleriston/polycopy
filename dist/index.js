@@ -7,14 +7,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import connectDB, { closeDB } from './config/db';
-import { ENV } from './config/env';
-import createClobClient from './utils/createClobClient';
-import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor';
-import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor';
-import { startServer } from './server';
-import Logger from './utils/logger';
-import { performHealthCheck, logHealthCheck } from './utils/healthCheck';
+import connectDB, { closeDB } from './config/db.js';
+import { ENV } from './config/env.js';
+import createClobClient from './utils/createClobClient.js';
+import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
+import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
+import { startServer } from './server/index.js';
+import Logger from './utils/logger.js';
+import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
