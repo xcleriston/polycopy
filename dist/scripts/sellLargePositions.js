@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,21 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const clob_client_1 = require("@polymarket/clob-client");
-const order_utils_1 = require("@polymarket/order-utils");
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const CLOB_HTTP_URL = env_1.ENV.CLOB_HTTP_URL;
-const RPC_URL = env_1.ENV.RPC_URL;
+import { ethers } from 'ethers';
+import { AssetType, ClobClient, OrderType, Side } from '@polymarket/clob-client';
+import { SignatureType } from '@polymarket/order-utils';
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PROXY_WALLET = ENV.PROXY_WALLET;
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
+const RPC_URL = ENV.RPC_URL;
 const POLYGON_CHAIN_ID = 137;
-const RETRY_LIMIT = env_1.ENV.RETRY_LIMIT;
+const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const SELL_PERCENTAGE = 0.8; // 80%
 const MIN_POSITION_VALUE = 17; // Only sell positions > $17
 const isGnosisSafe = (address, provider) => __awaiter(void 0, void 0, void 0, function* () {
@@ -36,20 +31,20 @@ const isGnosisSafe = (address, provider) => __awaiter(void 0, void 0, void 0, fu
     }
 });
 const createClobClient = (provider) => __awaiter(void 0, void 0, void 0, function* () {
-    const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY, provider);
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     const isProxySafe = yield isGnosisSafe(PROXY_WALLET, provider);
-    const signatureType = isProxySafe ? order_utils_1.SignatureType.POLY_GNOSIS_SAFE : order_utils_1.SignatureType.EOA;
+    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
     console.log(`Wallet type: ${isProxySafe ? 'Gnosis Safe' : 'EOA'}`);
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
     console.log = function () { };
     console.error = function () { };
-    let clobClient = new clob_client_1.ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, undefined, signatureType, isProxySafe ? PROXY_WALLET : undefined);
+    let clobClient = new ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, undefined, signatureType, isProxySafe ? PROXY_WALLET : undefined);
     let creds = yield clobClient.createApiKey();
     if (!creds.key) {
         creds = yield clobClient.deriveApiKey();
     }
-    clobClient = new clob_client_1.ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, creds, signatureType, isProxySafe ? PROXY_WALLET : undefined);
+    clobClient = new ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, creds, signatureType, isProxySafe ? PROXY_WALLET : undefined);
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
     return clobClient;
@@ -58,7 +53,7 @@ const updatePolymarketCache = (clobClient, tokenId) => __awaiter(void 0, void 0,
     try {
         console.log('🔄 Updating Polymarket balance cache for token...');
         const updateParams = {
-            asset_type: clob_client_1.AssetType.CONDITIONAL,
+            asset_type: AssetType.CONDITIONAL,
             token_id: tokenId,
         };
         yield clobClient.updateBalanceAllowance(updateParams);
@@ -99,14 +94,14 @@ const sellPosition = (clobClient, position, sellSize) => __awaiter(void 0, void 
             }
             // Create sell order
             const orderArgs = {
-                side: clob_client_1.Side.SELL,
+                side: Side.SELL,
                 tokenID: position.asset,
                 amount: orderAmount,
                 price: parseFloat(maxPriceBid.price),
             };
             console.log(`📤 Selling ${orderAmount.toFixed(2)} tokens at $${orderArgs.price}...`);
             const signedOrder = yield clobClient.createMarketOrder(orderArgs);
-            const resp = yield clobClient.postOrder(signedOrder, clob_client_1.OrderType.FOK);
+            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
             if (resp.success === true) {
                 retry = 0;
                 const soldValue = (orderAmount * orderArgs.price).toFixed(2);
@@ -184,12 +179,12 @@ function main() {
         console.log(`💰 Minimum position value: $${MIN_POSITION_VALUE}\n`);
         try {
             // Create provider and client
-            const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
             const clobClient = yield createClobClient(provider);
             console.log('✅ Connected to Polymarket\n');
             // Get all positions
             console.log('📥 Fetching positions...');
-            const positions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`);
+            const positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`);
             console.log(`Found ${positions.length} position(s)\n`);
             // Filter large positions
             const largePositions = positions.filter((p) => p.currentValue > MIN_POSITION_VALUE);

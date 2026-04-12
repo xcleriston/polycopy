@@ -1,37 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,12 +7,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const axios_1 = __importDefault(require("axios"));
-const env_1 = require("../config/env");
+import axios from 'axios';
+import { ENV } from '../config/env';
 // Simple console colors without chalk
 const colors = {
     cyan: (text) => `\x1b[36m${text}\x1b[0m`,
@@ -65,7 +27,7 @@ const HISTORY_DAYS = (() => {
     const value = raw ? Number(raw) : 7;
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 7;
 })();
-const MULTIPLIER = env_1.ENV.TRADE_MULTIPLIER || 1.0;
+const MULTIPLIER = ENV.TRADE_MULTIPLIER || 1.0;
 const MIN_ORDER_SIZE = (() => {
     const raw = process.env.SIM_MIN_ORDER_USD;
     const value = raw ? Number(raw) : 1.0;
@@ -78,7 +40,7 @@ const MAX_TRADES_LIMIT = (() => {
 })(); // Limit on number of trades for quick testing
 function fetchBatch(offset, limit, sinceTimestamp) {
     return __awaiter(this, void 0, void 0, function* () {
-        const response = yield axios_1.default.get(`https://data-api.polymarket.com/activity?user=${TRADER_ADDRESS}&type=TRADE&limit=${limit}&offset=${offset}`, {
+        const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${TRADER_ADDRESS}&type=TRADE&limit=${limit}&offset=${offset}`, {
             timeout: 10000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -101,8 +63,8 @@ function fetchBatch(offset, limit, sinceTimestamp) {
 function fetchTraderActivity() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const fs = yield Promise.resolve().then(() => __importStar(require('fs')));
-            const path = yield Promise.resolve().then(() => __importStar(require('path')));
+            const fs = yield import('fs');
+            const path = yield import('path');
             // Check cache first
             const cacheDir = path.join(process.cwd(), 'trader_data_cache');
             const today = new Date().toISOString().split('T')[0];
@@ -184,7 +146,7 @@ function fetchTraderPositions() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             console.log(colors.cyan('📈 Fetching trader positions...'));
-            const response = yield axios_1.default.get(`https://data-api.polymarket.com/positions?user=${TRADER_ADDRESS}`, {
+            const response = yield axios.get(`https://data-api.polymarket.com/positions?user=${TRADER_ADDRESS}`, {
                 timeout: 10000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -445,8 +407,8 @@ function main() {
             const result = yield simulateCopyTradingOldLogic(trades);
             printReport(result);
             // Save to JSON file
-            const fs = yield Promise.resolve().then(() => __importStar(require('fs')));
-            const path = yield Promise.resolve().then(() => __importStar(require('path')));
+            const fs = yield import('fs');
+            const path = yield import('path');
             const resultsDir = path.join(process.cwd(), 'simulation_results');
             if (!fs.existsSync(resultsDir)) {
                 fs.mkdirSync(resultsDir, { recursive: true });

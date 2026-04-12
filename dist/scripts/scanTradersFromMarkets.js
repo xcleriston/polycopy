@@ -1,37 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,14 +7,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const axios_1 = __importDefault(require("axios"));
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const moment_1 = __importDefault(require("moment"));
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
+import moment from 'moment';
 // Simple colors without chalk (to avoid ESM issues)
 const colors = {
     reset: '\x1b[0m',
@@ -108,7 +70,7 @@ function validateAddressesBatch(addresses) {
         for (const chunk of chunks) {
             const promises = chunk.map((address) => __awaiter(this, void 0, void 0, function* () {
                 try {
-                    const response = yield axios_1.default.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=1`, {
+                    const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=1`, {
                         timeout: 5000,
                         headers: { 'User-Agent': 'Mozilla/5.0' },
                     });
@@ -153,7 +115,7 @@ function extractTradersFromMarkets(markets) {
                         const tokenId = token.token_id || token.tokenId;
                         if (tokenId) {
                             try {
-                                const ordersResponse = yield axios_1.default.get(`https://clob.polymarket.com/book?token_id=${tokenId}`, {
+                                const ordersResponse = yield axios.get(`https://clob.polymarket.com/book?token_id=${tokenId}`, {
                                     timeout: 3000,
                                     headers: { 'User-Agent': 'Mozilla/5.0' },
                                 });
@@ -197,7 +159,7 @@ function extractTradersFromMarkets(markets) {
 function expandNetworkFromTrader(traderAddress_1) {
     return __awaiter(this, arguments, void 0, function* (traderAddress, depth = 200) {
         try {
-            const response = yield axios_1.default.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${depth}`, {
+            const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${depth}`, {
                 timeout: 10000,
                 headers: { 'User-Agent': 'Mozilla/5.0' },
             });
@@ -227,7 +189,7 @@ function discoverTradersFromRandomActivities() {
             console.log(c.bold('📡 STEP 1: Scanning active markets...\n'));
             let allMarkets = [];
             try {
-                const marketResponse = yield axios_1.default.get(`https://gamma-api.polymarket.com/markets?limit=${MAX_MARKETS_TO_SCAN}&closed=false`, {
+                const marketResponse = yield axios.get(`https://gamma-api.polymarket.com/markets?limit=${MAX_MARKETS_TO_SCAN}&closed=false`, {
                     timeout: 15000,
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -326,7 +288,7 @@ function discoverTradersFromRandomActivities() {
 function fetchTraderActivityBatch(traderAddress, offset, limit, sinceTimestamp) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const response = yield axios_1.default.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${limit}&offset=${offset}`, {
+            const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${limit}&offset=${offset}`, {
                 timeout: 10000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -392,7 +354,7 @@ function fetchTraderActivity(traderAddress) {
 function fetchTraderPositions(traderAddress) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const response = yield axios_1.default.get(`https://data-api.polymarket.com/positions?user=${traderAddress}`, {
+            const response = yield axios.get(`https://data-api.polymarket.com/positions?user=${traderAddress}`, {
                 timeout: 10000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -440,7 +402,7 @@ function analyzeTrader(traderAddress) {
                     unrealizedPnl: 0,
                     lastActivityTime: trades.length > 0 ? trades[trades.length - 1].timestamp : 0,
                     lastActivityDate: trades.length > 0
-                        ? moment_1.default.unix(trades[trades.length - 1].timestamp).fromNow()
+                        ? moment.unix(trades[trades.length - 1].timestamp).fromNow()
                         : 'Unknown',
                     profileUrl: `https://polymarket.com/profile/${traderAddress}`,
                     status: 'bad',
@@ -592,7 +554,7 @@ function analyzeTrader(traderAddress) {
                 unrealizedPnl,
                 lastActivityTime: trades.length > 0 ? trades[trades.length - 1].timestamp : 0,
                 lastActivityDate: trades.length > 0
-                    ? moment_1.default.unix(trades[trades.length - 1].timestamp).fromNow()
+                    ? moment.unix(trades[trades.length - 1].timestamp).fromNow()
                     : 'Unknown',
                 profileUrl: `https://polymarket.com/profile/${traderAddress}`,
                 status,
@@ -657,7 +619,7 @@ function printResultsTable(results) {
     console.log('\n' + c.cyan('═'.repeat(140)));
     console.log(c.bold('  📊 TRADER ANALYSIS RESULTS - DETAILED TABLE'));
     console.log(c.cyan('═'.repeat(140)) + '\n');
-    console.log(c.gray(`  Analysis Date: ${(0, moment_1.default)().format('YYYY-MM-DD HH:mm:ss')}`));
+    console.log(c.gray(`  Analysis Date: ${moment().format('YYYY-MM-DD HH:mm:ss')}`));
     console.log(c.gray(`  Period: ${HISTORY_DAYS} days | Multiplier: ${MULTIPLIER}x | Starting Capital: $${STARTING_CAPITAL}`));
     console.log(c.gray(`  Min Order: $${MIN_ORDER_SIZE} | Min Trader Trades: ${MIN_TRADER_TRADES}\n`));
     // Sort by ROI
@@ -772,7 +734,7 @@ function saveResults(results) {
     if (!fs.existsSync(resultsDir)) {
         fs.mkdirSync(resultsDir, { recursive: true });
     }
-    const timestamp = (0, moment_1.default)().format('YYYY-MM-DD_HH-mm-ss');
+    const timestamp = moment().format('YYYY-MM-DD_HH-mm-ss');
     const filename = `scan_${HISTORY_DAYS}d_m${MULTIPLIER}x_${timestamp}.json`;
     const filepath = path.join(resultsDir, filename);
     const data = {

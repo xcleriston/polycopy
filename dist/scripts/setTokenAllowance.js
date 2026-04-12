@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,18 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const clob_client_1 = require("@polymarket/clob-client");
-const env_1 = require("../config/env");
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const RPC_URL = env_1.ENV.RPC_URL;
+import { ethers } from 'ethers';
+import { getContractConfig } from '@polymarket/clob-client';
+import { ENV } from '../config/env';
+const PROXY_WALLET = ENV.PROXY_WALLET;
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const RPC_URL = ENV.RPC_URL;
 const POLYGON_CHAIN_ID = 137;
 // Polymarket Exchange address where tokens need to be approved
 const POLYMARKET_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
 // CTF (Conditional Token Framework) contract address
-const CTF_CONTRACT = (0, clob_client_1.getContractConfig)(POLYGON_CHAIN_ID).conditionalTokens;
+const CTF_CONTRACT = getContractConfig(POLYGON_CHAIN_ID).conditionalTokens;
 // ERC1155 approve for all ABI
 const CTF_ABI = [
     'function setApprovalForAll(address operator, bool approved) external',
@@ -29,14 +27,14 @@ function setTokenAllowance() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('🔑 Setting Token Allowance for Polymarket Trading');
         console.log('═══════════════════════════════════════════════\n');
-        const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
-        const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY, provider);
+        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
         console.log(`📍 Wallet: ${PROXY_WALLET}`);
         console.log(`📍 CTF Contract: ${CTF_CONTRACT}`);
         console.log(`📍 Polymarket Exchange: ${POLYMARKET_EXCHANGE}\n`);
         try {
             // Create CTF contract instance
-            const ctfContract = new ethers_1.ethers.Contract(CTF_CONTRACT, CTF_ABI, wallet);
+            const ctfContract = new ethers.Contract(CTF_CONTRACT, CTF_ABI, wallet);
             // Check current approval status
             console.log('🔍 Checking current approval status...');
             const isApproved = yield ctfContract.isApprovedForAll(PROXY_WALLET, POLYMARKET_EXCHANGE);
@@ -51,8 +49,8 @@ function setTokenAllowance() {
             const feeData = yield provider.getFeeData();
             const gasPrice = feeData.gasPrice
                 ? feeData.gasPrice.mul(150).div(100)
-                : ethers_1.ethers.utils.parseUnits('50', 'gwei');
-            console.log(`⛽ Gas Price: ${ethers_1.ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+                : ethers.utils.parseUnits('50', 'gwei');
+            console.log(`⛽ Gas Price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
             // Approve Polymarket Exchange to trade all your CT tokens
             const tx = yield ctfContract.setApprovalForAll(POLYMARKET_EXCHANGE, true, {
                 gasPrice: gasPrice,

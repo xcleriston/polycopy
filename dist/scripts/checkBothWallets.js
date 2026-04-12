@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,27 +7,23 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const getMyBalance_1 = __importDefault(require("../utils/getMyBalance"));
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+import getMyBalance from '../utils/getMyBalance';
+const PROXY_WALLET = ENV.PROXY_WALLET;
 const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d;
     console.log('🔍 CHECKING BOTH ADDRESSES\n');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    const ADDRESS_1 = env_1.ENV.PROXY_WALLET; // From .env
+    const ADDRESS_1 = ENV.PROXY_WALLET; // From .env
     const ADDRESS_2 = process.env.SECONDARY_WALLET || ''; // Optional secondary wallet
     try {
         // 1. Check first address (from .env)
         console.log('📊 ADDRESS 1 (from .env - PROXY_WALLET):\n');
         console.log(`   ${ADDRESS_1}`);
         console.log(`   Profile: https://polymarket.com/profile/${ADDRESS_1}\n`);
-        const addr1Activities = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/activity?user=${ADDRESS_1}&type=TRADE`);
-        const addr1Positions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${ADDRESS_1}`);
+        const addr1Activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_1}&type=TRADE`);
+        const addr1Positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_1}`);
         console.log(`   • Trades in API: ${(addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities.length) || 0}`);
         console.log(`   • Positions in API: ${(addr1Positions === null || addr1Positions === void 0 ? void 0 : addr1Positions.length) || 0}`);
         if (addr1Activities && addr1Activities.length > 0) {
@@ -46,7 +41,7 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Balance
         try {
-            const balance1 = yield (0, getMyBalance_1.default)(ADDRESS_1);
+            const balance1 = yield getMyBalance(ADDRESS_1);
             console.log(`   • USDC Balance: $${balance1.toFixed(2)}`);
         }
         catch (e) {
@@ -57,8 +52,8 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('📊 ADDRESS 2 (from profile @shbot):\n');
         console.log(`   ${ADDRESS_2}`);
         console.log(`   Profile: https://polymarket.com/profile/${ADDRESS_2}\n`);
-        const addr2Activities = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/activity?user=${ADDRESS_2}&type=TRADE`);
-        const addr2Positions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${ADDRESS_2}`);
+        const addr2Activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_2}&type=TRADE`);
+        const addr2Positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_2}`);
         console.log(`   • Trades in API: ${(addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities.length) || 0}`);
         console.log(`   • Positions in API: ${(addr2Positions === null || addr2Positions === void 0 ? void 0 : addr2Positions.length) || 0}`);
         if (addr2Activities && addr2Activities.length > 0) {
@@ -84,7 +79,7 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Balance
         try {
-            const balance2 = yield (0, getMyBalance_1.default)(ADDRESS_2);
+            const balance2 = yield getMyBalance(ADDRESS_2);
             console.log(`\n   • USDC Balance: $${balance2.toFixed(2)}`);
         }
         catch (e) {

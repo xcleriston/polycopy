@@ -1,37 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,18 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.logHealthCheck = exports.performHealthCheck = void 0;
-const fs = __importStar(require("fs"));
-const env_1 = require("../config/env");
-const db_1 = require("../config/db");
-const getMyBalance_1 = __importDefault(require("./getMyBalance"));
-const fetchData_1 = __importDefault(require("./fetchData"));
-const logger_1 = __importDefault(require("./logger"));
-const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () {
+import * as fs from 'fs';
+import { ENV } from '../config/env';
+import { getDbDir } from '../config/db';
+import getMyBalance from './getMyBalance';
+import fetchData from './fetchData';
+import Logger from './logger';
+export const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () {
     const checks = {
         database: { status: 'error', message: 'Not checked' },
         rpc: { status: 'error', message: 'Not checked' },
@@ -61,7 +22,7 @@ const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () 
     };
     // Check NeDB data directory
     try {
-        const dbDir = (0, db_1.getDbDir)();
+        const dbDir = getDbDir();
         if (fs.existsSync(dbDir)) {
             checks.database = { status: 'ok', message: `NeDB directory: ${dbDir}` };
         }
@@ -75,7 +36,7 @@ const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () 
     }
     // Check RPC endpoint
     try {
-        const response = yield fetch(env_1.ENV.RPC_URL, {
+        const response = yield fetch(ENV.RPC_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
@@ -94,7 +55,7 @@ const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () 
     }
     // Check USDC balance
     try {
-        const balance = yield (0, getMyBalance_1.default)(env_1.ENV.PROXY_WALLET);
+        const balance = yield getMyBalance(ENV.PROXY_WALLET);
         if (balance > 0) {
             checks.balance = balance < 10
                 ? { status: 'warning', message: `Low balance: $${balance.toFixed(2)}`, balance }
@@ -109,7 +70,7 @@ const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () 
     }
     // Check Polymarket API
     try {
-        yield (0, fetchData_1.default)('https://data-api.polymarket.com/positions?user=0x0000000000000000000000000000000000000000');
+        yield fetchData('https://data-api.polymarket.com/positions?user=0x0000000000000000000000000000000000000000');
         checks.polymarketApi = { status: 'ok', message: 'API responding' };
     }
     catch (error) {
@@ -118,15 +79,13 @@ const performHealthCheck = () => __awaiter(void 0, void 0, void 0, function* () 
     const healthy = checks.database.status === 'ok' && checks.rpc.status === 'ok' && checks.balance.status !== 'error' && checks.polymarketApi.status === 'ok';
     return { healthy, checks, timestamp: Date.now() };
 });
-exports.performHealthCheck = performHealthCheck;
-const logHealthCheck = (result) => {
-    logger_1.default.separator();
-    logger_1.default.header('🏥 HEALTH CHECK');
-    logger_1.default.info(`Overall Status: ${result.healthy ? '✅ Healthy' : '❌ Unhealthy'}`);
-    logger_1.default.info(`Database: ${result.checks.database.status === 'ok' ? '✅' : '❌'} ${result.checks.database.message}`);
-    logger_1.default.info(`RPC: ${result.checks.rpc.status === 'ok' ? '✅' : '❌'} ${result.checks.rpc.message}`);
-    logger_1.default.info(`Balance: ${result.checks.balance.status === 'ok' ? '✅' : result.checks.balance.status === 'warning' ? '⚠️' : '❌'} ${result.checks.balance.message}`);
-    logger_1.default.info(`Polymarket API: ${result.checks.polymarketApi.status === 'ok' ? '✅' : '❌'} ${result.checks.polymarketApi.message}`);
-    logger_1.default.separator();
+export const logHealthCheck = (result) => {
+    Logger.separator();
+    Logger.header('🏥 HEALTH CHECK');
+    Logger.info(`Overall Status: ${result.healthy ? '✅ Healthy' : '❌ Unhealthy'}`);
+    Logger.info(`Database: ${result.checks.database.status === 'ok' ? '✅' : '❌'} ${result.checks.database.message}`);
+    Logger.info(`RPC: ${result.checks.rpc.status === 'ok' ? '✅' : '❌'} ${result.checks.rpc.message}`);
+    Logger.info(`Balance: ${result.checks.balance.status === 'ok' ? '✅' : result.checks.balance.status === 'warning' ? '⚠️' : '❌'} ${result.checks.balance.message}`);
+    Logger.info(`Polymarket API: ${result.checks.polymarketApi.status === 'ok' ? '✅' : '❌'} ${result.checks.polymarketApi.message}`);
+    Logger.separator();
 };
-exports.logHealthCheck = logHealthCheck;

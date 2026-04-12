@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,17 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const axios_1 = __importDefault(require("axios"));
-const bot_1 = __importDefault(require("./bot"));
+import axios from 'axios';
+import TelegramBot from './bot';
 class TelegramServer {
     constructor(token, webhookUrl) {
         this.token = token;
         this.webhookUrl = webhookUrl;
-        this.bot = new bot_1.default(token);
+        this.bot = new TelegramBot(token);
     }
     startPolling() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -28,7 +23,7 @@ class TelegramServer {
             let lastUpdate = 0;
             while (true) {
                 try {
-                    const response = yield axios_1.default.get(`https://api.telegram.org/bot${this.token}/getUpdates?offset=${lastUpdate + 1}&timeout=30`);
+                    const response = yield axios.get(`https://api.telegram.org/bot${this.token}/getUpdates?offset=${lastUpdate + 1}&timeout=30`);
                     const updates = response.data.result;
                     for (const update of updates) {
                         lastUpdate = update.update_id;
@@ -38,7 +33,7 @@ class TelegramServer {
                         else if (update.callback_query) {
                             yield this.bot.handleCallback(update.callback_query.data, update.callback_query.message.chat.id.toString());
                             // Answer callback query
-                            yield axios_1.default.post(`https://api.telegram.org/bot${this.token}/answerCallbackQuery`, {
+                            yield axios.post(`https://api.telegram.org/bot${this.token}/answerCallbackQuery`, {
                                 callback_query_id: update.callback_query.id,
                                 text: 'Processando...'
                             });
@@ -61,7 +56,7 @@ class TelegramServer {
                 return;
             }
             try {
-                yield axios_1.default.post(`https://api.telegram.org/bot${this.token}/setWebhook`, {
+                yield axios.post(`https://api.telegram.org/bot${this.token}/setWebhook`, {
                     url: this.webhookUrl
                 });
                 console.log(`✅ Webhook configurado: ${this.webhookUrl}`);
@@ -74,7 +69,7 @@ class TelegramServer {
     getBotInfo() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const response = yield axios_1.default.get(`https://api.telegram.org/bot${this.token}/getMe`);
+                const response = yield axios.get(`https://api.telegram.org/bot${this.token}/getMe`);
                 return response.data.result;
             }
             catch (error) {
@@ -84,4 +79,4 @@ class TelegramServer {
         });
     }
 }
-exports.default = TelegramServer;
+export default TelegramServer;

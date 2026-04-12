@@ -1,37 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,33 +7,27 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createWallet = createWallet;
-exports.findPolymarketProxy = findPolymarketProxy;
-exports.generateDepositLinks = generateDepositLinks;
-exports.updateEnvFile = updateEnvFile;
-exports.setupNewUser = setupNewUser;
-const ethers_1 = require("ethers");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-function createWallet() {
+import { ethers } from 'ethers';
+import * as fs from 'fs';
+import * as path from 'path';
+export function createWallet() {
     return __awaiter(this, void 0, void 0, function* () {
-        const wallet = ethers_1.ethers.Wallet.createRandom();
+        const wallet = ethers.Wallet.createRandom();
         return {
             address: wallet.address,
             privateKey: wallet.privateKey
         };
     });
 }
-function findPolymarketProxy(eoaAddress) {
+export function findPolymarketProxy(eoaAddress) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const RPC_URL = process.env.RPC_URL || 'https://poly.api.pocket.network';
-            const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
             // Polymarket Proxy Factory on Polygon
             const POLYMARKET_PROXY_FACTORY = '0xab45c5a4b0c941a2f231c04c3f49182e1a254052';
             const proxyFactoryAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
-            const polymarketProxyFactory = new ethers_1.ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);
+            const polymarketProxyFactory = new ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);
             const latestBlock = yield provider.getBlockNumber();
             const fromBlock = Math.max(0, latestBlock - 10000000);
             const events = yield polymarketProxyFactory.queryFilter(polymarketProxyFactory.filters.ProxyCreation(null, null), fromBlock, latestBlock);
@@ -86,14 +46,14 @@ function findPolymarketProxy(eoaAddress) {
         }
     });
 }
-function generateDepositLinks(walletAddress) {
+export function generateDepositLinks(walletAddress) {
     return {
         usdc: `https://wallet.polygon.technology/polygon/bridge/deposit?to=${walletAddress}`,
         pol: `https://www.coingecko.com/en/coins/polygon?utm_source=polycopy`,
         quickswap: `https://quickswap.exchange/#/swap?inputCurrency=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174&outputCurrency=0x458Efe634a885F2A2A57B106063e822A060f9dcF&recipient=${walletAddress}`
     };
 }
-function updateEnvFile(config) {
+export function updateEnvFile(config) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
         const envPath = path.join(process.cwd(), '.env');
@@ -125,7 +85,7 @@ function updateEnvFile(config) {
         fs.writeFileSync(envPath, envContent);
     });
 }
-function setupNewUser(request) {
+export function setupNewUser(request) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // 1. Create new wallet

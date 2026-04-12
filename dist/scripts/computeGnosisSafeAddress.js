@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,15 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const RPC_URL = env_1.ENV.RPC_URL;
+import { ethers } from 'ethers';
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const RPC_URL = ENV.RPC_URL;
 // Gnosis Safe Proxy Factory on Polygon
 const GNOSIS_SAFE_PROXY_FACTORY = '0xaacfeea03eb1561c4e67d661e40682bd20e3541b';
 const POLYMARKET_PROXY_FACTORY = '0xab45c5a4b0c941a2f231c04c3f49182e1a254052';
@@ -24,18 +19,18 @@ function computeGnosisSafeAddress() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('\n🔍 COMPUTING GNOSIS SAFE PROXY ADDRESS\n');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-        const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY);
+        const wallet = new ethers.Wallet(PRIVATE_KEY);
         const eoaAddress = wallet.address;
         console.log('📋 EOA address (from private key):\n');
         console.log(`   ${eoaAddress}\n`);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 Searching for Gnosis Safe Proxy via events\n');
         try {
-            const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
             // ABI for ProxyCreation event
             const proxyFactoryAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
-            const gnosisSafeFactory = new ethers_1.ethers.Contract(GNOSIS_SAFE_PROXY_FACTORY, proxyFactoryAbi, provider);
-            const polymarketProxyFactory = new ethers_1.ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);
+            const gnosisSafeFactory = new ethers.Contract(GNOSIS_SAFE_PROXY_FACTORY, proxyFactoryAbi, provider);
+            const polymarketProxyFactory = new ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);
             console.log('   Searching for ProxyCreation events...\n');
             const latestBlock = yield provider.getBlockNumber();
             const fromBlock = Math.max(0, latestBlock - 10000000); // Last 10M blocks
@@ -68,7 +63,7 @@ function computeGnosisSafeAddress() {
                             // For Gnosis Safe check owners
                             try {
                                 const gnosisSafeAbi = ['function getOwners() view returns (address[])'];
-                                const safeContract = new ethers_1.ethers.Contract(proxyAddress, gnosisSafeAbi, provider);
+                                const safeContract = new ethers.Contract(proxyAddress, gnosisSafeAbi, provider);
                                 const owners = yield safeContract.getOwners();
                                 if (owners && owners.length > 0) {
                                     const isOwner = owners.some((owner) => owner.toLowerCase() === eoaAddress.toLowerCase());
@@ -76,7 +71,7 @@ function computeGnosisSafeAddress() {
                                         console.log(`   🎯 GNOSIS SAFE FOUND!\n`);
                                         console.log(`   Proxy address: ${proxyAddress}\n`);
                                         // Check positions
-                                        const positions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
+                                        const positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
                                         console.log(`   Positions on Proxy: ${(positions === null || positions === void 0 ? void 0 : positions.length) || 0}\n`);
                                         if (positions && positions.length > 0) {
                                             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -108,9 +103,9 @@ function computeGnosisSafeAddress() {
         // Alternative method - check specific address
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 Checking known Gnosis Safe address...\n');
-        const suspectAddress = process.env.GNOSIS_SAFE_ADDRESS || env_1.ENV.PROXY_WALLET;
+        const suspectAddress = process.env.GNOSIS_SAFE_ADDRESS || ENV.PROXY_WALLET;
         try {
-            const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
             // Check if this is a smart contract
             const code = yield provider.getCode(suspectAddress);
             const isContract = code !== '0x';
@@ -123,7 +118,7 @@ function computeGnosisSafeAddress() {
                         'function getOwners() view returns (address[])',
                         'function getThreshold() view returns (uint256)',
                     ];
-                    const safeContract = new ethers_1.ethers.Contract(suspectAddress, gnosisSafeAbi, provider);
+                    const safeContract = new ethers.Contract(suspectAddress, gnosisSafeAbi, provider);
                     const owners = yield safeContract.getOwners();
                     const threshold = yield safeContract.getThreshold();
                     console.log(`   This is a Gnosis Safe!`);
@@ -136,7 +131,7 @@ function computeGnosisSafeAddress() {
                         }
                     }
                     // Check positions
-                    const positions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${suspectAddress}`);
+                    const positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${suspectAddress}`);
                     console.log(`\n   Positions on this address: ${(positions === null || positions === void 0 ? void 0 : positions.length) || 0}\n`);
                     if (positions && positions.length > 0) {
                         console.log('   🎯 POSITIONS FOUND ON THIS ADDRESS!\n');

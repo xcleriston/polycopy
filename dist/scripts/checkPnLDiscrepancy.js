@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,13 +7,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PROXY_WALLET = ENV.PROXY_WALLET;
 const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log('🔍 Detailed P&L discrepancy check\n');
     console.log(`Wallet: ${PROXY_WALLET}\n`);
@@ -23,7 +18,7 @@ const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Get all positions (open and closed)
         console.log('📊 Fetching data from Polymarket API...\n');
         const positionsUrl = `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`;
-        const positions = yield (0, fetchData_1.default)(positionsUrl);
+        const positions = yield fetchData(positionsUrl);
         console.log(`Fetched positions: ${positions.length}\n`);
         // 2. Separate into open and closed
         const openPositions = positions.filter((p) => p.size > 0);
@@ -90,7 +85,7 @@ const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
         // 6. Check through trade history
         console.log('🔎 CHECK THROUGH TRADE HISTORY:\n');
         const activityUrl = `https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`;
-        const activities = yield (0, fetchData_1.default)(activityUrl);
+        const activities = yield fetchData(activityUrl);
         // Group trades by markets
         const marketTrades = new Map();
         activities.forEach((trade) => {

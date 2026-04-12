@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,17 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const clob_client_1 = require("@polymarket/clob-client");
-const env_1 = require("../config/env");
-const createClobClient_1 = __importDefault(require("../utils/createClobClient"));
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
-const USER_ADDRESSES = env_1.ENV.USER_ADDRESSES;
-const RETRY_LIMIT = env_1.ENV.RETRY_LIMIT;
+import { AssetType, OrderType, Side } from '@polymarket/clob-client';
+import { ENV } from '../config/env';
+import createClobClient from '../utils/createClobClient';
+import fetchData from '../utils/fetchData';
+const PROXY_WALLET = ENV.PROXY_WALLET;
+const USER_ADDRESSES = ENV.USER_ADDRESSES;
+const RETRY_LIMIT = ENV.RETRY_LIMIT;
 // Polymarket enforces a 1 token minimum on sell orders
 const MIN_SELL_TOKENS = 1.0;
 const ZERO_THRESHOLD = 0.0001;
@@ -63,7 +58,7 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
 const updatePolymarketCache = (clobClient, tokenId) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield clobClient.updateBalanceAllowance({
-            asset_type: clob_client_1.AssetType.CONDITIONAL,
+            asset_type: AssetType.CONDITIONAL,
             token_id: tokenId,
         });
     }
@@ -102,14 +97,14 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
             break;
         }
         const orderArgs = {
-            side: clob_client_1.Side.SELL,
+            side: Side.SELL,
             tokenID: position.asset,
             amount: sellAmount,
             price: bidPrice,
         };
         try {
             const signedOrder = yield clobClient.createMarketOrder(orderArgs);
-            const resp = yield clobClient.postOrder(signedOrder, clob_client_1.OrderType.FOK);
+            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
             if (resp.success === true) {
                 const tradeValue = sellAmount * bidPrice;
                 soldTokens += sellAmount;
@@ -143,7 +138,7 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
 });
 const loadPositions = (address) => __awaiter(void 0, void 0, void 0, function* () {
     const url = `https://data-api.polymarket.com/positions?user=${address}`;
-    const data = yield (0, fetchData_1.default)(url);
+    const data = yield fetchData(url);
     const positions = Array.isArray(data) ? data : [];
     return positions.filter((pos) => (pos.size || 0) > ZERO_THRESHOLD);
 });
@@ -179,7 +174,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log('🚀 Closing stale positions (tracked traders already exited)');
     console.log('════════════════════════════════════════════════════');
     console.log(`Wallet: ${PROXY_WALLET}`);
-    const clobClient = yield (0, createClobClient_1.default)();
+    const clobClient = yield createClobClient();
     console.log('✅ Connected to Polymarket CLOB');
     const [myPositions, trackedPositions] = yield Promise.all([
         loadPositions(PROXY_WALLET),

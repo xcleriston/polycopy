@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,15 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const axios_1 = __importDefault(require("axios"));
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const env_1 = require("../config/env");
-const USER_ADDRESSES = env_1.ENV.USER_ADDRESSES;
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { ENV } from '../config/env';
+const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const HISTORY_DAYS = (() => {
     const raw = process.env.HISTORY_DAYS;
     const value = raw ? Number(raw) : 30;
@@ -39,7 +34,7 @@ const MAX_PARALLEL = (() => {
 })();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const fetchBatch = (address, offset, limit) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield axios_1.default.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=${limit}&offset=${offset}`, {
+    const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=${limit}&offset=${offset}`, {
         timeout: 15000,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -75,12 +70,12 @@ const fetchTradesForTrader = (address) => __awaiter(void 0, void 0, void 0, func
     return sorted;
 });
 const saveTradesToCache = (address, trades) => {
-    const cacheDir = path_1.default.join(process.cwd(), 'trader_data_cache');
-    if (!fs_1.default.existsSync(cacheDir)) {
-        fs_1.default.mkdirSync(cacheDir, { recursive: true });
+    const cacheDir = path.join(process.cwd(), 'trader_data_cache');
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
     }
     const today = new Date().toISOString().split('T')[0];
-    const cacheFile = path_1.default.join(cacheDir, `${address}_${HISTORY_DAYS}d_${today}.json`);
+    const cacheFile = path.join(cacheDir, `${address}_${HISTORY_DAYS}d_${today}.json`);
     const payload = {
         name: `trader_${address.slice(0, 6)}_${HISTORY_DAYS}d_${today}`,
         traderAddress: address,
@@ -90,7 +85,7 @@ const saveTradesToCache = (address, trades) => {
         totalTrades: trades.length,
         trades,
     };
-    fs_1.default.writeFileSync(cacheFile, JSON.stringify(payload, null, 2), 'utf8');
+    fs.writeFileSync(cacheFile, JSON.stringify(payload, null, 2), 'utf8');
     console.log(`💾 Saved to ${cacheFile}`);
 };
 const chunk = (array, size) => {

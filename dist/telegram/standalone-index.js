@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,11 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const standalone_server_1 = __importDefault(require("./standalone-server"));
+import TelegramStandaloneServer from './standalone-server';
 const TELEGRAM_BOT_TOKEN = '8607996597:AAH6yTuUH3eQSW0I_KglSfsG2iYFPFHlPH4';
 if (!TELEGRAM_BOT_TOKEN) {
     console.error('❌ TELEGRAM_BOT_TOKEN não encontrado');
@@ -20,7 +15,7 @@ if (!TELEGRAM_BOT_TOKEN) {
 }
 function startTelegramBot() {
     return __awaiter(this, void 0, void 0, function* () {
-        const telegramServer = new standalone_server_1.default(TELEGRAM_BOT_TOKEN);
+        const telegramServer = new TelegramStandaloneServer(TELEGRAM_BOT_TOKEN);
         // Get bot info
         const botInfo = yield telegramServer.getBotInfo();
         if (botInfo) {

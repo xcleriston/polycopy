@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,15 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const axios_1 = __importDefault(require("axios"));
-const env_1 = require("../config/env");
+import axios from 'axios';
+import { ENV } from '../config/env';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isNetworkError = (error) => {
-    if (axios_1.default.isAxiosError(error)) {
+    if (axios.isAxiosError(error)) {
         const axiosError = error;
         const code = axiosError.code;
         // Network timeout/connection errors
@@ -29,12 +24,12 @@ const isNetworkError = (error) => {
     return false;
 };
 const fetchData = (url) => __awaiter(void 0, void 0, void 0, function* () {
-    const retries = env_1.ENV.NETWORK_RETRY_LIMIT;
-    const timeout = env_1.ENV.REQUEST_TIMEOUT_MS;
+    const retries = ENV.NETWORK_RETRY_LIMIT;
+    const timeout = ENV.REQUEST_TIMEOUT_MS;
     const retryDelay = 1000; // 1 second base delay
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            const response = yield axios_1.default.get(url, {
+            const response = yield axios.get(url, {
                 timeout,
                 headers: {
                     'User-Agent': 'polycopy/2.0 (Node.js)',
@@ -54,10 +49,10 @@ const fetchData = (url) => __awaiter(void 0, void 0, void 0, function* () {
             }
             // If it's the last attempt or not a network error, throw
             if (isLastAttempt && isNetworkError(error)) {
-                console.error(`❌ Network timeout after ${retries} attempts -`, axios_1.default.isAxiosError(error) ? error.code : 'Unknown error');
+                console.error(`❌ Network timeout after ${retries} attempts -`, axios.isAxiosError(error) ? error.code : 'Unknown error');
             }
             throw error;
         }
     }
 });
-exports.default = fetchData;
+export default fetchData;

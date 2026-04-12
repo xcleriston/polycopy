@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,16 +7,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const RPC_URL = env_1.ENV.RPC_URL || 'https://polygon-rpc.com';
+import { ethers } from 'ethers';
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PROXY_WALLET = ENV.PROXY_WALLET;
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const RPC_URL = ENV.RPC_URL || 'https://polygon-rpc.com';
 // Contract addresses on Polygon
 const CTF_CONTRACT_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
 const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC on Polygon
@@ -32,16 +27,16 @@ const CTF_ABI = [
 ];
 const loadPositions = (address) => __awaiter(void 0, void 0, void 0, function* () {
     const url = `https://data-api.polymarket.com/positions?user=${address}`;
-    const data = yield (0, fetchData_1.default)(url);
+    const data = yield fetchData(url);
     const positions = Array.isArray(data) ? data : [];
     return positions.filter((pos) => (pos.size || 0) > ZERO_THRESHOLD);
 });
 const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         // Convert conditionId to bytes32 format
-        const conditionIdBytes32 = ethers_1.ethers.utils.hexZeroPad(ethers_1.ethers.BigNumber.from(position.conditionId).toHexString(), 32);
+        const conditionIdBytes32 = ethers.utils.hexZeroPad(ethers.BigNumber.from(position.conditionId).toHexString(), 32);
         // parentCollectionId is always zero for Polymarket
-        const parentCollectionId = ethers_1.ethers.constants.HashZero;
+        const parentCollectionId = ethers.constants.HashZero;
         // indexSets: [1, 2] represents both outcome collections
         // We use [1, 2] to redeem all positions for this condition
         const indexSets = [1, 2];
@@ -56,7 +51,7 @@ const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void
         }
         // Add 20% buffer to ensure transaction goes through
         const adjustedGasPrice = gasPrice.mul(120).div(100);
-        console.log(`   Gas price: ${ethers_1.ethers.utils.formatUnits(adjustedGasPrice, 'gwei')} Gwei`);
+        console.log(`   Gas price: ${ethers.utils.formatUnits(adjustedGasPrice, 'gwei')} Gwei`);
         const tx = yield ctfContract.redeemPositions(USDC_ADDRESS, parentCollectionId, conditionIdBytes32, indexSets, {
             gasLimit: 500000, // Set a reasonable gas limit
             gasPrice: adjustedGasPrice,
@@ -98,8 +93,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Win threshold: price >= $${RESOLVED_HIGH}`);
     console.log(`Loss threshold: price <= $${RESOLVED_LOW}`);
     // Setup provider and signer
-    const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
-    const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY, provider);
+    const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     console.log(`\n✅ Connected to Polygon RPC`);
     console.log(`Signer address: ${wallet.address}`);
     // Check if signer is proxy wallet or owner
@@ -108,7 +103,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(`   Make sure signer has permission to execute transactions on proxy wallet`);
     }
     // Create contract instance
-    const ctfContract = new ethers_1.ethers.Contract(CTF_CONTRACT_ADDRESS, CTF_ABI, wallet);
+    const ctfContract = new ethers.Contract(CTF_CONTRACT_ADDRESS, CTF_ABI, wallet);
     // Load positions
     const allPositions = yield loadPositions(PROXY_WALLET);
     if (allPositions.length === 0) {

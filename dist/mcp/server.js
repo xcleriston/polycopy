@@ -1,38 +1,4 @@
 #!/usr/bin/env node
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -42,12 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const mcp_js_1 = require("@modelcontextprotocol/sdk/server/mcp.js");
-const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
-const zod_1 = require("zod");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const readDbFile = (filename) => {
     const fp = path.join(DATA_DIR, filename);
@@ -62,7 +27,7 @@ const readDbFile = (filename) => {
         }
     }).filter(Boolean);
 };
-const server = new mcp_js_1.McpServer({ name: 'polycopy', version: '2.0.0' });
+const server = new McpServer({ name: 'polycopy', version: '2.0.0' });
 server.tool('get_bot_status', 'Get current bot status and uptime', {}, () => __awaiter(void 0, void 0, void 0, function* () {
     const dbFiles = fs.existsSync(DATA_DIR) ? fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.db')) : [];
     return { content: [{ type: 'text', text: JSON.stringify({
@@ -72,7 +37,7 @@ server.tool('get_bot_status', 'Get current bot status and uptime', {}, () => __a
                     previewMode: process.env.PREVIEW_MODE === 'true',
                 }, null, 2) }] };
 }));
-server.tool('get_recent_trades', 'Get recent copy trades', { limit: zod_1.z.number().optional().describe('Max trades to return (default 20)') }, (_a) => __awaiter(void 0, [_a], void 0, function* ({ limit }) {
+server.tool('get_recent_trades', 'Get recent copy trades', { limit: z.number().optional().describe('Max trades to return (default 20)') }, (_a) => __awaiter(void 0, [_a], void 0, function* ({ limit }) {
     const trades = [];
     if (fs.existsSync(DATA_DIR)) {
         for (const f of fs.readdirSync(DATA_DIR).filter(f => f.startsWith('user_activities_'))) {
@@ -103,7 +68,7 @@ server.tool('get_config', 'Get current bot configuration', {}, () => __awaiter(v
                 }, null, 2) }] };
 }));
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
-    const transport = new stdio_js_1.StdioServerTransport();
+    const transport = new StdioServerTransport();
     yield server.connect(transport);
 });
 main().catch(console.error);

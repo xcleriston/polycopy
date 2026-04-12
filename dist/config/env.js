@@ -1,41 +1,5 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ENV = void 0;
-const dotenv = __importStar(require("dotenv"));
-const copyStrategy_1 = require("./copyStrategy");
+import * as dotenv from 'dotenv';
+import { CopyStrategy, parseTieredMultipliers } from './copyStrategy';
 dotenv.config();
 /**
  * Validate Ethereum address format
@@ -224,7 +188,7 @@ const parseCopyStrategy = () => {
         const tradeMultiplier = parseFloat(process.env.TRADE_MULTIPLIER || '1.0');
         const effectivePercentage = copyPercentage * tradeMultiplier;
         const config = {
-            strategy: copyStrategy_1.CopyStrategy.PERCENTAGE,
+            strategy: CopyStrategy.PERCENTAGE,
             copySize: effectivePercentage,
             maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100.0'),
             minOrderSizeUSD: parseFloat(process.env.MIN_ORDER_SIZE_USD || '1.0'),
@@ -238,7 +202,7 @@ const parseCopyStrategy = () => {
         // Parse tiered multipliers if configured (even for legacy mode)
         if (process.env.TIERED_MULTIPLIERS) {
             try {
-                config.tieredMultipliers = (0, copyStrategy_1.parseTieredMultipliers)(process.env.TIERED_MULTIPLIERS);
+                config.tieredMultipliers = parseTieredMultipliers(process.env.TIERED_MULTIPLIERS);
                 console.log(`✓ Loaded ${config.tieredMultipliers.length} tiered multipliers`);
             }
             catch (error) {
@@ -253,7 +217,7 @@ const parseCopyStrategy = () => {
     }
     // Parse new copy strategy configuration
     const strategyStr = (process.env.COPY_STRATEGY || 'PERCENTAGE').toUpperCase();
-    const strategy = copyStrategy_1.CopyStrategy[strategyStr] || copyStrategy_1.CopyStrategy.PERCENTAGE;
+    const strategy = CopyStrategy[strategyStr] || CopyStrategy.PERCENTAGE;
     const config = {
         strategy,
         copySize: parseFloat(process.env.COPY_SIZE || '10.0'),
@@ -267,7 +231,7 @@ const parseCopyStrategy = () => {
             : undefined,
     };
     // Add adaptive strategy parameters if applicable
-    if (strategy === copyStrategy_1.CopyStrategy.ADAPTIVE) {
+    if (strategy === CopyStrategy.ADAPTIVE) {
         config.adaptiveMinPercent = parseFloat(process.env.ADAPTIVE_MIN_PERCENT || config.copySize.toString());
         config.adaptiveMaxPercent = parseFloat(process.env.ADAPTIVE_MAX_PERCENT || config.copySize.toString());
         config.adaptiveThreshold = parseFloat(process.env.ADAPTIVE_THRESHOLD_USD || '500.0');
@@ -275,7 +239,7 @@ const parseCopyStrategy = () => {
     // Parse tiered multipliers if configured
     if (process.env.TIERED_MULTIPLIERS) {
         try {
-            config.tieredMultipliers = (0, copyStrategy_1.parseTieredMultipliers)(process.env.TIERED_MULTIPLIERS);
+            config.tieredMultipliers = parseTieredMultipliers(process.env.TIERED_MULTIPLIERS);
             console.log(`✓ Loaded ${config.tieredMultipliers.length} tiered multipliers`);
         }
         catch (error) {
@@ -292,7 +256,7 @@ const parseCopyStrategy = () => {
     }
     return config;
 };
-exports.ENV = {
+export const ENV = {
     USER_ADDRESSES: parseUserAddresses(process.env.USER_ADDRESSES),
     PROXY_WALLET: process.env.PROXY_WALLET,
     PRIVATE_KEY: process.env.PRIVATE_KEY,

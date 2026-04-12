@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Copy Trading Strategy Configuration
  *
@@ -8,23 +7,16 @@
  * - FIXED: Copy a fixed dollar amount per trade
  * - ADAPTIVE: Dynamically adjust percentage based on trader's order size
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CopyStrategy = void 0;
-exports.calculateOrderSize = calculateOrderSize;
-exports.validateCopyStrategyConfig = validateCopyStrategyConfig;
-exports.getRecommendedConfig = getRecommendedConfig;
-exports.parseTieredMultipliers = parseTieredMultipliers;
-exports.getTradeMultiplier = getTradeMultiplier;
-var CopyStrategy;
+export var CopyStrategy;
 (function (CopyStrategy) {
     CopyStrategy["PERCENTAGE"] = "PERCENTAGE";
     CopyStrategy["FIXED"] = "FIXED";
     CopyStrategy["ADAPTIVE"] = "ADAPTIVE";
-})(CopyStrategy || (exports.CopyStrategy = CopyStrategy = {}));
+})(CopyStrategy || (CopyStrategy = {}));
 /**
  * Calculate order size based on copy strategy
  */
-function calculateOrderSize(config, traderOrderSize, availableBalance, currentPositionSize = 0) {
+export function calculateOrderSize(config, traderOrderSize, availableBalance, currentPositionSize = 0) {
     let baseAmount;
     let reasoning;
     // Step 1: Calculate base amount based on strategy
@@ -134,7 +126,7 @@ function lerp(a, b, t) {
 /**
  * Validate copy strategy configuration
  */
-function validateCopyStrategyConfig(config) {
+export function validateCopyStrategyConfig(config) {
     const errors = [];
     // Validate copySize
     if (config.copySize <= 0) {
@@ -169,7 +161,7 @@ function validateCopyStrategyConfig(config) {
 /**
  * Get recommended configuration for different balance sizes
  */
-function getRecommendedConfig(balanceUSD) {
+export function getRecommendedConfig(balanceUSD) {
     if (balanceUSD < 500) {
         // Small balance: Conservative
         return {
@@ -215,7 +207,7 @@ function getRecommendedConfig(balanceUSD) {
  * @returns Array of MultiplierTier objects, sorted by min value
  * @throws Error if format is invalid
  */
-function parseTieredMultipliers(tiersStr) {
+export function parseTieredMultipliers(tiersStr) {
     if (!tiersStr || tiersStr.trim() === '') {
         return [];
     }
@@ -280,7 +272,7 @@ function parseTieredMultipliers(tiersStr) {
  * @param traderOrderSize - Trader's order size in USD
  * @returns Multiplier to apply (1.0 if no multiplier configured)
  */
-function getTradeMultiplier(config, traderOrderSize) {
+export function getTradeMultiplier(config, traderOrderSize) {
     // Use tiered multipliers if configured
     if (config.tieredMultipliers && config.tieredMultipliers.length > 0) {
         for (const tier of config.tieredMultipliers) {

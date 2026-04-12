@@ -1,37 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,19 +7,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.startServer = void 0;
-const express_1 = __importDefault(require("express"));
-const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
-const db_1 = require("../config/db");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const setup_1 = require("./setup");
-const app = (0, express_1.default)();
-app.use(express_1.default.json());
+import express from 'express';
+import swaggerUi from 'swagger-ui-express';
+import { getDbDir } from '../config/db';
+import * as fs from 'fs';
+import * as path from 'path';
+import { setupNewUser } from './setup';
+const app = express();
+app.use(express.json());
 // --- Swagger API Docs ---
 const swaggerDoc = {
     openapi: '3.0.0',
@@ -65,14 +26,14 @@ const swaggerDoc = {
         '/api/trades': { get: { summary: 'Recent trades', tags: ['Trading'], parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }], responses: { 200: { description: 'Trade list' } } } },
     },
 };
-app.use('/docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swaggerDoc));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 // --- API Routes ---
 let botStartTime = Date.now();
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
 app.get('/api/status', (_req, res) => {
-    const dbDir = (0, db_1.getDbDir)();
+    const dbDir = getDbDir();
     const dbFiles = fs.existsSync(dbDir) ? fs.readdirSync(dbDir).filter(f => f.endsWith('.db')) : [];
     res.json({
         running: true,
@@ -125,7 +86,7 @@ app.get('/api/config', (_req, res) => {
 });
 app.get('/api/trades', (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
-    const dbDir = (0, db_1.getDbDir)();
+    const dbDir = getDbDir();
     const trades = [];
     if (fs.existsSync(dbDir)) {
         for (const file of fs.readdirSync(dbDir).filter(f => f.startsWith('user_activities_'))) {
@@ -155,7 +116,7 @@ app.get('/api/trades', (req, res) => {
 // --- Setup Endpoints for New Users ---
 app.post('/api/setup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield (0, setup_1.setupNewUser)(req.body);
+        const result = yield setupNewUser(req.body);
         res.json(result);
     }
     catch (error) {
@@ -167,7 +128,7 @@ app.post('/api/setup', (req, res) => __awaiter(void 0, void 0, void 0, function*
 }));
 app.get('/api/setup/wallet', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { ethers } = yield Promise.resolve().then(() => __importStar(require('ethers')));
+        const { ethers } = yield import('ethers');
         const wallet = ethers.Wallet.createRandom();
         res.json({
             address: wallet.address,
@@ -228,8 +189,8 @@ app.post('/api/config/advanced', (req, res) => __awaiter(void 0, void 0, void 0,
             'USDC_CONTRACT_ADDRESS': config.usdcContract
         };
         // Update .env file
-        const fs = yield Promise.resolve().then(() => __importStar(require('fs')));
-        const path = yield Promise.resolve().then(() => __importStar(require('path')));
+        const fs = yield import('fs');
+        const path = yield import('path');
         const envPath = path.join(process.cwd(), '.env');
         let envContent = '';
         if (fs.existsSync(envPath)) {
@@ -280,8 +241,8 @@ app.post('/api/config/reset', (_req, res) => __awaiter(void 0, void 0, void 0, f
             'RPC_URL': 'https://poly.api.pocket.network',
             'USDC_CONTRACT_ADDRESS': '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
         };
-        const fs = yield Promise.resolve().then(() => __importStar(require('fs')));
-        const path = yield Promise.resolve().then(() => __importStar(require('path')));
+        const fs = yield import('fs');
+        const path = yield import('path');
         const envPath = path.join(process.cwd(), '.env');
         let envContent = '';
         if (fs.existsSync(envPath)) {
@@ -831,7 +792,7 @@ loadConfiguration();
 </html>`;
     res.type('html').send(configHtml);
 });
-const startServer = (port = parseInt(process.env.PORT || '3000')) => {
+export const startServer = (port = parseInt(process.env.PORT || '3000')) => {
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
@@ -839,5 +800,4 @@ const startServer = (port = parseInt(process.env.PORT || '3000')) => {
         console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
     });
 };
-exports.startServer = startServer;
-exports.default = app;
+export default app;

@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,22 +7,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const PROXY_WALLET = env_1.ENV.PROXY_WALLET;
-const RPC_URL = env_1.ENV.RPC_URL;
+import { ethers } from 'ethers';
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const PROXY_WALLET = ENV.PROXY_WALLET;
+const RPC_URL = ENV.RPC_URL;
 function analyzeWallets() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('\n🔍 WALLET AND ADDRESS ANALYSIS\n');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         // Step 1: Get EOA address from private key
-        const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY);
+        const wallet = new ethers.Wallet(PRIVATE_KEY);
         const eoaAddress = wallet.address;
         console.log('📋 STEP 1: Address from private key (EOA)\n');
         console.log(`   ${eoaAddress}\n`);
@@ -47,7 +42,7 @@ function analyzeWallets() {
         // Step 4: Check if PROXY_WALLET is a smart contract
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 3: Checking PROXY_WALLET type\n');
-        const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
         const code = yield provider.getCode(PROXY_WALLET);
         const isContract = code !== '0x';
         if (isContract) {
@@ -63,11 +58,11 @@ function analyzeWallets() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 4: Activity on Polymarket\n');
         try {
-            const proxyPositions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`);
+            const proxyPositions = yield fetchData(`https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`);
             console.log(`   PROXY_WALLET (${PROXY_WALLET.slice(0, 10)}...):`);
             console.log(`   • Positions: ${(proxyPositions === null || proxyPositions === void 0 ? void 0 : proxyPositions.length) || 0}\n`);
             if (eoaAddress.toLowerCase() !== PROXY_WALLET.toLowerCase()) {
-                const eoaPositions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${eoaAddress}`);
+                const eoaPositions = yield fetchData(`https://data-api.polymarket.com/positions?user=${eoaAddress}`);
                 console.log(`   EOA (${eoaAddress.slice(0, 10)}...):`);
                 console.log(`   • Positions: ${(eoaPositions === null || eoaPositions === void 0 ? void 0 : eoaPositions.length) || 0}\n`);
             }
@@ -79,7 +74,7 @@ function analyzeWallets() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 5: Checking proxyWallet in transactions\n');
         try {
-            const activities = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`);
+            const activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`);
             if (activities && activities.length > 0) {
                 const firstTrade = activities[0];
                 const proxyWalletInTrade = firstTrade.proxyWallet;

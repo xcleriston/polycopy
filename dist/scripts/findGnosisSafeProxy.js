@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,15 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const ethers_1 = require("ethers");
-const env_1 = require("../config/env");
-const fetchData_1 = __importDefault(require("../utils/fetchData"));
-const PRIVATE_KEY = env_1.ENV.PRIVATE_KEY;
-const RPC_URL = env_1.ENV.RPC_URL;
+import { ethers } from 'ethers';
+import { ENV } from '../config/env';
+import fetchData from '../utils/fetchData';
+const PRIVATE_KEY = ENV.PRIVATE_KEY;
+const RPC_URL = ENV.RPC_URL;
 // Gnosis Safe Proxy Factory address on Polygon
 const GNOSIS_SAFE_PROXY_FACTORY = '0xaacfeea03eb1561c4e67d661e40682bd20e3541b';
 function findGnosisSafeProxy() {
@@ -24,7 +19,7 @@ function findGnosisSafeProxy() {
         console.log('\n🔍 SEARCHING FOR GNOSIS SAFE PROXY WALLET\n');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         // Step 1: Get EOA address from private key
-        const wallet = new ethers_1.ethers.Wallet(PRIVATE_KEY);
+        const wallet = new ethers.Wallet(PRIVATE_KEY);
         const eoaAddress = wallet.address;
         console.log('📋 STEP 1: Your EOA address (from private key)\n');
         console.log(`   ${eoaAddress}\n`);
@@ -32,7 +27,7 @@ function findGnosisSafeProxy() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 2: Positions on EOA address\n');
         try {
-            const eoaPositions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${eoaAddress}`);
+            const eoaPositions = yield fetchData(`https://data-api.polymarket.com/positions?user=${eoaAddress}`);
             console.log(`   Positions: ${(eoaPositions === null || eoaPositions === void 0 ? void 0 : eoaPositions.length) || 0}\n`);
             if (eoaPositions && eoaPositions.length > 0) {
                 console.log('   ✅ There are positions on EOA!\n');
@@ -45,7 +40,7 @@ function findGnosisSafeProxy() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 3: Searching for Gnosis Safe Proxy via transactions\n');
         try {
-            const activities = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/activity?user=${eoaAddress}&type=TRADE`);
+            const activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress}&type=TRADE`);
             if (activities && activities.length > 0) {
                 const firstTrade = activities[0];
                 const proxyWalletFromTrade = firstTrade.proxyWallet;
@@ -55,7 +50,7 @@ function findGnosisSafeProxy() {
                     console.log('   🎯 GNOSIS SAFE PROXY FOUND!\n');
                     console.log(`   Proxy address: ${proxyWalletFromTrade}\n`);
                     // Check positions on proxy
-                    const proxyPositions = yield (0, fetchData_1.default)(`https://data-api.polymarket.com/positions?user=${proxyWalletFromTrade}`);
+                    const proxyPositions = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyWalletFromTrade}`);
                     console.log(`   Positions on Proxy: ${(proxyPositions === null || proxyPositions === void 0 ? void 0 : proxyPositions.length) || 0}\n`);
                     if (proxyPositions && proxyPositions.length > 0) {
                         console.log('   ✅ HERE ARE YOUR POSITIONS!\n');
@@ -68,9 +63,9 @@ function findGnosisSafeProxy() {
                         console.log('and positions will match the frontend!\n');
                         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
                         console.log('📊 CURRENT STATUS:\n');
-                        console.log(`   Bot uses:           ${env_1.ENV.PROXY_WALLET}`);
+                        console.log(`   Bot uses:           ${ENV.PROXY_WALLET}`);
                         console.log(`   Should use:        ${proxyWalletFromTrade}\n`);
-                        if (env_1.ENV.PROXY_WALLET.toLowerCase() === proxyWalletFromTrade.toLowerCase()) {
+                        if (ENV.PROXY_WALLET.toLowerCase() === proxyWalletFromTrade.toLowerCase()) {
                             console.log('   ✅ Addresses match! Everything is configured correctly.\n');
                         }
                         else {
@@ -94,12 +89,12 @@ function findGnosisSafeProxy() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📋 STEP 4: Search via Polygon blockchain\n');
         try {
-            const provider = new ethers_1.ethers.providers.JsonRpcProvider(RPC_URL);
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
             // Search for ProxyCreation events from Gnosis Safe Factory
             console.log('   Checking Gnosis Safe creation...\n');
             // ABI for ProxyCreation event
             const eventAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
-            const iface = new ethers_1.ethers.utils.Interface(eventAbi);
+            const iface = new ethers.utils.Interface(eventAbi);
             const eventTopic = iface.getEventTopic('ProxyCreation');
             // Search for events where owner is our EOA
             // Usually Gnosis Safe is created on first transaction
