@@ -198,17 +198,11 @@ const tradeMonitor = () => __awaiter(void 0, void 0, void 0, function* () {
     yield init();
     Logger.success(`Monitoring ${USER_ADDRESSES.length} trader(s) every ${FETCH_INTERVAL}s`);
     Logger.separator();
-    // On first run, mark all existing historical trades as already processed
+    // On first run, don't mark historical trades as processed to allow continuous updates
     if (isFirstRun) {
-        Logger.info('First run: marking all historical trades as processed...');
-        for (const { address, UserActivity } of userModels) {
-            const count = yield UserActivity.updateMany({ bot: false }, { $set: { bot: true, botExcutedTime: 999 } });
-            if (count.modifiedCount > 0) {
-                Logger.info(`Marked ${count.modifiedCount} historical trades as processed for ${address.slice(0, 6)}...${address.slice(-4)}`);
-            }
-        }
+        Logger.info('First run: starting continuous trade monitoring...');
         isFirstRun = false;
-        Logger.success('\nHistorical trades processed. Now monitoring for new trades only.');
+        Logger.success('\nStarting trade monitoring with continuous updates.');
         Logger.separator();
     }
     while (isRunning) {
