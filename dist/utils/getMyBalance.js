@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { ethers } from 'ethers';
-import { ENV } from '../config/env';
+import { ENV } from '../config/env.js';
 const RPC_URL = ENV.RPC_URL;
 const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
 const USDC_ABI = ['function balanceOf(address owner) view returns (uint256)'];

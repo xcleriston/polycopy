@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import axios from 'axios';
-import { ENV } from '../config/env';
+import { ENV } from '../config/env.js';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isNetworkError = (error) => {
     if (axios.isAxiosError(error)) {

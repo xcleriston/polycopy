@@ -1,9 +1,9 @@
 import * as fs from 'fs';
-import { ENV } from '../config/env';
-import { getDbDir } from '../config/db';
-import getMyBalance from './getMyBalance';
-import fetchData from './fetchData';
-import Logger from './logger';
+import { ENV } from '../config/env.js';
+import { getDbDir } from '../config/db.js';
+import getMyBalance from './getMyBalance.js';
+import fetchData from './fetchData.js';
+import Logger from './logger.js';
 
 export interface HealthCheckResult {
     healthy: boolean;

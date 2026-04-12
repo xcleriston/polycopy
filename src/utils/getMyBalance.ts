@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ENV } from '../config/env';
+import { ENV } from '../config/env.js';
 
 const RPC_URL = ENV.RPC_URL;
 const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;

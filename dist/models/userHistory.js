@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import Datastore from '@seald-io/nedb';
 import * as path from 'path';
-import { getDbDir } from '../config/db';
+import { getDbDir } from '../config/db.js';
 // Cache datastores to avoid creating duplicates
 const datastoreCache = new Map();
 const getDatastore = (name) => {

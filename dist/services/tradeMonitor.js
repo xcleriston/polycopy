@@ -36,7 +36,7 @@ const init = () => __awaiter(void 0, void 0, void 0, function* () {
         const myPositionsUrl = `https://data-api.polymarket.com/positions?user=${ENV.PROXY_WALLET}`;
         const myPositions = yield fetchData(myPositionsUrl);
         // Get current USDC balance
-        const getMyBalance = (yield import('../utils/getMyBalance')).default;
+        const getMyBalance = (yield import('../utils/getMyBalance.js')).default;
         const currentBalance = yield getMyBalance(ENV.PROXY_WALLET);
         if (Array.isArray(myPositions) && myPositions.length > 0) {
             // Calculate your overall profitability and initial investment

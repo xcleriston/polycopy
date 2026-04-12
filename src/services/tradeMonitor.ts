@@ -33,7 +33,7 @@ const init = async () => {
         const myPositions = await fetchData(myPositionsUrl);
 
         // Get current USDC balance
-        const getMyBalance = (await import('../utils/getMyBalance')).default;
+        const getMyBalance = (await import('../utils/getMyBalance.js')).default;
         const currentBalance = await getMyBalance(ENV.PROXY_WALLET);
 
         if (Array.isArray(myPositions) && myPositions.length > 0) {

@@ -1,9 +1,9 @@
 import { ClobClient, OrderType, Side } from '@polymarket/clob-client';
-import { ENV } from '../config/env';
-import { UserActivityInterface, UserPositionInterface } from '../interfaces/User';
-import { getUserActivityModel } from '../models/userHistory';
-import Logger from './logger';
-import { calculateOrderSize, getTradeMultiplier } from '../config/copyStrategy';
+import { ENV } from '../config/env.js';
+import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
+import { getUserActivityModel } from '../models/userHistory.js';
+import Logger from './logger.js';
+import { calculateOrderSize, getTradeMultiplier } from '../config/copyStrategy.js';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const COPY_STRATEGY_CONFIG = ENV.COPY_STRATEGY_CONFIG;

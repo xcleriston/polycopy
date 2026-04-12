@@ -1,6 +1,6 @@
 import Datastore from '@seald-io/nedb';
 import * as path from 'path';
-import { getDbDir } from '../config/db';
+import { getDbDir } from '../config/db.js';
 
 // Cache datastores to avoid creating duplicates
 const datastoreCache: Map<string, Datastore> = new Map();

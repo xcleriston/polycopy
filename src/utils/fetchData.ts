@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { ENV } from '../config/env';
+import { ENV } from '../config/env.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
