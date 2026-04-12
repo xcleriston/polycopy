@@ -7,6 +7,9 @@ import { startServer } from './server';
 import Logger from './utils/logger';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck';
 
+// Handle Railway port
+const PORT = parseInt(process.env.PORT || '3000');
+
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const PROXY_WALLET = ENV.PROXY_WALLET;
 
@@ -107,7 +110,7 @@ export const main = async () => {
         tradeExecutor(clobClient);
 
         // Start web UI + API server
-        startServer();
+        startServer(PORT);
     } catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);
         await gracefulShutdown('startup-error');
