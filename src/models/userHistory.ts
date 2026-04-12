@@ -1,89 +1,128 @@
-import Datastore from '@seald-io/nedb';
-import * as path from 'path';
-import { getDbDir } from '../config/db.js';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
-// Cache datastores to avoid creating duplicates
-const datastoreCache: Map<string, Datastore> = new Map();
+// Interface for User Activity
+export interface IUserActivity extends Document {
+    traderAddress: string;
+    action: string;
+    market: string;
+    amount: number;
+    price: number;
+    timestamp: Date;
+    txHash?: string;
+    details?: any;
+    // Add compatibility fields for activities from Polymarket
+    bot?: boolean;
+    botExcutedTime?: number;
+    usdcSize?: number;
+}
 
-const getDatastore = (name: string): Datastore => {
-    if (datastoreCache.has(name)) return datastoreCache.get(name)!;
-    const ds = new Datastore({ filename: path.join(getDbDir(), `${name}.db`), autoload: true });
-    datastoreCache.set(name, ds);
-    return ds;
-};
+const UserActivitySchema: Schema = new Schema({
+    traderAddress: { type: String, required: true, index: true },
+    timestamp: { type: Date, default: Date.now, index: true },
+    conditionId: { type: String, index: true },
+    type: { type: String },
+    size: { type: Number },
+    usdcSize: { type: Number },
+    transactionHash: { type: String, index: true },
+    price: { type: Number },
+    asset: { type: String },
+    side: { type: String },
+    outcomeIndex: { type: Number },
+    title: { type: String },
+    slug: { type: String },
+    icon: { type: String },
+    eventSlug: { type: String },
+    outcome: { type: String },
+    name: { type: String },
+    pseudonym: { type: String },
+    bio: { type: String },
+    profileImage: { type: String },
+    profileImageOptimized: { type: String },
+    bot: { type: Boolean, default: false },
+    botExcutedTime: { type: Number, default: 0 },
+    // Fields from IUserActivity
+    action: { type: String },
+    market: { type: String },
+    amount: { type: Number },
+    txHash: { type: String },
+    details: { type: Schema.Types.Mixed },
+}, { strict: false }); // Use strict: false to handle any other fields from Polymarket API
 
-// Wrapper that provides a mongoose-like API over NeDB
-const createModel = (collectionName: string) => {
-    const ds = getDatastore(collectionName);
+// Interface for User Position
+export interface IUserPosition extends Document {
+    traderAddress: string;
+    market: string;
+    side: 'LONG' | 'SHORT';
+    amount: number;
+    entryPrice: number;
+    lastPrice: number;
+    status: 'OPEN' | 'CLOSED';
+    openedAt: Date;
+    closedAt?: Date;
+    pnl?: number;
+    // Polymarket compatibility
+    asset?: string;
+    conditionId?: string;
+    currentValue?: number;
+    percentPnl?: number;
+}
 
-    return {
-        // Find one document
-        findOne(query: Record<string, unknown>) {
-            return { exec: () => ds.findOneAsync(query) };
-        },
-        // Find multiple documents
-        find(query: Record<string, unknown> = {}) {
-            return {
-                exec: () => ds.findAsync(query),
-                sort: (sortObj: Record<string, number>) => ({
-                    exec: () => ds.findAsync(query).then(docs =>
-                        docs.sort((a: any, b: any) => {
-                            for (const [key, dir] of Object.entries(sortObj)) {
-                                if (a[key] !== b[key]) return dir * (a[key] > b[key] ? 1 : -1);
-                            }
-                            return 0;
-                        })
-                    ),
-                }),
-            };
-        },
-        // Update one document
-        updateOne(query: Record<string, unknown>, update: Record<string, unknown>) {
-            return {
-                exec: () => ds.updateAsync(query, update, {}),
-            };
-        },
-        // Update many documents
-        updateMany(query: Record<string, unknown>, update: Record<string, unknown>) {
-            return ds.updateAsync(query, update, { multi: true })
-                .then((result) => ({ modifiedCount: typeof result === 'number' ? result : (result as any).numAffected || 0 }));
-        },
-        // Find one and update (with upsert)
-        findOneAndUpdate(query: Record<string, unknown>, update: Record<string, unknown>, options: { upsert?: boolean } = {}) {
-            return ds.updateAsync(query, { $set: update }, { upsert: options.upsert || false });
-        },
-        // Count documents
-        countDocuments() {
-            return ds.countAsync({});
-        },
-        // Save a new document (constructor-like pattern)
-        async save(doc: Record<string, unknown>) {
-            return ds.insertAsync(doc);
-        },
+const UserPositionSchema: Schema = new Schema({
+    traderAddress: { type: String, required: true, index: true },
+    asset: { type: String, index: true },
+    conditionId: { type: String, index: true },
+    market: { type: String },
+    side: { type: String, enum: ['LONG', 'SHORT'] },
+    amount: { type: Number },
+    entryPrice: { type: Number },
+    lastPrice: { type: Number },
+    status: { type: String, enum: ['OPEN', 'CLOSED'], default: 'OPEN', index: true },
+    openedAt: { type: Date, default: Date.now },
+    closedAt: { type: Date },
+    pnl: { type: Number },
+}, { strict: false });
+
+const Activity = mongoose.model<IUserActivity>('UserActivity', UserActivitySchema);
+const Position = mongoose.model<IUserPosition>('UserPosition', UserPositionSchema);
+
+/**
+ * Factory that returns a function for creating a new document,
+ * with static model methods attached to it.
+ */
+const createDocumentFactory = (model: Model<any>, walletAddress: string) => {
+    const factory = (data: any) => {
+        const doc = new model({ ...data, traderAddress: walletAddress.toLowerCase() });
+        return doc;
     };
-};
 
-// Factory: create a "new document" that can be saved
-const createDocumentFactory = (collectionName: string) => {
-    const model = createModel(collectionName);
-    const factory = (data: Record<string, unknown>) => {
-        return {
-            ...data,
-            save: () => model.save(data),
-            toObject: () => ({ ...data }),
-        };
+    // Helper to inject traderAddress into queries
+    const injectFilter = (query: any = {}) => {
+        return { ...query, traderAddress: walletAddress.toLowerCase() };
     };
-    // Attach static methods to the factory
-    Object.assign(factory, model);
-    return factory as typeof factory & ReturnType<typeof createModel>;
-};
 
-const getUserPositionModel = (walletAddress: string) => {
-    return createModel(`user_positions_${walletAddress}`);
+    // Attach static methods for compatibility
+    Object.assign(factory, {
+        find: (query: any = {}) => model.find(injectFilter(query)),
+        findOne: (query: any = {}) => model.findOne(injectFilter(query)),
+        findOneAndUpdate: (query: any, update: any, options: any = {}) => 
+            model.findOneAndUpdate(injectFilter(query), update, { ...options, new: true }),
+        updateOne: (query: any, update: any, options: any = {}) => 
+            model.updateOne(injectFilter(query), update, options),
+        updateMany: (query: any, update: any, options: any = {}) => 
+            model.updateMany(injectFilter(query), update, options),
+        countDocuments: (query: any = {}) => model.countDocuments(injectFilter(query)),
+    });
+
+    return factory as any;
 };
 
 const getUserActivityModel = (walletAddress: string) => {
-    return createDocumentFactory(`user_activities_${walletAddress}`);
+    return createDocumentFactory(Activity, walletAddress);
+};
+
+const getUserPositionModel = (walletAddress: string) => {
+    return createDocumentFactory(Position, walletAddress);
 };
 
 export { getUserActivityModel, getUserPositionModel };
+export { Activity, Position };

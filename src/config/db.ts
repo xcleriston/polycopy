@@ -1,29 +1,30 @@
-import * as path from 'path';
-import * as fs from 'fs';
+import mongoose from 'mongoose';
 import chalk from 'chalk';
-
-const DB_DIR = path.join(process.cwd(), 'data');
-
-const ensureDbDir = () => {
-    if (!fs.existsSync(DB_DIR)) {
-        fs.mkdirSync(DB_DIR, { recursive: true });
-    }
-};
+import { ENV } from './env.js';
 
 const connectDB = async () => {
+    // If MONGODB_URI is not provided, we might want to fall back to NeDB or just fail
+    // For multiple instances, we MUST have MONGODB_URI
+    const uri = ENV.MONGODB_URI;
+
+    if (!uri) {
+        console.log(chalk.yellow('!'), 'MONGODB_URI not found in environment.');
+        console.log(chalk.red('✗'), 'MongoDB connection failed: MONGODB_URI is required for multi-instance support.');
+        process.exit(1);
+    }
+
     try {
-        ensureDbDir();
-        console.log(chalk.green('✓'), `NeDB initialized (${DB_DIR})`);
+        await mongoose.connect(uri);
+        console.log(chalk.green('✓'), 'MongoDB connected successfully');
     } catch (error) {
-        console.log(chalk.red('✗'), 'NeDB initialization failed:', error);
+        console.log(chalk.red('✗'), 'MongoDB connection failed:', error);
         process.exit(1);
     }
 };
 
 export const closeDB = async (): Promise<void> => {
-    console.log(chalk.green('✓'), 'Database closed');
+    await mongoose.connection.close();
+    console.log(chalk.green('✓'), 'Database connection closed');
 };
-
-export const getDbDir = () => DB_DIR;
 
 export default connectDB;

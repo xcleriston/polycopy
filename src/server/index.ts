@@ -28,13 +28,13 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
 
-app.get('/api/status', (_req, res) => {
-    const dbDir = getDbDir();
-    const dbFiles = fs.existsSync(dbDir) ? fs.readdirSync(dbDir).filter(f => f.endsWith('.db')) : [];
+app.get('/api/status', async (_req, res) => {
+    const mongoose = (await import('mongoose')).default;
+    const isConnected = mongoose.connection.readyState === 1;
     res.json({
         running: true,
+        dbConnected: isConnected,
         uptime: Math.floor((Date.now() - botStartTime) / 1000),
-        dataFiles: dbFiles.length,
         previewMode: process.env.PREVIEW_MODE === 'true',
     });
 });
@@ -83,31 +83,26 @@ app.get('/api/config', (_req, res) => {
     res.json(config);
 });
 
-app.get('/api/trades', (req, res) => {
-    const limit = parseInt(req.query.limit as string) || 20;
-    const dbDir = getDbDir();
-    const trades: any[] = [];
-    if (fs.existsSync(dbDir)) {
-        for (const file of fs.readdirSync(dbDir).filter(f => f.startsWith('user_activities_'))) {
-            try {
-                const content = fs.readFileSync(path.join(dbDir, file), 'utf-8');
-                content.split('\n').filter(Boolean).forEach(line => {
-                    try { 
-                        const trade = JSON.parse(line);
-                        // Include all trades, but mark copied trades
-                        if (trade.botExcutedTime && trade.botExcutedTime > 0) {
-                            trade.isCopied = true;
-                        } else {
-                            trade.isCopied = false;
-                        }
-                        trades.push(trade); 
-                    } catch { /* skip malformed */ }
-                });
-            } catch { /* skip */ }
-        }
+app.get('/api/trades', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit as string) || 20;
+        const { Activity } = await import('../models/userHistory.js');
+        
+        const dbTrades = await Activity.find()
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .lean();
+
+        const trades = dbTrades.map(trade => ({
+            ...trade,
+            isCopied: trade.botExcutedTime && trade.botExcutedTime > 0
+        }));
+
+        res.json(trades);
+    } catch (error) {
+        console.error('Error fetching trades from MongoDB:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-    trades.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    res.json(trades.slice(0, limit));
 });
 
 // --- Setup Endpoints for New Users ---

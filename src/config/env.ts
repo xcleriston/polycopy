@@ -338,4 +338,5 @@ export const ENV = {
     // Telegram settings (optional)
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN as string,
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID as string,
+    MONGODB_URI: process.env.MONGODB_URI as string,
 };
