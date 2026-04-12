@@ -1,0 +1,82 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fetchData_1 = __importDefault(require("../utils/fetchData"));
+const env_1 = require("../config/env");
+const WALLET = env_1.ENV.PROXY_WALLET;
+const main = () => __awaiter(void 0, void 0, void 0, function* () {
+    const url = `https://data-api.polymarket.com/activity?user=${WALLET}&type=TRADE`;
+    const activities = yield (0, fetchData_1.default)(url);
+    if (!Array.isArray(activities) || activities.length === 0) {
+        console.log('No trade data available');
+        return;
+    }
+    // Redemption ended at 18:14:16 UTC (October 31, 2025)
+    const redemptionEndTime = new Date('2025-10-31T18:14:16Z').getTime() / 1000;
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('📋 CLOSED POSITIONS (Redeemed October 31, 2025 at 18:00-18:14)');
+    console.log('═══════════════════════════════════════════════════════════════\n');
+    console.log('💰 TOTAL RECEIVED FROM REDEMPTION: $66.37 USDC\n');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('🛒 PURCHASES AFTER REDEMPTION (after 18:14 UTC October 31)');
+    console.log('═══════════════════════════════════════════════════════════════\n');
+    const tradesAfterRedemption = activities.filter((t) => t.timestamp > redemptionEndTime && t.side === 'BUY');
+    if (tradesAfterRedemption.length === 0) {
+        console.log('✅ No purchases after redemption!\n');
+        console.log('This means funds should be in the balance.');
+        return;
+    }
+    let totalSpent = 0;
+    tradesAfterRedemption.forEach((trade, i) => {
+        const date = new Date(trade.timestamp * 1000);
+        const value = trade.usdcSize;
+        totalSpent += value;
+        console.log(`${i + 1}. 🟢 BOUGHT: ${trade.title || trade.market || 'Unknown'}`);
+        console.log(`   💸 Spent: $${value.toFixed(2)}`);
+        console.log(`   📊 Size: ${trade.size.toFixed(2)} tokens @ $${trade.price.toFixed(4)}`);
+        console.log(`   📅 Date: ${date.toLocaleString('en-US')}`);
+        console.log(`   🔗 TX: https://polygonscan.com/tx/${trade.transactionHash.substring(0, 20)}...\n`);
+    });
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('📊 TOTAL PURCHASES AFTER REDEMPTION:');
+    console.log(`   Number of trades: ${tradesAfterRedemption.length}`);
+    console.log(`   💸 SPENT: $${totalSpent.toFixed(2)} USDC`);
+    console.log('═══════════════════════════════════════════════════════════════\n');
+    console.log('💡 EXPLANATION OF WHERE THE MONEY WENT:\n');
+    console.log(`   ✅ Received from redemption: +$66.37`);
+    console.log(`   ❌ Spent on new purchases: -$${totalSpent.toFixed(2)}`);
+    console.log(`   📊 Balance change: $${(66.37 - totalSpent).toFixed(2)}`);
+    console.log('\n═══════════════════════════════════════════════════════════════\n');
+    // Show recent sales too
+    console.log('💵 RECENT SALES:\n');
+    const recentSells = activities.filter((t) => t.side === 'SELL').slice(0, 10);
+    let totalSold = 0;
+    recentSells.forEach((trade, i) => {
+        const date = new Date(trade.timestamp * 1000);
+        const value = trade.usdcSize;
+        totalSold += value;
+        console.log(`${i + 1}. 🔴 SOLD: ${trade.title || trade.market || 'Unknown'}`);
+        console.log(`   💰 Received: $${value.toFixed(2)}`);
+        console.log(`   📅 Date: ${date.toLocaleString('en-US')}\n`);
+    });
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log(`💵 Sold in recent trades: $${totalSold.toFixed(2)}`);
+    console.log('═══════════════════════════════════════════════════════════════');
+});
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+    console.error('❌ Error:', error);
+    process.exit(1);
+});

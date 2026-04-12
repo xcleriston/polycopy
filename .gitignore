@@ -6,8 +6,7 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output (keep dist/ for Railway deployment)
 build/
 out/
 *.tsbuildinfo
