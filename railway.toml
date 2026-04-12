@@ -8,13 +8,4 @@ restartPolicyMaxRetries = 10
 
 [env]
 NODE_ENV = "production"
-
-[[services]]
-name = "web"
-source = "."
-command = "npm start"
-
-[[services]]
-name = "telegram-bot"
-source = "."
-command = "npm run telegram-simple"
+PORT = "3000"
