@@ -5,14 +5,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install TypeScript globally and dependencies
-RUN npm install -g typescript && npm ci --only=production --ignore-scripts
+# Install all dependencies (including dev dependencies for TypeScript build)
+RUN npm install -g typescript && npm ci --ignore-scripts
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
 
 # Create data directory
 RUN mkdir -p /app/data
