@@ -5,8 +5,8 @@
  * Skips in CI environments to avoid build failures
  */
 
-// Skip in CI environments
-if (process.env.CI || process.env.CONTINUOUS_INTEGRATION || process.env.GITHUB_ACTIONS) {
+// Skip in CI environments (but not Railway)
+if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
     process.exit(0);
 }
 
