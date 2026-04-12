@@ -96,9 +96,9 @@ const init = async () => {
 
         // Get top 3 positions by profitability (PnL)
         const topPositions = positions
-            .sort((a, b) => (b.percentPnl || 0) - (a.percentPnl || 0))
+            .sort((a: any, b: any) => (b.percentPnl || 0) - (a.percentPnl || 0))
             .slice(0, 3)
-            .map((p) => p.toObject());
+            .map((p: any) => p.toObject());
         positionDetails.push(topPositions);
     }
     Logger.clearLine();

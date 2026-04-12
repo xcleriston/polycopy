@@ -119,7 +119,7 @@ const postOrder = async (
                 break;
             }
 
-            const minPriceAsk = orderBook.asks.reduce((min, ask) => {
+            const minPriceAsk = orderBook.asks.reduce((min: any, ask: any) => {
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
 
@@ -230,7 +230,7 @@ const postOrder = async (
         }).exec();
 
         const totalBoughtTokens = previousBuys.reduce(
-            (sum, buy) => sum + (buy.myBoughtSize || 0),
+            (sum: number, buy: any) => sum + (buy.myBoughtSize || 0),
             0
         );
 
@@ -314,7 +314,7 @@ const postOrder = async (
                 break;
             }
 
-            const maxPriceBid = orderBook.bids.reduce((max, bid) => {
+            const maxPriceBid = orderBook.bids.reduce((max: any, bid: any) => {
                 return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
             }, orderBook.bids[0]);
 

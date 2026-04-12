@@ -83,7 +83,7 @@ const readTempTrades = async (): Promise<TradeWithUser[]> => {
             })
             .exec();
 
-        const tradesWithUser = trades.map((trade) => ({
+        const tradesWithUser = (trades as any[]).map((trade) => ({
             ...(trade.toObject() as UserActivityInterface),
             userAddress: address,
         }));
@@ -222,7 +222,7 @@ const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]) => {
         const my_balance = await getMyBalance(PROXY_WALLET);
 
         // Calculate trader's total portfolio value from positions
-        const user_balance = user_positions.reduce((total, pos) => {
+        const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
             return total + (pos.currentValue || 0);
         }, 0);
 
