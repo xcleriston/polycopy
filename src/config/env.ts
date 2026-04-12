@@ -1,5 +1,5 @@
 import * as dotenv from 'dotenv';
-import { CopyStrategy, CopyStrategyConfig, parseTieredMultipliers } from './copyStrategy';
+import { CopyStrategy, CopyStrategyConfig, parseTieredMultipliers } from './copyStrategy.js';
 dotenv.config();
 
 /**
