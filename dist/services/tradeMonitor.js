@@ -7,10 +7,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { ENV } from '../config/env';
-import { getUserActivityModel, getUserPositionModel } from '../models/userHistory';
-import fetchData from '../utils/fetchData';
-import Logger from '../utils/logger';
+import { ENV } from '../config/env.js';
+import { getUserActivityModel, getUserPositionModel } from '../models/userHistory.js';
+import fetchData from '../utils/fetchData.js';
+import Logger from '../utils/logger.js';
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
