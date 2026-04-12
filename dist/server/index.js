@@ -9,10 +9,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { getDbDir } from '../config/db';
+import { getDbDir } from '../config/db.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { setupNewUser } from './setup';
+import { setupNewUser } from './setup.js';
 const app = express();
 app.use(express.json());
 // --- Swagger API Docs ---
