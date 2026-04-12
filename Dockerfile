@@ -5,8 +5,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production --ignore-scripts
+# Install TypeScript globally and dependencies
+RUN npm install -g typescript && npm ci --only=production --ignore-scripts
 
 # Copy source code
 COPY . .
