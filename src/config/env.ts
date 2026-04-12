@@ -23,6 +23,11 @@ const validateRequiredEnv = (): void => {
         'USDC_CONTRACT_ADDRESS',
     ];
 
+    const optional = [
+        'TELEGRAM_BOT_TOKEN',
+        'TELEGRAM_CHAT_ID',
+    ];
+
     const missing: string[] = [];
     for (const key of required) {
         if (!process.env[key]) {
@@ -330,4 +335,7 @@ export const ENV = {
     ), // 5 minutes default
     RPC_URL: process.env.RPC_URL as string,
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS as string,
+    // Telegram settings (optional)
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN as string,
+    TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID as string,
 };
