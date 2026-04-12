@@ -9,3 +9,6 @@ restartPolicyMaxRetries = 10
 [env]
 NODE_ENV = "production"
 PORT = "3000"
+
+# Force redeploy
+RAILWAY_DEPLOY_TRIGGER = "force-redeploy-$(date +%s)"
