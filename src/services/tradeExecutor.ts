@@ -1,12 +1,12 @@
 import { ClobClient } from '@polymarket/clob-client';
-import { UserActivityInterface, UserPositionInterface } from '../interfaces/User';
-import { ENV } from '../config/env';
-import { getUserActivityModel } from '../models/userHistory';
-import fetchData from '../utils/fetchData';
-import getMyBalance from '../utils/getMyBalance';
-import postOrder from '../utils/postOrder';
-import Logger from '../utils/logger';
-import telegram from '../utils/telegram';
+import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
+import { ENV } from '../config/env.js';
+import { getUserActivityModel } from '../models/userHistory.js';
+import fetchData from '../utils/fetchData.js';
+import getMyBalance from '../utils/getMyBalance.js';
+import postOrder from '../utils/postOrder.js';
+import Logger from '../utils/logger.js';
+import telegram from '../utils/telegram.js';
 
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
