@@ -114,7 +114,7 @@ const addToAggregationBuffer = (trade: TradeWithUser): void => {
         existing.trades.push(trade);
         existing.totalUsdcSize += trade.usdcSize;
         // Recalculate weighted average price
-        const totalValue = existing.trades.reduce((sum, t) => sum + t.usdcSize * t.price, 0);
+        const totalValue = existing.trades.reduce((sum: number, t: TradeWithUser) => sum + t.usdcSize * t.price, 0);
         existing.averagePrice = totalValue / existing.totalUsdcSize;
         existing.lastTradeTime = now;
     } else {

@@ -1,6 +1,5 @@
-import * as fs from 'fs';
+import mongoose from 'mongoose';
 import { ENV } from '../config/env.js';
-import { getDbDir } from '../config/db.js';
 import getMyBalance from './getMyBalance.js';
 import fetchData from './fetchData.js';
 import Logger from './logger.js';
@@ -24,17 +23,16 @@ export const performHealthCheck = async (): Promise<HealthCheckResult> => {
         polymarketApi: { status: 'error', message: 'Not checked' },
     };
 
-    // Check NeDB data directory
+    // Check MongoDB connection
     try {
-        const dbDir = getDbDir();
-        if (fs.existsSync(dbDir)) {
-            checks.database = { status: 'ok', message: `NeDB directory: ${dbDir}` };
+        const isConnected = mongoose.connection.readyState === 1;
+        if (isConnected) {
+            checks.database = { status: 'ok', message: 'MongoDB connected' };
         } else {
-            fs.mkdirSync(dbDir, { recursive: true });
-            checks.database = { status: 'ok', message: `NeDB directory created: ${dbDir}` };
+            checks.database = { status: 'error', message: 'MongoDB disconnected' };
         }
     } catch (error) {
-        checks.database = { status: 'error', message: `NeDB error: ${error instanceof Error ? error.message : String(error)}` };
+        checks.database = { status: 'error', message: `MongoDB error: ${error instanceof Error ? error.message : String(error)}` };
     }
 
     // Check RPC endpoint

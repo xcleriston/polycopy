@@ -85,7 +85,7 @@ const init = async () => {
         // Calculate overall profitability (weighted average by current value)
         let totalValue = 0;
         let weightedPnl = 0;
-        positions.forEach((pos) => {
+        positions.forEach((pos: any) => {
             const value = pos.currentValue || 0;
             const pnl = pos.percentPnl || 0;
             totalValue += value;

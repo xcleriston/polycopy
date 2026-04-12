@@ -1,6 +1,5 @@
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { getDbDir } from '../config/db.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { setupNewUser } from './setup.js';
