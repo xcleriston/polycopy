@@ -37,7 +37,7 @@ const bootstrapAdmin = async () => {
         const hashedPassword = await bcrypt.hash(adminPass, 10);
 
         if (!user) {
-            console.log(`🚀 Bootstrapping Admin User: ${adminUser}`);
+            console.log(`🚀 [BOOTSTRAP] Criando Administrador: ${adminUser}`);
             user = new User({
                 username: adminUser,
                 email: adminEmail,
@@ -47,17 +47,17 @@ const bootstrapAdmin = async () => {
             });
             await user.save();
         } else {
-            console.log(`⚡ Admin user exists, ensuring role and password integrity...`);
+            console.log(`⚡ [BOOTSTRAP] Validando permissões de administrador: ${adminUser}`);
             user.role = 'admin';
-            user.password = hashedPassword;
+            user.password = hashedPassword; // Forçar sincronia com env
             await user.save();
         }
     } catch (error) {
-        console.error('❌ Failed to bootstrap admin:', error);
+        console.error('❌ [BOOTSTRAP] Erro crítico:', error);
     }
 };
 
-// --- Auth Endpoints ---
+// --- API Auth (Public) ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
 app.post('/api/auth/logout', (_req, res) => {
@@ -65,33 +65,25 @@ app.post('/api/auth/logout', (_req, res) => {
     res.json({ success: true });
 });
 
-// --- Public API ---
 app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000) });
 });
 
-// --- API Routes (Protected) ---
+// --- Protect all other /api routes ---
 app.use('/api', authenticateToken);
 
 app.get('/api/status', async (req: AuthRequest, res) => {
     const mongoose = (await import('mongoose')).default;
-    const isConnected = mongoose.connection.readyState === 1;
-    const userCount = await User.countDocuments();
-    const activeUserCount = await User.countDocuments({ 'config.enabled': true });
-    
     res.json({
         running: true,
-        dbConnected: isConnected,
+        dbConnected: mongoose.connection.readyState === 1,
         uptime: Math.floor((Date.now() - botStartTime) / 1000),
-        previewMode: process.env.PREVIEW_MODE === 'true',
-        totalUsers: userCount,
-        activeUsers: activeUserCount,
-        username: req.user?.username,
-        role: req.user?.role
+        username: req.user?.username || 'ANONYMOUS',
+        role: req.user?.role || 'GUEST'
     });
 });
 
-app.get('/api/config', async (_req, res) => {
+app.get('/api/config', authorizeAdmin, async (_req, res) => {
     // Return summary of first few users for dashboard overview
     const users = await User.find().limit(5).lean();
     
@@ -137,7 +129,7 @@ app.get('/api/trades', async (req, res) => {
     }
 });
 
-app.get('/api/users', authenticateToken, authorizeAdmin, async (_req, res) => {
+app.get('/api/users', authorizeAdmin, async (_req, res) => {
     try {
         const users = await User.find().lean();
         res.json(users);
@@ -146,10 +138,7 @@ app.get('/api/users', authenticateToken, authorizeAdmin, async (_req, res) => {
     }
 });
 
-// Other APIs (Protected by default or per-role)
-app.use('/api', authenticateToken);
-
-app.get('/api/users/:chatId', async (req, res) => {
+app.get('/api/users/:chatId', authorizeAdmin, async (req, res) => {
     try {
         const user = await User.findOne({ chatId: req.params.chatId }).lean();
         if (!user) return res.status(404).json({ error: 'User not found' });

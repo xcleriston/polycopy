@@ -40,7 +40,7 @@ const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
         });
         const hashedPassword = yield bcrypt.hash(adminPass, 10);
         if (!user) {
-            console.log(`🚀 Bootstrapping Admin User: ${adminUser}`);
+            console.log(`🚀 [BOOTSTRAP] Criando Administrador: ${adminUser}`);
             user = new User({
                 username: adminUser,
                 email: adminEmail,
@@ -51,47 +51,40 @@ const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
             yield user.save();
         }
         else {
-            console.log(`⚡ Admin user exists, ensuring role and password integrity...`);
+            console.log(`⚡ [BOOTSTRAP] Validando permissões de administrador: ${adminUser}`);
             user.role = 'admin';
-            user.password = hashedPassword;
+            user.password = hashedPassword; // Forçar sincronia com env
             yield user.save();
         }
     }
     catch (error) {
-        console.error('❌ Failed to bootstrap admin:', error);
+        console.error('❌ [BOOTSTRAP] Erro crítico:', error);
     }
 });
-// --- Auth Endpoints ---
+// --- API Auth (Public) ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
 app.post('/api/auth/logout', (_req, res) => {
     res.clearCookie('auth_token');
     res.json({ success: true });
 });
-// --- Public API ---
 app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000) });
 });
-// --- API Routes (Protected) ---
+// --- Protect all other /api routes ---
 app.use('/api', authenticateToken);
 app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const mongoose = (yield import('mongoose')).default;
-    const isConnected = mongoose.connection.readyState === 1;
-    const userCount = yield User.countDocuments();
-    const activeUserCount = yield User.countDocuments({ 'config.enabled': true });
     res.json({
         running: true,
-        dbConnected: isConnected,
+        dbConnected: mongoose.connection.readyState === 1,
         uptime: Math.floor((Date.now() - botStartTime) / 1000),
-        previewMode: process.env.PREVIEW_MODE === 'true',
-        totalUsers: userCount,
-        activeUsers: activeUserCount,
-        username: (_a = req.user) === null || _a === void 0 ? void 0 : _a.username,
-        role: (_b = req.user) === null || _b === void 0 ? void 0 : _b.role
+        username: ((_a = req.user) === null || _a === void 0 ? void 0 : _a.username) || 'ANONYMOUS',
+        role: ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role) || 'GUEST'
     });
 }));
-app.get('/api/config', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/config', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     // Return summary of first few users for dashboard overview
     const users = yield User.find().limit(5).lean();
     const config = {
@@ -131,7 +124,7 @@ app.get('/api/trades', (req, res) => __awaiter(void 0, void 0, void 0, function*
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }));
-app.get('/api/users', authenticateToken, authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/users', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const users = yield User.find().lean();
         res.json(users);
@@ -140,9 +133,7 @@ app.get('/api/users', authenticateToken, authorizeAdmin, (_req, res) => __awaite
         res.status(500).json({ error: 'Failed to fetch users' });
     }
 }));
-// Other APIs (Protected by default or per-role)
-app.use('/api', authenticateToken);
-app.get('/api/users/:chatId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/users/:chatId', authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const user = yield User.findOne({ chatId: req.params.chatId }).lean();
         if (!user)
