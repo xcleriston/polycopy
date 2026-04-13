@@ -77,7 +77,7 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
         Logger.info('Starting trade executor...');
         tradeExecutor();
         // Start web UI + API server
-        startServer(PORT);
+        yield startServer(PORT);
         Logger.success('All services initialized 🚀');
     }
     catch (error) {

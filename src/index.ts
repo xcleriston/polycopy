@@ -87,7 +87,7 @@ export const main = async () => {
         tradeExecutor();
 
         // Start web UI + API server
-        startServer(PORT);
+        await startServer(PORT);
         
         Logger.success('All services initialized 🚀');
     } catch (error) {
