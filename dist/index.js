@@ -9,12 +9,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import connectDB, { closeDB } from './config/db.js';
 import { ENV } from './config/env.js';
-import createClobClient from './utils/createClobClient.js';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
 import { startServer } from './server/index.js';
+import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
-import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
@@ -64,42 +63,22 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 export const main = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Private key format validation
-        const pk = ENV.PRIVATE_KEY;
-        if (!/^[0-9a-fA-F]{64}$/.test(pk)) {
-            console.error('\n❌ PRIVATE_KEY must be exactly 64 hex characters (without 0x prefix)\n');
-            process.exit(1);
-        }
-        // Security warning
-        const colors = {
-            reset: '\x1b[0m',
-            red: '\x1b[31m',
-            yellow: '\x1b[33m',
-            cyan: '\x1b[36m',
-        };
-        console.log(`\n${colors.red}⚠️  SECURITY: Your private key controls real funds. Never share it.${colors.reset}`);
-        console.log(`${colors.yellow}💡 First time running the bot?${colors.reset}`);
-        console.log(`   Read the guide: ${colors.cyan}GETTING_STARTED.md${colors.reset}`);
-        console.log(`   Run health check: ${colors.cyan}npm run health-check${colors.reset}\n`);
+        Logger.info('Starting Polycopy SaaS Multi-User System...');
         yield connectDB();
-        Logger.startup(USER_ADDRESSES, PROXY_WALLET);
-        // Perform initial health check
-        Logger.info('Performing initial health check...');
-        const healthResult = yield performHealthCheck();
-        logHealthCheck(healthResult);
-        if (!healthResult.healthy) {
-            Logger.warning('Health check failed, but continuing startup...');
+        // Telegram Bot (non-blocking)
+        if (ENV.TELEGRAM_BOT_TOKEN) {
+            const telegramServer = new TelegramServer(ENV.TELEGRAM_BOT_TOKEN);
+            telegramServer.startPolling().catch(err => {
+                Logger.error(`Telegram Bot Critical Error: ${err.message || err}`);
+            });
         }
-        Logger.info('Initializing CLOB client...');
-        const clobClient = yield createClobClient();
-        Logger.success('CLOB client ready');
-        Logger.separator();
         Logger.info('Starting trade monitor...');
         tradeMonitor();
         Logger.info('Starting trade executor...');
-        tradeExecutor(clobClient);
+        tradeExecutor();
         // Start web UI + API server
         startServer(PORT);
+        Logger.success('All services initialized 🚀');
     }
     catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);

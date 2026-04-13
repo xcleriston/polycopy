@@ -10,10 +10,17 @@ export interface IUserActivity extends Document {
     timestamp: Date;
     txHash?: string;
     details?: any;
-    // Add compatibility fields for activities from Polymarket
+    // Multi-user tracking
+    processedBy: string[];
+    // Compatibility fields
     bot?: boolean;
     botExcutedTime?: number;
     usdcSize?: number;
+    transactionHash?: string;
+    side?: string;
+    title?: string;
+    slug?: string;
+    asset?: string;
 }
 
 const UserActivitySchema: Schema = new Schema({
@@ -39,7 +46,8 @@ const UserActivitySchema: Schema = new Schema({
     profileImage: { type: String },
     profileImageOptimized: { type: String },
     bot: { type: Boolean, default: false },
-    botExcutedTime: { type: Number, default: 0 },
+    processedBy: [{ type: String }], // Array of chatIds who already processed this
+
     // Fields from IUserActivity
     action: { type: String },
     market: { type: String },
@@ -102,10 +110,10 @@ const createDocumentFactory = (model: Model<any>, walletAddress: string) => {
 
     // Attach static methods for compatibility
     Object.assign(factory, {
-        find: (query: any = {}) => model.find(injectFilter(query)),
-        findOne: (query: any = {}) => model.findOne(injectFilter(query)),
+        find: (query: any = {}) => model.find(injectFilter(query)).lean(),
+        findOne: (query: any = {}) => model.findOne(injectFilter(query)).lean(),
         findOneAndUpdate: (query: any, update: any, options: any = {}) => 
-            model.findOneAndUpdate(injectFilter(query), update, { ...options, new: true }),
+            model.findOneAndUpdate(injectFilter(query), update, { ...options, new: true }).lean(),
         updateOne: (query: any, update: any, options: any = {}) => 
             model.updateOne(injectFilter(query), update, options),
         updateMany: (query: any, update: any, options: any = {}) => 

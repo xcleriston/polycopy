@@ -74,6 +74,11 @@ class Logger {
         if (details.price) {
             console.log(chalk.gray(`Price:  ${chalk.cyan(details.price)}`));
         }
+        if (details.latency !== undefined) {
+            const lat = details.latency;
+            const latColor = lat < 2 ? chalk.green : lat < 5 ? chalk.yellow : chalk.red;
+            console.log(chalk.gray(`Speed:  ${latColor.bold(`${lat.toFixed(2)}s`)}` + (lat < 2 ? ' ⚡' : '')));
+        }
         if (details.eventSlug || details.slug) {
             // Use eventSlug for the correct market URL format
             const slug = details.eventSlug || details.slug;
@@ -93,6 +98,8 @@ class Logger {
             tradeLog += ` | Amount: $${details.amount}`;
         if (details.price)
             tradeLog += ` | Price: ${details.price}`;
+        if (details.latency)
+            tradeLog += ` | Latency: ${details.latency.toFixed(2)}s`;
         if (details.title)
             tradeLog += ` | Market: ${details.title}`;
         if (details.transactionHash)

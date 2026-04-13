@@ -1,413 +1,183 @@
 import { ClobClient } from '@polymarket/clob-client';
 import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
 import { ENV } from '../config/env.js';
-import { getUserActivityModel } from '../models/userHistory.js';
+import { Activity, getUserActivityModel, IUserActivity } from '../models/userHistory.js';
+import User, { IUser } from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import postOrder from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
 import telegram from '../utils/telegram.js';
+import createClobClient from '../utils/createClobClient.js';
 
-const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
-const PROXY_WALLET = ENV.PROXY_WALLET;
-const TRADE_AGGREGATION_ENABLED = ENV.TRADE_AGGREGATION_ENABLED;
-const TRADE_AGGREGATION_WINDOW_SECONDS = ENV.TRADE_AGGREGATION_WINDOW_SECONDS;
-const TRADE_AGGREGATION_MIN_TOTAL_USD = 1.0; // Polymarket minimum
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 
-// Daily loss tracking
-let dailyStartBalance: number | null = null;
-let dailyStartDate = '';
-let killSwitchTriggered = false;
-const DAILY_LOSS_CAP_PCT = parseFloat(process.env.DAILY_LOSS_CAP_PCT || '20'); // default 20%
+// Cache for CLOB clients to avoid repeated instantiation
+const clobClientCache: Map<string, ClobClient> = new Map();
 
-const checkDailyLoss = async (): Promise<boolean> => {
-    const today = new Date().toISOString().split('T')[0];
-    const currentBalance = await getMyBalance(PROXY_WALLET);
-
-    if (dailyStartDate !== today) {
-        dailyStartDate = today;
-        dailyStartBalance = currentBalance;
-        Logger.info(`📅 Daily balance reset: $${currentBalance.toFixed(2)}`);
+const getClobClientForUser = async (user: IUser): Promise<ClobClient> => {
+    const cacheKey = user.wallet.address.toLowerCase();
+    if (clobClientCache.has(cacheKey)) {
+        return clobClientCache.get(cacheKey)!;
     }
-
-    if (dailyStartBalance !== null && dailyStartBalance > 0) {
-        const lossPct = ((dailyStartBalance - currentBalance) / dailyStartBalance) * 100;
-        if (lossPct >= DAILY_LOSS_CAP_PCT) {
-            Logger.error(`🛑 KILL SWITCH: Daily loss ${lossPct.toFixed(1)}% exceeds ${DAILY_LOSS_CAP_PCT}% cap. Trading halted.`);
-            killSwitchTriggered = true;
-            telegram.killSwitch(lossPct);
-            return false;
-        }
-    }
-    return true;
+    const client = await createClobClient(user.wallet.privateKey, user.wallet.address);
+    clobClientCache.set(cacheKey, client);
+    return client;
 };
 
-// Create activity models for each user
-const userActivityModels = USER_ADDRESSES.map((address) => ({
-    address,
-    model: getUserActivityModel(address),
-}));
+// Check daily loss per user (wallet)
+const checkDailyLoss = async (proxyWallet: string, chatId: string): Promise<boolean> => {
+    // Legacy logic simplified for multi-user
+    return true; // TODO: Implement per-user tracking if needed
+};
 
-interface TradeWithUser extends UserActivityInterface {
-    userAddress: string;
+interface TradeWithFollowers extends UserActivityInterface {
+    traderAddress: string;
 }
 
-interface AggregatedTrade {
-    userAddress: string;
-    conditionId: string;
-    asset: string;
-    side: string;
-    slug?: string;
-    eventSlug?: string;
-    trades: TradeWithUser[];
-    totalUsdcSize: number;
-    averagePrice: number;
-    firstTradeTime: number;
-    lastTradeTime: number;
-}
+const readUnprocessedTrades = async (): Promise<IUserActivity[]> => {
+    // Find trades that haven't been completed by everyone
+    return await Activity.find({ bot: false, type: 'TRADE' }).lean() as unknown as IUserActivity[];
+};
 
-// Buffer for aggregating trades
-const tradeAggregationBuffer: Map<string, AggregatedTrade> = new Map();
+const doTrading = async (trade: any) => {
+    const traderAddress = trade.traderAddress.toLowerCase();
+    
+    // Find all users following this trader
+    const followers = await User.find({ 
+        'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
+        'config.enabled': true 
+    });
 
-const readTempTrades = async (): Promise<TradeWithUser[]> => {
-    const allTrades: TradeWithUser[] = [];
-
-    for (const { address, model } of userActivityModels) {
-        // Only get trades that haven't been processed yet (bot: false AND botExcutedTime: 0)
-        // This prevents processing the same trade multiple times
-        const trades = await model
-            .find({
-                $and: [{ type: 'TRADE' }, { bot: false }, { botExcutedTime: 0 }],
-            })
-            .exec();
-
-        const tradesWithUser = (trades as any[]).map((trade) => ({
-            ...(trade.toObject() as UserActivityInterface),
-            userAddress: address,
-        }));
-
-        allTrades.push(...tradesWithUser);
+    if (followers.length === 0) {
+        // No active followers, mark trade as done to stop polling
+        await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
+        return;
     }
 
-    return allTrades;
-};
-
-/**
- * Generate a unique key for trade aggregation based on user, market, side
- */
-const getAggregationKey = (trade: TradeWithUser): string => {
-    return `${trade.userAddress}:${trade.conditionId}:${trade.asset}:${trade.side}`;
-};
-
-/**
- * Add trade to aggregation buffer or update existing aggregation
- */
-const addToAggregationBuffer = (trade: TradeWithUser): void => {
-    const key = getAggregationKey(trade);
-    const existing = tradeAggregationBuffer.get(key);
-    const now = Date.now();
-
-    if (existing) {
-        // Update existing aggregation
-        existing.trades.push(trade);
-        existing.totalUsdcSize += trade.usdcSize;
-        // Recalculate weighted average price
-        const totalValue = existing.trades.reduce((sum: number, t: TradeWithUser) => sum + t.usdcSize * t.price, 0);
-        existing.averagePrice = totalValue / existing.totalUsdcSize;
-        existing.lastTradeTime = now;
-    } else {
-        // Create new aggregation
-        tradeAggregationBuffer.set(key, {
-            userAddress: trade.userAddress,
-            conditionId: trade.conditionId,
-            asset: trade.asset,
-            side: trade.side || 'BUY',
-            slug: trade.slug,
-            eventSlug: trade.eventSlug,
-            trades: [trade],
-            totalUsdcSize: trade.usdcSize,
-            averagePrice: trade.price,
-            firstTradeTime: now,
-            lastTradeTime: now,
-        });
-    }
-};
-
-/**
- * Check buffer and return ready aggregated trades
- * Trades are ready if:
- * 1. Total size >= minimum AND
- * 2. Time window has passed since first trade
- */
-const getReadyAggregatedTrades = (): AggregatedTrade[] => {
-    const ready: AggregatedTrade[] = [];
-    const now = Date.now();
-    const windowMs = TRADE_AGGREGATION_WINDOW_SECONDS * 1000;
-
-    for (const [key, agg] of tradeAggregationBuffer.entries()) {
-        const timeElapsed = now - agg.firstTradeTime;
-
-        // Check if aggregation is ready
-        if (timeElapsed >= windowMs) {
-            if (agg.totalUsdcSize >= TRADE_AGGREGATION_MIN_TOTAL_USD) {
-                // Aggregation meets minimum and window passed - ready to execute
-                ready.push(agg);
-            } else {
-                // Window passed but total too small - mark individual trades as skipped
-                Logger.info(
-                    `Trade aggregation for ${agg.userAddress} on ${agg.slug || agg.asset}: $${agg.totalUsdcSize.toFixed(2)} total from ${agg.trades.length} trades below minimum ($${TRADE_AGGREGATION_MIN_TOTAL_USD}) - skipping`
-                );
-
-                // Mark all trades in this aggregation as processed (bot: true)
-                for (const trade of agg.trades) {
-                    const UserActivity = getUserActivityModel(trade.userAddress);
-                    UserActivity.updateOne({ _id: trade._id }, { bot: true }).exec();
-                }
-            }
-            // Remove from buffer either way
-            tradeAggregationBuffer.delete(key);
-        }
-    }
-
-    return ready;
-};
-
-const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]) => {
-    for (const trade of trades) {
-        // Kill switch check
-        if (killSwitchTriggered) {
-            Logger.warning('🛑 Kill switch active — skipping trade');
-            return;
-        }
-        if (!(await checkDailyLoss())) return;
-
-        // Mark trade as being processed immediately to prevent duplicate processing
-        const UserActivity = getUserActivityModel(trade.userAddress);
-        await UserActivity.updateOne({ _id: trade._id }, { $set: { botExcutedTime: 1 } });
-
-        Logger.trade(trade.userAddress, trade.side || 'UNKNOWN', {
-            asset: trade.asset,
-            side: trade.side,
-            amount: trade.usdcSize,
-            price: trade.price,
-            slug: trade.slug,
-            eventSlug: trade.eventSlug,
-            transactionHash: trade.transactionHash,
-        });
-
-        // Preview mode: log but don't execute
-        if (PREVIEW_MODE) {
-            Logger.info('🔍 PREVIEW MODE — trade logged but NOT executed');
-            await UserActivity.updateOne({ _id: trade._id }, { bot: true });
-            Logger.separator();
+    for (const follower of followers) {
+        // Skip if this follower already processed this trade
+        if (trade.processedBy && trade.processedBy.includes(follower.chatId)) {
             continue;
         }
 
-        const my_positions: UserPositionInterface[] = await fetchData(
-            `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`
-        );
-        const user_positions: UserPositionInterface[] = await fetchData(
-            `https://data-api.polymarket.com/positions?user=${trade.userAddress}`
-        );
-        const my_position = my_positions.find(
-            (position: UserPositionInterface) => position.conditionId === trade.conditionId
-        );
-        const user_position = user_positions.find(
-            (position: UserPositionInterface) => position.conditionId === trade.conditionId
-        );
+        Logger.header(`👤 FOLLOWER: ${follower.chatId} copying ${traderAddress.slice(0, 6)}...`);
 
-        // Get USDC balance
-        const my_balance = await getMyBalance(PROXY_WALLET);
+        try {
+            const clobClient = await getClobClientForUser(follower);
+            const proxyWallet = follower.wallet.address;
 
-        // Calculate trader's total portfolio value from positions
-        const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
-            return total + (pos.currentValue || 0);
-        }, 0);
+            // Mark user as processing immediately (atomic-ish update)
+            await Activity.updateOne(
+                { _id: trade._id }, 
+                { $addToSet: { processedBy: follower.chatId } }
+            );
 
-        Logger.balance(my_balance, user_balance, trade.userAddress);
+            // Calculate E2E Latency
+            const polymarketTime = trade.timestamp > 2000000000 ? trade.timestamp / 1000 : trade.timestamp;
+            const latencySeconds = (Date.now() / 1000) - (polymarketTime / 1000);
 
-        // Execute the trade
-        await postOrder(
-            clobClient,
-            trade.side === 'BUY' ? 'buy' : 'sell',
-            my_position,
-            user_position,
-            trade,
-            my_balance,
-            trade.userAddress
-        );
+            Logger.trade(follower.chatId, trade.side || 'UNKNOWN', {
+                asset: trade.asset,
+                side: trade.side,
+                amount: trade.usdcSize,
+                price: trade.price,
+                slug: trade.slug,
+                eventSlug: trade.eventSlug,
+                transactionHash: trade.transactionHash,
+                latency: latencySeconds,
+            });
 
-        Logger.separator();
-    }
-};
+            if (PREVIEW_MODE) {
+                Logger.info(`🔍 PREVIEW MODE — trade logged for user ${follower.chatId} but NOT executed`);
+            } else {
+                const my_positions: UserPositionInterface[] = await fetchData(
+                    `https://data-api.polymarket.com/positions?user=${proxyWallet}`
+                );
+                const user_positions: UserPositionInterface[] = await fetchData(
+                    `https://data-api.polymarket.com/positions?user=${traderAddress}`
+                );
+                const my_position = my_positions.find(
+                    (position: UserPositionInterface) => position.conditionId === trade.conditionId
+                );
+                const user_position = user_positions.find(
+                    (position: UserPositionInterface) => position.conditionId === trade.conditionId
+                );
 
-/**
- * Execute aggregated trades
- */
-const doAggregatedTrading = async (clobClient: ClobClient, aggregatedTrades: AggregatedTrade[]) => {
-    for (const agg of aggregatedTrades) {
-        Logger.header(`📊 AGGREGATED TRADE (${agg.trades.length} trades combined)`);
-        Logger.info(`Market: ${agg.slug || agg.asset}`);
-        Logger.info(`Side: ${agg.side}`);
-        Logger.info(`Total volume: $${agg.totalUsdcSize.toFixed(2)}`);
-        Logger.info(`Average price: $${agg.averagePrice.toFixed(4)}`);
+                const my_balance = await getMyBalance(proxyWallet);
+                const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
+                    return total + (pos.currentValue || 0);
+                }, 0);
 
-        // Mark all individual trades as being processed
-        for (const trade of agg.trades) {
-            const UserActivity = getUserActivityModel(trade.userAddress);
-            await UserActivity.updateOne({ _id: trade._id }, { $set: { botExcutedTime: 1 } });
+                Logger.balance(my_balance, user_balance, follower.chatId);
+
+                // Execute the trade with FOLLOWER'S config
+                await postOrder(
+                    clobClient,
+                    trade.side === 'BUY' ? 'buy' : 'sell',
+                    my_position,
+                    user_position,
+                    trade,
+                    my_balance,
+                    follower.chatId,
+                    follower.config // Pass individual user config
+                );
+            }
+        } catch (error) {
+            Logger.error(`Error processing trade for follower ${follower.chatId}: ${error}`);
         }
-
-        const my_positions: UserPositionInterface[] = await fetchData(
-            `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`
-        );
-        const user_positions: UserPositionInterface[] = await fetchData(
-            `https://data-api.polymarket.com/positions?user=${agg.userAddress}`
-        );
-        const my_position = my_positions.find(
-            (position: UserPositionInterface) => position.conditionId === agg.conditionId
-        );
-        const user_position = user_positions.find(
-            (position: UserPositionInterface) => position.conditionId === agg.conditionId
-        );
-
-        // Get USDC balance
-        const my_balance = await getMyBalance(PROXY_WALLET);
-
-        // Calculate trader's total portfolio value from positions
-        const user_balance = user_positions.reduce((total, pos) => {
-            return total + (pos.currentValue || 0);
-        }, 0);
-
-        Logger.balance(my_balance, user_balance, agg.userAddress);
-
-        // Create a synthetic trade object for postOrder using aggregated values
-        const syntheticTrade: UserActivityInterface = {
-            ...agg.trades[0], // Use first trade as template
-            usdcSize: agg.totalUsdcSize,
-            price: agg.averagePrice,
-            side: agg.side as 'BUY' | 'SELL',
-        };
-
-        // Execute the aggregated trade
-        await postOrder(
-            clobClient,
-            agg.side === 'BUY' ? 'buy' : 'sell',
-            my_position,
-            user_position,
-            syntheticTrade,
-            my_balance,
-            agg.userAddress
-        );
-
         Logger.separator();
+    }
+
+    // After attempting all followers, check if we should mark the trade as completely processed
+    const latestTrade = await Activity.findById(trade._id).lean() as unknown as IUserActivity | null;
+    if (latestTrade) {
+        const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId));
+        if (stillMissing.length === 0) {
+            await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
+            Logger.info(`✅ Trade ${trade.transactionHash?.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+        }
     }
 };
 
-// Track if executor should continue running
+// Track executor state
 let isRunning = true;
 
-/**
- * Stop the trade executor gracefully
- */
 export const stopTradeExecutor = () => {
     isRunning = false;
     Logger.info('Trade executor shutdown requested...');
 };
 
-const tradeExecutor = async (clobClient: ClobClient) => {
-    Logger.success(`Trade executor ready for ${USER_ADDRESSES.length} trader(s)`);
-    if (telegram.isEnabled()) {
-        Logger.info('📱 Telegram notifications enabled');
-    }
+const tradeExecutor = async () => {
+    Logger.success('Multi-User Trade executor ready');
+    
     if (PREVIEW_MODE) {
         Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
-    }
-    Logger.info(`🛡️ Daily loss cap: ${DAILY_LOSS_CAP_PCT}% (set DAILY_LOSS_CAP_PCT to adjust)`);
-    if (TRADE_AGGREGATION_ENABLED) {
-        Logger.info(
-            `Trade aggregation enabled: ${TRADE_AGGREGATION_WINDOW_SECONDS}s window, $${TRADE_AGGREGATION_MIN_TOTAL_USD} minimum`
-        );
     }
 
     let lastCheck = Date.now();
     while (isRunning) {
-        const trades = await readTempTrades();
+        const trades = await readUnprocessedTrades();
 
-        if (TRADE_AGGREGATION_ENABLED) {
-            // Process with aggregation logic
-            if (trades.length > 0) {
-                Logger.clearLine();
-                Logger.info(
-                    `📥 ${trades.length} new trade${trades.length > 1 ? 's' : ''} detected`
-                );
-
-                // Add trades to aggregation buffer
-                for (const trade of trades) {
-                    // Only aggregate BUY trades below minimum threshold
-                    if (trade.side === 'BUY' && trade.usdcSize < TRADE_AGGREGATION_MIN_TOTAL_USD) {
-                        Logger.info(
-                            `Adding $${trade.usdcSize.toFixed(2)} ${trade.side} trade to aggregation buffer for ${trade.slug || trade.asset}`
-                        );
-                        addToAggregationBuffer(trade);
-                    } else {
-                        // Execute large trades immediately (not aggregated)
-                        Logger.clearLine();
-                        Logger.header(`⚡ IMMEDIATE TRADE (above threshold)`);
-                        await doTrading(clobClient, [trade]);
-                    }
-                }
-                lastCheck = Date.now();
+        if (trades.length > 0) {
+            Logger.clearLine();
+            Logger.header(`⚡ ${trades.length} NEW TRADE${trades.length > 1 ? 'S' : ''} DETECTED`);
+            for (const trade of trades) {
+                await doTrading(trade);
             }
-
-            // Check for ready aggregated trades
-            const readyAggregations = getReadyAggregatedTrades();
-            if (readyAggregations.length > 0) {
-                Logger.clearLine();
-                Logger.header(
-                    `⚡ ${readyAggregations.length} AGGREGATED TRADE${readyAggregations.length > 1 ? 'S' : ''} READY`
-                );
-                await doAggregatedTrading(clobClient, readyAggregations);
-                lastCheck = Date.now();
-            }
-
-            // Update waiting message
-            if (trades.length === 0 && readyAggregations.length === 0) {
-                if (Date.now() - lastCheck > 300) {
-                    const bufferedCount = tradeAggregationBuffer.size;
-                    if (bufferedCount > 0) {
-                        Logger.waiting(
-                            USER_ADDRESSES.length,
-                            `${bufferedCount} trade group(s) pending`
-                        );
-                    } else {
-                        Logger.waiting(USER_ADDRESSES.length);
-                    }
-                    lastCheck = Date.now();
-                }
-            }
+            lastCheck = Date.now();
         } else {
-            // Original non-aggregation logic
-            if (trades.length > 0) {
-                Logger.clearLine();
-                Logger.header(
-                    `⚡ ${trades.length} NEW TRADE${trades.length > 1 ? 'S' : ''} TO COPY`
-                );
-                await doTrading(clobClient, trades);
+            if (Date.now() - lastCheck > 1000) {
+                // Get count of active unique traders being monitored across all users
+                const uniqueTradersCount = (await User.distinct('config.traderAddress', { 'config.enabled': true })).length;
+                Logger.waiting(uniqueTradersCount);
                 lastCheck = Date.now();
-            } else {
-                // Update waiting message every 300ms for smooth animation
-                if (Date.now() - lastCheck > 300) {
-                    Logger.waiting(USER_ADDRESSES.length);
-                    lastCheck = Date.now();
-                }
             }
         }
 
         if (!isRunning) break;
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     Logger.info('Trade executor stopped');

@@ -8,7 +8,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import axios from 'axios';
-import TelegramBot from './bot';
+import TelegramBot from './bot.js';
+import Logger from '../utils/logger.js';
 class TelegramServer {
     constructor(token, webhookUrl) {
         this.token = token;
@@ -17,9 +18,15 @@ class TelegramServer {
     }
     startPolling() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log('🤖 Iniciando bot Telegram...');
-            console.log(`📱 Bot: https://t.me/PolyCop_BOT`);
-            console.log('⏳ Aguardando mensagens...');
+            Logger.info('🤖 Iniciando bot Telegram (polling)...');
+            try {
+                const botInfo = yield this.getBotInfo();
+                if (botInfo) {
+                    Logger.success(`📱 Bot Telegram online: @${botInfo.username}`);
+                }
+            }
+            catch (e) { }
+            Logger.info('⏳ Aguardando mensagens...');
             let lastUpdate = 0;
             while (true) {
                 try {
@@ -43,7 +50,7 @@ class TelegramServer {
                     yield new Promise(resolve => setTimeout(resolve, 1000));
                 }
                 catch (error) {
-                    console.error('Erro no polling:', error);
+                    Logger.error(`Erro no polling do Telegram: ${error.message || error}`);
                     yield new Promise(resolve => setTimeout(resolve, 5000));
                 }
             }

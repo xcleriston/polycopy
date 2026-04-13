@@ -27,56 +27,43 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
 
+import User from '../models/user.js';
+
 app.get('/api/status', async (_req, res) => {
     const mongoose = (await import('mongoose')).default;
     const isConnected = mongoose.connection.readyState === 1;
+    const userCount = await User.countDocuments();
+    const activeUserCount = await User.countDocuments({ 'config.enabled': true });
+    
     res.json({
         running: true,
         dbConnected: isConnected,
         uptime: Math.floor((Date.now() - botStartTime) / 1000),
         previewMode: process.env.PREVIEW_MODE === 'true',
+        totalUsers: userCount,
+        activeUsers: activeUserCount
     });
 });
 
-app.get('/api/config', (_req, res) => {
-    // Try to get Telegram user config first
-    let telegramConfig = null;
-    try {
-        const usersPath = path.join(process.cwd(), 'data', 'telegram_users.json');
-        if (fs.existsSync(usersPath)) {
-            const usersData = fs.readFileSync(usersPath, 'utf-8');
-            const users = JSON.parse(usersData);
-            if (users.length > 0) {
-                const latestUser = users[users.length - 1];
-                if (latestUser.config && latestUser.wallet) {
-                    telegramConfig = {
-                        walletAddress: latestUser.wallet.address,
-                        traderAddress: latestUser.config.traderAddress,
-                        copyStrategy: latestUser.config.strategy,
-                        copySize: latestUser.config.copySize,
-                        step: latestUser.step,
-                        refCode: latestUser.refCode
-                    };
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error reading Telegram config:', error);
-    }
-
-    // Fallback to environment variables
+app.get('/api/config', async (_req, res) => {
+    // Return summary of first few users for dashboard overview
+    const users = await User.find().limit(5).lean();
+    
     const config = {
-        copyStrategy: process.env.COPY_STRATEGY || 'PERCENTAGE',
-        copySize: process.env.COPY_SIZE || '10.0',
-        maxOrderSize: process.env.MAX_ORDER_SIZE_USD || '100.0',
-        minOrderSize: process.env.MIN_ORDER_SIZE_USD || '1.0',
-        fetchInterval: process.env.FETCH_INTERVAL || '1',
-        slippageTolerance: process.env.SLIPPAGE_TOLERANCE || '0.05',
-        dailyLossCap: process.env.DAILY_LOSS_CAP_PCT || '20',
-        previewMode: process.env.PREVIEW_MODE || 'false',
-        tradeAggregation: process.env.TRADE_AGGREGATION_ENABLED || 'false',
-        telegramEnabled: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-        telegramConfig: telegramConfig
+        global: {
+            previewMode: process.env.PREVIEW_MODE === 'true',
+            fetchInterval: process.env.FETCH_INTERVAL || '10',
+            maxOrderSize: process.env.MAX_ORDER_SIZE_USD || '100.0'
+        },
+        users: users.map(u => ({
+            chatId: u.chatId,
+            address: u.wallet?.address,
+            trader: u.config?.traderAddress,
+            strategy: u.config?.strategy,
+            size: u.config?.copySize,
+            enabled: u.config?.enabled,
+            step: u.step
+        }))
     };
 
     res.json(config);
@@ -94,17 +81,88 @@ app.get('/api/trades', async (req, res) => {
 
         const trades = dbTrades.map(trade => ({
             ...trade,
-            isCopied: trade.botExcutedTime && trade.botExcutedTime > 0
+            isCopied: trade.bot === true || (trade.processedBy && trade.processedBy.length > 0)
         }));
 
         res.json(trades);
     } catch (error) {
-        console.error('Error fetching trades from MongoDB:', error);
+        console.error('Error fetching trades:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
-// --- Setup Endpoints for New Users ---
+// --- User Management Endpoints ---
+app.get('/api/users', async (_req, res) => {
+    try {
+        const users = await User.find().lean();
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+app.get('/api/users/:chatId', async (req, res) => {
+    try {
+        const user = await User.findOne({ chatId: req.params.chatId }).lean();
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch user' });
+    }
+});
+
+app.post('/api/users/:chatId/config', async (req, res) => {
+    try {
+        const { config, step } = req.body;
+        const update: any = {};
+        if (config) {
+            Object.keys(config).forEach(key => {
+                update[`config.${key}`] = config[key];
+            });
+        }
+        if (step) update.step = step;
+
+        const user = await User.findOneAndUpdate(
+            { chatId: req.params.chatId },
+            { $set: update },
+            { new: true }
+        );
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+});
+
+app.post('/api/users/:chatId/reset', async (req, res) => {
+    try {
+        const user = await User.findOneAndUpdate(
+            { chatId: req.params.chatId },
+            { 
+                $set: { 
+                    step: 'welcome',
+                    wallet: undefined,
+                    'config.traderAddress': '',
+                    'config.enabled': false
+                } 
+            },
+            { new: true }
+        );
+        res.json({ success: true, message: 'User reset successfully', user });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reset user' });
+    }
+});
+
+app.delete('/api/users/:chatId', async (req, res) => {
+    try {
+        await User.deleteOne({ chatId: req.params.chatId });
+        res.json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete user' });
+    }
+});
+
+// --- Setup Endpoints (Legacy/Single) ---
 app.post('/api/setup', async (req, res) => {
     try {
         const result = await setupNewUser(req.body);
@@ -439,77 +497,315 @@ async function completeSetup() {
 
 // --- Web UI ---
 const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PolyCopy</title>
+<title>PolyCopy SaaS Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:20px}
-.container{max-width:1200px;margin:0 auto}
-h1{color:var(--accent);margin-bottom:20px;font-size:1.5em}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:20px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
-.card h3{color:var(--accent);margin-bottom:12px;font-size:0.9em;text-transform:uppercase;letter-spacing:1px}
-.stat{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.9em}
-.stat:last-child{border:none}
-.stat .label{color:#8b949e}
-.stat .value{font-weight:600}
-.badge{padding:2px 8px;border-radius:12px;font-size:0.8em}
-.badge.green{background:#238636;color:#fff}
-.badge.yellow{background:#9e6a03;color:#fff}
-.badge.red{background:#da3633;color:#fff}
-table{width:100%;border-collapse:collapse;font-size:0.85em}
-th,td{padding:8px;text-align:left;border-bottom:1px solid var(--border)}
-th{color:#8b949e;font-weight:500}
-.buy{color:var(--green)}.sell{color:var(--red)}
-.links{margin-top:16px;font-size:0.85em}
-.links a{color:var(--accent);margin-right:16px;text-decoration:none}
-.links a:hover{text-decoration:underline}
-#lang{float:right;background:var(--card);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:4px}
+:root {
+  --bg: #0b0e14;
+  --card: #151921;
+  --border: #262c36;
+  --text: #e1e7ef;
+  --text-dim: #94a3b8;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.4);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; font-family: 'Outfit', sans-serif; }
+body { background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }
+.container { max-width: 1400px; margin: 0 auto; }
+
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+h1 { font-size: 1.8rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 12px; }
+.logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px var(--accent-glow); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 32px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; position: relative; overflow: hidden; }
+.stat-card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.05)); pointer-events: none; }
+.stat-label { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value { font-size: 2rem; font-weight: 700; color: #fff; }
+.stat-sub { font-size: 0.8rem; color: var(--success); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+h2 { font-size: 1.25rem; color: #fff; font-weight: 600; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 32px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 16px; color: var(--text-dim); font-size: 0.85rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); }
+td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+tr:hover { background: rgba(255,255,255,0.02); }
+
+.user-id { display: flex; align-items: center; gap: 8px; }
+.avatar { width: 32px; height: 32px; background: #2d3748; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
+.badge { padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; }
+.badge-ready { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
+.badge-setup { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--accent); }
+input:checked + .slider:before { transform: translateX(20px); }
+
+.action-btn { background: #262c36; color: #fff; border: 1px solid #333; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; margin-right: 4px; transition: 0.2s; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-reset { color: var(--warning); }
+.btn-delete { color: var(--danger); }
+
+/* Animation */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate { animation: fadeIn 0.4s ease-out forwards; }
+
+.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+.modal-content { background: var(--card); margin: 10% auto; padding: 32px; border: 1px solid var(--border); width: 500px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.form-group { margin-bottom: 16px; }
+label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; }
+input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 8px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.save-btn { background: var(--accent); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
 </style>
 </head>
 <body>
 <div class="container">
-<select id="lang" onchange="setLang(this.value)"><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option></select>
-<h1>🤖 PolyCopy</h1>
-<div class="grid">
-<div class="card" id="status-card"><h3 data-i18n="status">Status</h3><div id="status">Loading...</div></div>
-<div class="card" id="config-card"><h3 data-i18n="config">Configuration</h3><div id="config">Loading...</div></div>
+  <header>
+    <h1><div class="logo-icon">P</div> PolyCopy SaaS</h1>
+    <div id="uptime" style="color: var(--text-dim); font-size: 0.9rem;">Uptime: ...</div>
+  </header>
+
+  <div class="stats-grid">
+    <div class="stat-card animate">
+      <div class="stat-label">Total de Usuários</div>
+      <div id="st-users" class="stat-value">0</div>
+      <div class="stat-sub"><span>↑</span> Registrados</div>
+    </div>
+    <div class="stat-card animate" style="animation-delay: 0.1s">
+      <div class="stat-label">Usuários Ativos</div>
+      <div id="st-active" class="stat-value">0</div>
+      <div class="stat-sub"><span>◉</span> Trading agora</div>
+    </div>
+    <div class="stat-card animate" style="animation-delay: 0.2s">
+      <div class="stat-label">Traders Monitorados</div>
+      <div id="st-traders" class="stat-value">0</div>
+      <div class="stat-sub"><span>◉</span> Unique traders</div>
+    </div>
+    <div class="stat-card animate" style="animation-delay: 0.3s">
+      <div class="stat-label">Modo do Sistema</div>
+      <div id="st-mode" class="stat-value" style="font-size: 1.5rem">PREVIEW</div>
+      <div id="st-mode-sub" class="stat-sub">Safe mode active</div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <h2>Gerenciar Usuários</h2>
+  </div>
+
+  <div class="card animate" style="animation-delay: 0.4s">
+    <table id="user-table">
+      <thead>
+        <tr>
+          <th>Usuário (Telegram)</th>
+          <th>Carteira (Bot)</th>
+          <th>Trader Seguido</th>
+          <th>Estratégia</th>
+          <th>Status</th>
+          <th>Ativo?</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="user-body">
+        <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">Carregando usuários...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-header">
+    <h2>Trades Globais Recentes</h2>
+  </div>
+  <div class="card animate" style="animation-delay: 0.5s">
+    <table id="trade-table">
+      <thead>
+        <tr>
+          <th>Horário</th>
+          <th>Follower</th>
+          <th>Trader</th>
+          <th>Lado</th>
+          <th>Valor</th>
+          <th>Mercado</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="trade-body"></tbody>
+    </table>
+  </div>
 </div>
-<div class="card"><h3 data-i18n="trades">Recent Trades</h3><div id="trades">Loading...</div></div>
-<div class="links">
-<a href="/docs" data-i18n="swagger">📖 API Docs (Swagger)</a>
-<a href="/api/health">🏥 Health Check</a>
-<a href="/api/trades?limit=100">📊 All Trades (JSON)</a>
-<a href="/config" style="color: #f85149;">Advanced Configuration</a>
+
+<!-- Modal Edit User -->
+<div id="edit-modal" class="modal">
+  <div class="modal-content">
+    <h2 style="margin-bottom: 24px;">Editar Configuração de Usuário</h2>
+    <input type="hidden" id="edit-chatid">
+    <div class="form-group">
+      <label>Trader Monitorado</label>
+      <input type="text" id="edit-trader">
+    </div>
+    <div class="form-group">
+      <label>Estratégia</label>
+      <select id="edit-strategy">
+        <option value="PERCENTAGE">Porcentagem (%)</option>
+        <option value="FIXED">Valor Fixo ($)</option>
+        <option value="ADAPTIVE">Adaptiva</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tamanho (Copy Size)</label>
+      <input type="number" id="edit-size" step="0.1">
+    </div>
+    <div class="modal-footer">
+      <button class="action-btn" onclick="closeModal()">Cancelar</button>
+      <button class="save-btn" onclick="saveUserConfig()">Salvar Alterações</button>
+    </div>
+  </div>
 </div>
-</div>
+
 <script>
-const i18n={en:{status:'Status',config:'Configuration',trades:'Recent Trades',swagger:'📖 API Docs',uptime:'Uptime',running:'Running',preview:'Preview Mode',dataFiles:'Data Files',noTrades:'No trades yet'},zh:{status:'状态',config:'配置',trades:'最近交易',swagger:'📖 API 文档',uptime:'运行时间',running:'运行中',preview:'预览模式',dataFiles:'数据文件',noTrades:'暂无交易'},ja:{status:'ステータス',config:'設定',trades:'最近の取引',swagger:'📖 APIドキュメント',uptime:'稼働時間',running:'実行中',preview:'プレビューモード',dataFiles:'データファイル',noTrades:'取引なし'}};
-let lang='en';
-function setLang(l){lang=l;document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=i18n[l][e.dataset.i18n]||e.textContent);refresh()}
-function fmt(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h>0?h+'h '+m+'m':m+'m '+s%60+'s'}
-async function refresh(){
-try{
-const[st,cfg,tr]=await Promise.all([fetch('/api/status').then(r=>r.json()),fetch('/api/config').then(r=>r.json()),fetch('/api/trades?limit=10').then(r=>r.json())]);
-document.getElementById('status').innerHTML='<div class="stat"><span class="label">'+i18n[lang].running+'</span><span class="badge green">?</span></div><div class="stat"><span class="label">'+i18n[lang].uptime+'</span><span class="value">'+fmt(st.uptime)+'</span></div><div class="stat"><span class="label">'+i18n[lang].preview+'</span><span class="value">'+(st.previewMode?'?':'?')+'</span></div><div class="stat"><span class="label">'+i18n[lang].dataFiles+'</span><span class="value">'+st.dataFiles+'</span></div>';
-// Display Telegram config if available
-let configHtml = '';
-if (cfg.telegramConfig) {
-  configHtml = '<div class="stat"><span class="label">Telegram Config</span><span class="badge green">\u2713</span></div><div class="stat"><span class="label">Carteira</span><span class="value">'+cfg.telegramConfig.walletAddress.slice(0, 10)+'...'+cfg.telegramConfig.walletAddress.slice(-8)+'</span></div><div class="stat"><span class="label">Trader</span><span class="value">'+cfg.telegramConfig.traderAddress.slice(0, 10)+'...'+cfg.telegramConfig.traderAddress.slice(-8)+'</span></div><div class="stat"><span class="label">Estratégia</span><span class="value">'+cfg.telegramConfig.copyStrategy+' ('+cfg.telegramConfig.copySize+'%)</span></div><div class="stat"><span class="label">Status</span><span class="badge '+ (cfg.telegramConfig.step === 'ready' ? 'green' : 'yellow')+'">'+cfg.telegramConfig.step+'</span></div><div class="stat"><span class="label">Ref Code</span><span class="value">'+(cfg.telegramConfig.refCode || 'N/A')+'</span></div>';
+async function refresh() {
+  try {
+    const [status, users, trades] = await Promise.all([
+      fetch('/api/status').then(r => r.json()),
+      fetch('/api/users').then(r => r.json()),
+      fetch('/api/trades?limit=10').then(r => r.json())
+    ]);
+
+    document.getElementById('uptime').textContent = 'Uptime: ' + Math.floor(status.uptime/3600) + 'h ' + Math.floor((status.uptime%3600)/60) + 'm';
+    document.getElementById('st-users').textContent = status.totalUsers;
+    document.getElementById('st-active').textContent = status.activeUsers;
+    
+    // Count unique traders
+    const tradersSet = new Set(users.map(u => u.config?.traderAddress).filter(a => !!a));
+    document.getElementById('st-traders').textContent = tradersSet.size;
+    
+    const modeEl = document.getElementById('st-mode');
+    const modeSubEl = document.getElementById('st-mode-sub');
+    if (status.previewMode) {
+      modeEl.textContent = 'PREVIEW';
+      modeEl.style.color = 'var(--text)';
+      modeSubEl.textContent = 'Modo seguro ativo';
+      modeSubEl.style.color = 'var(--success)';
+    } else {
+      modeEl.textContent = 'REAL TRADES';
+      modeEl.style.color = 'var(--accent)';
+      modeSubEl.textContent = 'Execução real ativa';
+      modeSubEl.style.color = 'var(--danger)';
+    }
+
+    // Update Users
+    const userBody = document.getElementById('user-body');
+    userBody.innerHTML = users.map(u => {
+      const isReady = u.step === 'ready';
+      return \`
+        <tr>
+          <td>
+            <div class="user-id">
+              <div class="avatar">\${u.chatId.slice(-2)}</div>
+              <span>\${u.chatId}</span>
+            </div>
+          </td>
+          <td style="font-family: monospace; font-size: 0.8rem">\${u.wallet?.address ? u.wallet.address.slice(0,6)+'...'+u.wallet.address.slice(-4) : '---'}</td>
+          <td style="font-family: monospace; font-size: 0.8rem">\${u.config?.traderAddress ? u.config.traderAddress.slice(0,6)+'...'+u.config.traderAddress.slice(-4) : '---'}</td>
+          <td>\${u.config?.strategy || '---'} (\${u.config?.copySize || 0}%)</td>
+          <td><span class="badge \${isReady ? 'badge-ready' : 'badge-setup'}">\${u.step}</span></td>
+          <td>
+            <label class="switch">
+              <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u.chatId}', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </td>
+          <td>
+            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">🔧</button>
+            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">🔄</button>
+            <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+          </td>
+        </tr>
+      \`;
+    }).join('');
+
+    // Update Trades
+    const tradeBody = document.getElementById('trade-body');
+    tradeBody.innerHTML = trades.map(t => \`
+      <tr>
+        <td style="color: var(--text-dim); font-size: 0.8rem">\${new Date(t.timestamp).toLocaleTimeString()}</td>
+        <td>\${t.processedBy?.length > 0 ? t.processedBy.join(', ') : '---'}</td>
+        <td style="font-family: monospace; font-size: 0.8rem">\${t.traderAddress.slice(0,6)}...</td>
+        <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
+        <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
+        <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${t.title || t.slug}</td>
+        <td>\${t.bot ? '<span style="color: var(--success)">✓ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
+      </tr>
+    \`).join('');
+
+  } catch (e) {
+    console.error('Refresh error:', e);
+  }
 }
 
-// Display system config
-configHtml += Object.entries(cfg).filter(([k]) => k !== 'telegramConfig').map(([k,v])=>\`<div class="stat"><span class="label">\${k}</span><span class="value">\${v}</span></div>\`).join('');
-document.getElementById('config').innerHTML = configHtml;
-
-if(tr.length===0){document.getElementById('trades').innerHTML='<p style="padding:12px;color:#8b949e">'+i18n[lang].noTrades+'</p>';return}
-document.getElementById('trades').innerHTML='<table><tr><th>Time</th><th>Type</th><th>Side</th><th>Amount</th><th>Price</th><th>Market</th></tr>'+tr.map(t=>\`<tr\${t.isCopied?' style="background-color: rgba(56, 139, 253, 0.1);"':''}><td>\${new Date(t.timestamp).toLocaleString()}</td><td>\${t.isCopied?'<span style="color: #58a6ff; font-weight: bold;">COPIED</span>':'Original'}</td><td class="\${(t.side||'').toLowerCase()}">\${t.side||'-'}</td><td>$\${(t.usdcSize||0).toFixed(2)}</td><td>\${(t.price||0).toFixed(4)}</td><td>\${(t.title||t.slug||'-').slice(0,40)}</td></tr>\`).join('')+'</table>';
-}catch(e){document.getElementById('status').innerHTML='<span class="badge red">Error</span>'}
+async function toggleUser(chatId, enabled) {
+  await fetch(\`/api/users/\${chatId}/config\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config: { enabled } })
+  });
+  refresh();
 }
-refresh();setInterval(refresh,5000);
+
+async function resetUser(chatId) {
+  if (!confirm('Deseja resetar este usuário? A carteira será removida e ele voltará ao início.')) return;
+  await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+  refresh();
+}
+
+async function deleteUser(chatId) {
+  if (!confirm('Deseja excluir permanentemente este usuário?')) return;
+  await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+  refresh();
+}
+
+function openEditModal(chatId, trader, strategy, size) {
+  document.getElementById('edit-chatid').value = chatId;
+  document.getElementById('edit-trader').value = trader;
+  document.getElementById('edit-strategy').value = strategy;
+  document.getElementById('edit-size').value = size;
+  document.getElementById('edit-modal').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+}
+
+async function saveUserConfig() {
+  const chatId = document.getElementById('edit-chatid').value;
+  const config = {
+    traderAddress: document.getElementById('edit-trader').value,
+    strategy: document.getElementById('edit-strategy').value,
+    copySize: parseFloat(document.getElementById('edit-size').value)
+  };
+  
+  await fetch(\`/api/users/\${chatId}/config\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config })
+  });
+  
+  closeModal();
+  refresh();
+}
+
+refresh();
+setInterval(refresh, 5000);
 </script>
 </body></html>`;
 

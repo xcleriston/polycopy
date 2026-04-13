@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
+import User, { IUser } from '../models/user.js';
 
 interface User {
     chatId: string;
@@ -14,47 +15,42 @@ interface User {
         strategy?: string;
         copySize?: number;
     };
-    step?: 'start' | 'wallet' | 'trader' | 'strategy' | 'deposit' | 'ready';
+    step?: 'start' | 'wallet' | 'trader' | 'strategy' | 'deposit' | 'ready' | 'connect_wallet';
     refCode?: string;
 }
 
 class TelegramBot {
     private token: string;
-    private users: Map<string, User> = new Map();
-    private privateKeys: Map<string, string> = new Map(); // temp storage for security
+
 
     constructor(token: string) {
         this.token = token;
-        this.loadUsers();
+        this.migrateLegacyUsers().catch(err => console.error('Migration error:', err));
     }
 
-    private loadUsers() {
+
+    private async migrateLegacyUsers() {
         try {
             const usersPath = path.join(process.cwd(), 'data', 'telegram_users.json');
             if (fs.existsSync(usersPath)) {
                 const data = fs.readFileSync(usersPath, 'utf-8');
-                const users = JSON.parse(data);
-                users.forEach((user: User) => {
-                    this.users.set(user.chatId, user);
-                });
+                const legacyUsers = JSON.parse(data);
+                for (const legacyUser of legacyUsers) {
+                    const exists = await User.findOne({ chatId: legacyUser.chatId });
+                    if (!exists) {
+                        await User.create(legacyUser);
+                        console.log(`Migrated user ${legacyUser.chatId} to MongoDB`);
+                    }
+                }
+                // Backup and remove the legacy file after migration? 
+                // Maybe just leave it for now to be safe, or rename it.
+                fs.renameSync(usersPath, usersPath + '.bak');
             }
         } catch (error) {
-            console.error('Error loading users:', error);
+            console.error('Error migrating users:', error);
         }
     }
 
-    private saveUsers() {
-        try {
-            const dataDir = path.join(process.cwd(), 'data');
-            if (!fs.existsSync(dataDir)) {
-                fs.mkdirSync(dataDir, { recursive: true });
-            }
-            const usersPath = path.join(dataDir, 'telegram_users.json');
-            fs.writeFileSync(usersPath, JSON.stringify(Array.from(this.users.values())));
-        } catch (error) {
-            console.error('Error saving users:', error);
-        }
-    }
 
     private generateWallet() {
         const wallet = ethers.Wallet.createRandom();
@@ -99,15 +95,14 @@ class TelegramBot {
     }
 
     private async handleStart(chatId: string, refCode?: string) {
-        let user = this.users.get(chatId);
+        let user = await User.findOne({ chatId });
         
         if (!user) {
-            user = {
+            user = await User.create({
                 chatId,
                 step: 'start',
                 refCode: refCode
-            };
-            this.users.set(chatId, user);
+            });
         }
 
         const welcomeMessage = `*🚀 BEM-VINDO AO POLYCOPY BOT!*
@@ -127,21 +122,39 @@ Clique em "Gerar Carteira" para continuar:`;
 
         const keyboard = [
             [{ text: '🔐 Gerar Nova Carteira', callback_data: 'generate_wallet' }],
+            [{ text: '🔗 Conectar conta existente', callback_data: 'connect_account' }],
             [{ text: '❓ Como Funciona?', callback_data: 'how_it_works' }]
         ];
 
         await this.sendMessage(chatId, welcomeMessage, keyboard);
     }
 
+    private async handleConnectAccount(chatId: string) {
+        const user = await User.findOne({ chatId });
+        if (!user) return;
+
+        await User.updateOne({ chatId }, { $set: { step: 'connect_wallet' } });
+
+        const connectMessage = `*🔗 CONECTAR CONTA EXISTENTE*
+
+Por favor, envie sua **Chave Privada** (Private Key) da Polygon/Ethereum.
+
+⚠️ *SEGURANÇA:*
+• Use uma chave que você já possua na Polymarket
+• O bot usará esta chave apenas para assinar ordens localmente
+• Nunca compartilhe esta chave com terceiros
+
+*Digite sua chave privada de 64 caracteres:*`;
+
+        await this.sendMessage(chatId, connectMessage);
+    }
+
     private async handleGenerateWallet(chatId: string) {
-        const user = this.users.get(chatId);
+        const user = await User.findOne({ chatId });
         if (!user) return;
 
         const wallet = this.generateWallet();
-        user.wallet = wallet;
-        user.step = 'wallet';
-        this.users.set(chatId, user);
-        this.saveUsers();
+        await User.updateOne({ chatId }, { $set: { wallet, step: 'wallet' } });
 
         const depositLinks = this.getDepositLinks(wallet.address);
 
@@ -188,11 +201,10 @@ Após depositar, clique em "Confirmar Depósito":`;
     }
 
     private async handleDepositConfirmed(chatId: string) {
-        const user = this.users.get(chatId);
+        const user = await User.findOne({ chatId });
         if (!user || !user.wallet) return;
 
-        user.step = 'trader';
-        this.users.set(chatId, user);
+        await User.updateOne({ chatId }, { $set: { step: 'trader' } });
 
         const traderMessage = `*📊 PASSO 3: ESCOLHER TRADER*
 
@@ -220,12 +232,15 @@ Digite o endereço do trader que deseja copiar ou escolha uma opção acima:`;
     }
 
     private async handleTraderSelection(chatId: string, traderAddress: string) {
-        const user = this.users.get(chatId);
+        const user = await User.findOne({ chatId });
         if (!user) return;
 
-        user.config = { ...user.config, traderAddress };
-        user.step = 'strategy';
-        this.users.set(chatId, user);
+        await User.updateOne({ chatId }, { 
+            $set: { 
+                'config.traderAddress': traderAddress.toLowerCase(), 
+                step: 'strategy' 
+            } 
+        });
 
         const strategyMessage = `*⚙️ PASSO 4: CONFIGURAR ESTRATÉGIA*
 
@@ -257,25 +272,28 @@ Escolha sua estratégia:`;
     }
 
     private async handleStrategySelection(chatId: string, strategy: string, copySize: number) {
-        const user = this.users.get(chatId);
+        const user = await User.findOne({ chatId });
         if (!user) return;
 
-        user.config = { ...user.config, strategy, copySize };
-        user.step = 'ready';
-        this.users.set(chatId, user);
-        this.saveUsers();
-
-        // Update .env file with user configuration
-        await this.updateEnvFile(user);
+        await User.updateOne({ chatId }, { 
+            $set: { 
+                'config.strategy': strategy, 
+                'config.copySize': copySize, 
+                step: 'ready' 
+            } 
+        });
+        
+        const updatedUser = await User.findOne({ chatId });
+        if (!updatedUser) return;
 
         const readyMessage = `*🎉 CONFIGURAÇÃO CONCLUÍDA!*
 
 *📋 RESUMO DA SUA CONFIGURAÇÃO:*
 
-📍 *Carteira:* \`${user.wallet!.address}\`
-🎯 *Trader:* \`${user.config!.traderAddress}\`
-⚙️ *Estratégia:* ${user.config!.strategy}
-💰 *Copy Size:* ${user.config!.copySize}%
+📍 *Carteira:* \`${updatedUser.wallet!.address}\`
+🎯 *Trader:* \`${updatedUser.config!.traderAddress}\`
+⚙️ *Estratégia:* ${updatedUser.config!.strategy}
+💰 *Copy Size:* ${updatedUser.config!.copySize}%
 
 *🚀 PRÓXIMOS PASSOS:*
 
@@ -307,45 +325,13 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
         await this.sendMessage(chatId, readyMessage, keyboard);
     }
 
-    private async updateEnvFile(user: User) {
-        try {
-            const envPath = path.join(process.cwd(), '.env');
-            let envContent = '';
-
-            if (fs.existsSync(envPath)) {
-                envContent = fs.readFileSync(envPath, 'utf-8');
-            }
-
-            const updates = [
-                { key: 'USER_ADDRESSES', value: user.config?.traderAddress || '' },
-                { key: 'PROXY_WALLET', value: user.wallet?.address || '' },
-                { key: 'PRIVATE_KEY', value: user.wallet?.privateKey || '' },
-                { key: 'COPY_STRATEGY', value: user.config?.strategy || 'PERCENTAGE' },
-                { key: 'COPY_SIZE', value: user.config?.copySize?.toString() || '10.0' },
-                { key: 'PREVIEW_MODE', value: 'true' }
-            ];
-
-            updates.forEach(({ key, value }) => {
-                const regex = new RegExp(`^${key}\\s*=.*$`, 'm');
-                if (regex.test(envContent)) {
-                    envContent = envContent.replace(regex, `${key}='${value}'`);
-                } else {
-                    envContent += `\n${key}='${value}'`;
-                }
-            });
-
-            fs.writeFileSync(envPath, envContent);
-        } catch (error) {
-            console.error('Error updating .env file:', error);
-        }
-    }
-
     public async handleCallback(callbackData: string, chatId: string) {
-        const user = this.users.get(chatId);
-
         switch (callbackData) {
             case 'generate_wallet':
                 await this.handleGenerateWallet(chatId);
+                break;
+            case 'connect_account':
+                await this.handleConnectAccount(chatId);
                 break;
             case 'deposit_confirmed':
                 await this.handleDepositConfirmed(chatId);
@@ -355,6 +341,9 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
                 break;
             case 'trader_popular_2':
                 await this.handleTraderSelection(chatId, '0xd62531bc536bff72394fc5ef715525575787e809');
+                break;
+            case 'trader_custom':
+                await this.sendMessage(chatId, '*⌨️ INSERIR TRADER CUSTOMIZADO*\n\nPor favor, envie o endereço da carteira do trader que deseja copiar (ex: `0x...`):');
                 break;
             case 'strategy_percentage':
                 await this.handleStrategySelection(chatId, 'PERCENTAGE', 10.0);
@@ -377,7 +366,7 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
     }
 
     private async sendStatus(chatId: string) {
-        const user = this.users.get(chatId);
+        const user = await User.findOne({ chatId });
         if (!user) return;
 
         const statusMessage = `*📊 STATUS DO SEU BOT*
@@ -421,6 +410,7 @@ Se precisar de ajuda, contate nosso suporte.
     public async handleMessage(message: any) {
         const chatId = message.chat.id.toString();
         const text = message.text;
+        const user = await User.findOne({ chatId });
 
         if (text?.startsWith('/start')) {
             const refCode = text.split(' ')[1];
@@ -433,7 +423,62 @@ Se precisar de ajuda, contate nosso suporte.
             await this.sendStatus(chatId);
         } else if (text?.startsWith('/config')) {
             await this.sendStatus(chatId);
+        } else if (user?.step === 'connect_wallet' && text) {
+            await this.processPrivateKey(chatId, text);
+        } else if (user?.step === 'trader' && text) {
+            await this.processTraderAddress(chatId, text);
         }
+    }
+
+    private async processPrivateKey(chatId: string, privateKey: string) {
+        const user = await User.findOne({ chatId });
+        if (!user) return;
+
+        // Clean price key (remove 0x header if present)
+        const cleanKey = privateKey.trim().replace(/^0x/, '');
+
+        // Basic validation: 64 hex characters
+        if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
+            await this.sendMessage(
+                chatId,
+                '❌ *Chave Privada Inválida.*\n\nA chave deve ter exatamente 64 caracteres hexadecimais. Tente novamente:'
+            );
+            return;
+        }
+
+        try {
+            const walletDerived = new ethers.Wallet(cleanKey);
+            await User.updateOne({ chatId }, { 
+                $set: { 
+                    'wallet.address': walletDerived.address,
+                    'wallet.privateKey': cleanKey
+                } 
+            });
+            
+            await this.sendMessage(
+                chatId,
+                `✅ *Conta Conectada com Sucesso!*\n\n📍 *Endereço:* \`${walletDerived.address}\`\n\nAgora vamos configurar quem você deseja copiar.`
+            );
+
+            // Directly jump to trader selection
+            await this.handleDepositConfirmed(chatId);
+
+        } catch (error) {
+            await this.sendMessage(
+                chatId,
+                '❌ *Erro ao importar chave.* Verifique se a chave é válida e tente novamente.'
+            );
+        }
+    }
+
+    private async processTraderAddress(chatId: string, address: string) {
+        const cleanAddress = address.trim();
+        if (!ethers.utils.isAddress(cleanAddress)) {
+            await this.sendMessage(chatId, '❌ *Endereço Inválido.*\n\nPor favor, envie um endereço de carteira válido (0x...):');
+            return;
+        }
+
+        await this.handleTraderSelection(chatId, cleanAddress);
     }
 }
 

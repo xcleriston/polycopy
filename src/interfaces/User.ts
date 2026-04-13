@@ -1,6 +1,7 @@
 export interface UserActivityInterface {
-    _id?: string;
-    proxyWallet: string;
+    _id?: any;
+    traderAddress: string;
+    processedBy: string[];
     timestamp: number;
     conditionId: string;
     type: string;

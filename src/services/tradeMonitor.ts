@@ -1,112 +1,44 @@
 import { ENV } from '../config/env.js';
 import { getUserActivityModel, getUserPositionModel } from '../models/userHistory.js';
+import User from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import Logger from '../utils/logger.js';
 
-const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
 
-if (!USER_ADDRESSES || USER_ADDRESSES.length === 0) {
-    throw new Error('USER_ADDRESSES is not defined or empty');
-}
-
-// Create activity and position models for each user
-const userModels = USER_ADDRESSES.map((address) => ({
-    address,
-    UserActivity: getUserActivityModel(address),
-    UserPosition: getUserPositionModel(address),
-}));
+const getUniqueTraders = async (): Promise<string[]> => {
+    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
+    const addresses = users.map(u => u.config.traderAddress!.toLowerCase());
+    return Array.from(new Set(addresses));
+};
 
 const init = async () => {
+    const USER_ADDRESSES = await getUniqueTraders();
+    
+    if (USER_ADDRESSES.length === 0) {
+        Logger.warning('No traders to monitor yet. Connect a user to start.');
+        return;
+    }
+
     const counts: number[] = [];
-    for (const { address, UserActivity } of userModels) {
+    for (const address of USER_ADDRESSES) {
+        const UserActivity = getUserActivityModel(address);
         const count = await UserActivity.countDocuments();
         counts.push(count);
     }
     Logger.clearLine();
     Logger.dbConnection(USER_ADDRESSES, counts);
 
-    // Show your own positions first
-    try {
-        const myPositionsUrl = `https://data-api.polymarket.com/positions?user=${ENV.PROXY_WALLET}`;
-        const myPositions = await fetchData(myPositionsUrl);
-
-        // Get current USDC balance
-        const getMyBalance = (await import('../utils/getMyBalance.js')).default;
-        const currentBalance = await getMyBalance(ENV.PROXY_WALLET);
-
-        if (Array.isArray(myPositions) && myPositions.length > 0) {
-            // Calculate your overall profitability and initial investment
-            let totalValue = 0;
-            let initialValue = 0;
-            let weightedPnl = 0;
-            myPositions.forEach((pos: any) => {
-                const value = pos.currentValue || 0;
-                const initial = pos.initialValue || 0;
-                const pnl = pos.percentPnl || 0;
-                totalValue += value;
-                initialValue += initial;
-                weightedPnl += value * pnl;
-            });
-            const myOverallPnl = totalValue > 0 ? weightedPnl / totalValue : 0;
-
-            // Get top 5 positions by profitability (PnL)
-            const myTopPositions = myPositions
-                .sort((a: any, b: any) => (b.percentPnl || 0) - (a.percentPnl || 0))
-                .slice(0, 5);
-
-            Logger.clearLine();
-            Logger.myPositions(
-                ENV.PROXY_WALLET,
-                myPositions.length,
-                myTopPositions,
-                myOverallPnl,
-                totalValue,
-                initialValue,
-                currentBalance
-            );
-        } else {
-            Logger.clearLine();
-            Logger.myPositions(ENV.PROXY_WALLET, 0, [], 0, 0, 0, currentBalance);
-        }
-    } catch (error) {
-        Logger.error(`Failed to fetch your positions: ${error}`);
-    }
-
-    // Show current positions count with details for traders you're copying
-    const positionCounts: number[] = [];
-    const positionDetails: any[][] = [];
-    const profitabilities: number[] = [];
-    for (const { address, UserPosition } of userModels) {
-        const positions = await UserPosition.find().exec();
-        positionCounts.push(positions.length);
-
-        // Calculate overall profitability (weighted average by current value)
-        let totalValue = 0;
-        let weightedPnl = 0;
-        positions.forEach((pos: any) => {
-            const value = pos.currentValue || 0;
-            const pnl = pos.percentPnl || 0;
-            totalValue += value;
-            weightedPnl += value * pnl;
-        });
-        const overallPnl = totalValue > 0 ? weightedPnl / totalValue : 0;
-        profitabilities.push(overallPnl);
-
-        // Get top 3 positions by profitability (PnL)
-        const topPositions = positions
-            .sort((a: any, b: any) => (b.percentPnl || 0) - (a.percentPnl || 0))
-            .slice(0, 3)
-            .map((p: any) => p.toObject());
-        positionDetails.push(topPositions);
-    }
-    Logger.clearLine();
-    Logger.tradersPositions(USER_ADDRESSES, positionCounts, positionDetails, profitabilities);
+    // Initial positions display (optional/legacy)
+    Logger.info(`System monitoring ${USER_ADDRESSES.length} unique trader(s).`);
 };
 
-const fetchTradeDataForTrader = async ({ address, UserActivity, UserPosition }: typeof userModels[number]) => {
+const fetchTradeDataForTrader = async (address: string) => {
     try {
+        const UserActivity = getUserActivityModel(address);
+        const UserPosition = getUserPositionModel(address);
+
         // Fetch trade activities from Polymarket API
         const apiUrl = `https://data-api.polymarket.com/activity?user=${address}&type=TRADE`;
         const activities = await fetchData(apiUrl);
@@ -201,7 +133,8 @@ const fetchTradeDataForTrader = async ({ address, UserActivity, UserPosition }: 
 
 // Parallel fetch for all traders
 const fetchTradeData = async () => {
-    await Promise.allSettled(userModels.map(fetchTradeDataForTrader));
+    const USER_ADDRESSES = await getUniqueTraders();
+    await Promise.allSettled(USER_ADDRESSES.map(fetchTradeDataForTrader));
 };
 
 // Track if this is the first run
@@ -219,19 +152,17 @@ export const stopTradeMonitor = () => {
 
 const tradeMonitor = async () => {
     await init();
-    Logger.success(`Monitoring ${USER_ADDRESSES.length} trader(s) every ${FETCH_INTERVAL}s`);
-    Logger.separator();
-
-    // On first run, don't mark historical trades as processed to allow continuous updates
-    if (isFirstRun) {
-        Logger.info('First run: starting continuous trade monitoring...');
-        isFirstRun = false;
-        Logger.success('\nStarting trade monitoring with continuous updates.');
-        Logger.separator();
-    }
-
+    
     while (isRunning) {
-        await fetchTradeData();
+        const USER_ADDRESSES = await getUniqueTraders();
+        if (USER_ADDRESSES.length > 0) {
+            if (isFirstRun) {
+                Logger.success(`Monitoring ${USER_ADDRESSES.length} unique trader(s) every ${FETCH_INTERVAL}s`);
+                isFirstRun = false;
+            }
+            await fetchTradeData();
+        }
+        
         if (!isRunning) break;
         await new Promise((resolve) => setTimeout(resolve, FETCH_INTERVAL * 1000));
     }
