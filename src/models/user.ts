@@ -1,8 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IUser extends Document {
-    chatId: string;
-    wallet: {
+    chatId?: string; // Optional for web-only users
+    email?: string;
+    username?: string;
+    password?: string;
+    role: 'admin' | 'follower';
+    pushSubscription?: string;
+    wallet?: {
         address: string;
         privateKey: string;
     };
@@ -19,7 +24,12 @@ export interface IUser extends Document {
 }
 
 const UserSchema: Schema = new Schema({
-    chatId: { type: String, required: true, unique: true, index: true },
+    chatId: { type: String, unique: true, index: true, sparse: true },
+    email: { type: String, unique: true, index: true, sparse: true },
+    username: { type: String, unique: true, index: true, sparse: true },
+    password: { type: String },
+    role: { type: String, enum: ['admin', 'follower'], default: 'follower' },
+    pushSubscription: { type: String },
     wallet: {
         address: { type: String, index: true },
         privateKey: { type: String },

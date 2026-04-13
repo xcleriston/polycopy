@@ -10,8 +10,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { setupNewUser } from './setup.js';
+import cookieParser from 'cookie-parser';
+import { authenticateToken, authorizeAdmin, login, signup } from './auth.js';
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 // --- Swagger API Docs ---
 const swaggerDoc = {
     openapi: '3.0.0',
@@ -24,13 +27,21 @@ const swaggerDoc = {
     },
 };
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
-// --- API Routes ---
+// --- Auth Endpoints ---
+app.post('/api/auth/login', login);
+app.post('/api/auth/signup', signup);
+app.post('/api/auth/logout', (_req, res) => {
+    res.clearCookie('auth_token');
+    res.json({ success: true });
+});
+// --- API Routes (Protected) ---
 let botStartTime = Date.now();
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
 import User from '../models/user.js';
-app.get('/api/status', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const mongoose = (yield import('mongoose')).default;
     const isConnected = mongoose.connection.readyState === 1;
     const userCount = yield User.countDocuments();
@@ -41,7 +52,9 @@ app.get('/api/status', (_req, res) => __awaiter(void 0, void 0, void 0, function
         uptime: Math.floor((Date.now() - botStartTime) / 1000),
         previewMode: process.env.PREVIEW_MODE === 'true',
         totalUsers: userCount,
-        activeUsers: activeUserCount
+        activeUsers: activeUserCount,
+        username: (_a = req.user) === null || _a === void 0 ? void 0 : _a.username,
+        role: (_b = req.user) === null || _b === void 0 ? void 0 : _b.role
     });
 }));
 app.get('/api/config', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -84,8 +97,7 @@ app.get('/api/trades', (req, res) => __awaiter(void 0, void 0, void 0, function*
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }));
-// --- User Management Endpoints ---
-app.get('/api/users', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/users', authenticateToken, authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const users = yield User.find().lean();
         res.json(users);
@@ -94,6 +106,8 @@ app.get('/api/users', (_req, res) => __awaiter(void 0, void 0, void 0, function*
         res.status(500).json({ error: 'Failed to fetch users' });
     }
 }));
+// Other APIs (Protected by default or per-role)
+app.use('/api', authenticateToken);
 app.get('/api/users/:chatId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const user = yield User.findOne({ chatId: req.params.chatId }).lean();
@@ -146,6 +160,17 @@ app.delete('/api/users/:chatId', (req, res) => __awaiter(void 0, void 0, void 0,
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to delete user' });
+    }
+}));
+app.post('/api/push/subscribe', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { subscription } = req.body;
+        yield User.updateOne({ _id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }, { $set: { pushSubscription: JSON.stringify(subscription) } });
+        res.json({ success: true, message: 'Push subscription saved' });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to save subscription' });
     }
 }));
 // --- Setup Endpoints (Legacy/Single) ---
@@ -783,7 +808,351 @@ refresh();
 setInterval(refresh, 5000);
 </script>
 </body></html>`;
-app.get('/', (_req, res) => { res.type('html').send(html); });
+const hackerStyles = `
+:root {
+  --bg: #050505;
+  --card: #0a0a0a;
+  --border: #1a1a1a;
+  --text: #e0e0e0;
+  --text-dim: #808080;
+  --accent: #00ff41;
+  --accent-blue: #00d1ff;
+  --accent-glow: rgba(0, 255, 65, 0.2);
+  --danger: #ff003c;
+  --warning: #f59e0b;
+  --hacker-font: 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { 
+  background: var(--bg); 
+  color: var(--text); 
+  font-family: 'Outfit', sans-serif; 
+  overflow-x: hidden; 
+  background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #050505 100%);
+}
+.scanline {
+  width: 100%;
+  height: 100px;
+  background: linear-gradient(0deg, rgba(0, 255, 65, 0.03), transparent);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: none;
+  animation: scan 8s linear infinite;
+}
+@keyframes scan { from { transform: translateY(-100px); } to { transform: translateY(100vh); } }
+
+.glass {
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.hacker-glow { box-shadow: 0 0 15px var(--accent-glow); }
+.text-hacker { font-family: var(--hacker-font); color: var(--accent); }
+.btn-hacker {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-family: var(--hacker-font);
+  cursor: pointer;
+  transition: 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.btn-hacker:hover {
+  background: var(--accent);
+  color: #000;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+`;
+const loginHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Poly Hacker | Entry Point</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>\${hackerStyles}
+    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
+    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
+    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; letter-spacing: -1px; }
+    .logo span { color: var(--accent); }
+    .form-group { text-align: left; margin-bottom: 20px; }
+    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
+    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent); }
+    input:focus { border-color: var(--accent); outline: none; }
+    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
+    .footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="scanline"></div>
+  <div class="auth-card glass hacker-glow">
+    <div class="logo">POLY<span>HACKER</span></div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label>ID / EMAIL / USER</label>
+        <input type="text" id="identity" required>
+      </div>
+      <div class="form-group">
+        <label>ACCESS_CODE</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit" class="btn-hacker" style="width: 100%">Execute_Login</button>
+    </form>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div class="footer">
+      Não tem acesso? <a href="/signup">Solicitar Credenciais</a>
+    </div>
+  </div>
+  <script>
+    document.getElementById('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const identity = document.getElementById('identity').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity, password })
+      });
+      const data = await res.json();
+      if (data.success) window.location.href = '/';
+      else document.getElementById('error').textContent = data.error;
+    };
+  </script>
+</body> </html>`;
+const signupHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Poly Hacker | Register</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>\${hackerStyles}
+    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
+    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
+    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; }
+    .logo span { color: var(--accent); }
+    .form-group { text-align: left; margin-bottom: 20px; }
+    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
+    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent-blue); }
+    input:focus { border-color: var(--accent-blue); outline: none; }
+    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
+    .footer a { color: var(--accent-blue); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="scanline"></div>
+  <div class="auth-card glass hacker-glow" style="box-shadow: 0 0 15px rgba(0, 209, 255, 0.2)">
+    <div class="logo">POLY<span>HACKER</span></div>
+    <form id="signupForm">
+      <div class="form-group">
+        <label>USERNAME</label>
+        <input type="text" id="username" required>
+      </div>
+      <div class="form-group">
+        <label>EMAIL</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="form-group">
+        <label>ACCESS_CODE</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit" class="btn-hacker" style="width: 100%; border-color: var(--accent-blue); color: var(--accent-blue)">Initialize_Account</button>
+    </form>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div class="footer">
+      Já possui acesso? <a href="/login">Conectar</a>
+    </div>
+  </div>
+  <script>
+    document.getElementById('signupForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+      if (data.success) window.location.href = '/';
+      else document.getElementById('error').textContent = data.error;
+    };
+  </script>
+</body> </html>`;
+const dashboardHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Poly Hacker | Control Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>\${hackerStyles}
+    body { padding: 40px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+    .logo { font-size: 1.5rem; font-weight: 800; }
+    .logo span { color: var(--accent); }
+    .user-info { display: flex; align-items: center; gap: 15px; }
+    .role-badge { font-family: var(--hacker-font); font-size: 0.7rem; padding: 4px 8px; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; }
+    
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-bottom: 40px; }
+    .card { padding: 25px; position: relative; border-left: 2px solid var(--accent); }
+    .card h3 { font-family: var(--hacker-font); font-size: 0.8rem; color: var(--text-dim); margin-bottom: 10px; }
+    .card .value { font-size: 2rem; font-weight: 700; color: #fff; }
+    
+    .section-title { font-family: var(--hacker-font); color: var(--accent); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .section-title::after { content: ''; height: 1px; flex-grow: 1; background: var(--border); }
+    
+    .table-container { overflow-x: auto; margin-bottom: 40px; }
+    table { width: 100%; border-collapse: collapse; font-family: 'Outfit', sans-serif; }
+    th { text-align: left; padding: 15px; color: var(--text-dim); font-size: 0.75rem; font-family: var(--hacker-font); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 15px; border-bottom: 1px solid #111; font-size: 0.9rem; }
+    tr:hover { background: rgba(0, 255, 65, 0.02); }
+    
+    .status-ok { color: var(--accent); }
+    .status-warning { color: var(--warning); }
+    
+    #admin-section { display: none; }
+    .nav-tabs { display: flex; gap: 20px; margin-bottom: 30px; border-bottom: 1px solid var(--border); }
+    .tab { padding: 10px 0; color: var(--text-dim); cursor: pointer; font-family: var(--hacker-font); font-size: 0.9rem; transition: 0.3s; position: relative; }
+    .tab.active { color: var(--accent); }
+    .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent); shadow: 0 0 10px var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="scanline"></div>
+  <header>
+    <div class="logo">POLY<span>HACKER</span></div>
+    <div class="user-info">
+      <span id="username" class="text-hacker">USER_404</span>
+      <span id="role-badge" class="role-badge">FOLLOWER</span>
+      <button onclick="logout()" class="btn-hacker" style="padding: 5px 10px; font-size: 0.7rem; border-color: var(--danger); color: var(--danger)">Logout</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card glass">
+      <h3>BALANCE_USDC</h3>
+      <div id="balance" class="value">$0.00</div>
+    </div>
+    <div class="card glass" style="border-left-color: var(--accent-blue)">
+      <h3>ACTIVE_TRADES</h3>
+      <div id="active-trades" class="value">0</div>
+    </div>
+    <div class="card glass">
+      <h3>TOTAL_PNL</h3>
+      <div id="pnl" class="value">$0.00</div>
+    </div>
+    <div class="card glass">
+      <h3>SYSTEM_STATUS</h3>
+      <div id="status" class="value status-ok">OPERATIONAL</div>
+    </div>
+  </div>
+
+  <div id="admin-section">
+    <div class="section-title">ADMIN_CONTROL_PANEL</div>
+    <div class="nav-tabs">
+      <div class="tab active">Network_Operations</div>
+      <div class="tab" onclick="window.location.href='/config'">System_Variables</div>
+    </div>
+    <div class="table-container card glass">
+      <table id="user-table">
+        <thead>
+          <tr>
+            <th>Identity</th>
+            <th>Network_Wallet</th>
+            <th>Source_Strategy</th>
+            <th>Execution_Status</th>
+            <th>Admin_Actions</th>
+          </tr>
+        </thead>
+        <tbody id="user-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-title">LOG_ACTIVITY_STREAM</div>
+  <div class="table-container card glass">
+    <table id="trade-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Resource</th>
+          <th>Vector</th>
+          <th>Size</th>
+          <th>Outcome</th>
+          <th>Network_ID</th>
+        </tr>
+      </thead>
+      <tbody id="trade-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    async function refresh() {
+      try {
+        const [status, trades] = await Promise.all([
+          fetch('/api/status').then(r => r.json()),
+          fetch('/api/trades?limit=15').then(r => r.json())
+        ]);
+
+        document.getElementById('username').textContent = status.username || 'ANONYMOUS';
+        document.getElementById('role-badge').textContent = status.role || 'GUEST';
+        
+        if (status.role === 'admin') {
+          document.getElementById('admin-section').style.display = 'block';
+          const users = await fetch('/api/users').then(r => r.json());
+          document.getElementById('user-body').innerHTML = users.map(u => \`
+            <tr>
+              <td class="text-hacker">\${u.username || u.chatId}</td>
+              <td style="font-size: 0.7rem">\${u.wallet?.address || '---'}</td>
+              <td>\${u.config?.traderAddress?.slice(0,10) || 'None'} [\${u.config?.strategy}]</td>
+              <td><span class="status-\${u.config?.enabled ? 'ok' : 'warning'}">\${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
+              <td><button class="btn-hacker" style="padding: 2px 5px; font-size: 0.6rem" onclick="alert('Funcionalidade em desenvolvimento')">Edit</button></td>
+            </tr>
+          \`).join('');
+        }
+
+        document.getElementById('trade-body').innerHTML = trades.map(t => \`
+          <tr>
+            <td style="font-size: 0.7rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
+            <td>\${t.title || t.slug}</td>
+            <td><span style="color: \${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">\${t.side}</span></td>
+            <td class="text-hacker">$\${(t.usdcSize || 0).toFixed(2)}</td>
+            <td>\${t.bot ? 'EXECUTED' : 'PENDING'}</td>
+            <td style="font-size: 0.7rem">\${t.transactionHash?.slice(0,12) || '---'}</td>
+          </tr>
+        \`).join('');
+
+      } catch (e) { console.error('Refresh fail:', e); }
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body> </html>`;
+const dashboardHtmlPlaceholder = loginHtml; // not used, just to keep clean
+app.get('/login', (req, res) => {
+    if (req.cookies.auth_token)
+        return res.redirect('/');
+    res.type('html').send(loginHtml);
+});
+app.get('/signup', (req, res) => {
+    if (req.cookies.auth_token)
+        return res.redirect('/');
+    res.type('html').send(signupHtml);
+});
+app.get('/', authenticateToken, (req, res) => {
+    res.type('html').send(dashboardHtml);
+});
 app.get('/config', (_req, res) => {
     const configHtml = `<!DOCTYPE html>
 <html lang="en">

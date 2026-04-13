@@ -9,6 +9,7 @@ import postOrder from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
 import telegram from '../utils/telegram.js';
 import createClobClient from '../utils/createClobClient.js';
+import { broadcastTrade } from '../utils/push.js';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
@@ -16,7 +17,11 @@ const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 // Cache for CLOB clients to avoid repeated instantiation
 const clobClientCache: Map<string, ClobClient> = new Map();
 
-const getClobClientForUser = async (user: IUser): Promise<ClobClient> => {
+const getClobClientForUser = async (user: IUser): Promise<ClobClient | null> => {
+    if (!user.wallet) {
+        Logger.warning(`No wallet configured for user \${user.username || user.chatId || user._id}`);
+        return null;
+    }
     const cacheKey = user.wallet.address.toLowerCase();
     if (clobClientCache.has(cacheKey)) {
         return clobClientCache.get(cacheKey)!;
@@ -55,30 +60,37 @@ const doTrading = async (trade: any) => {
         await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
         return;
     }
-
     for (const follower of followers) {
+        const followerId = (follower.chatId || (follower._id as any).toString());
+
         // Skip if this follower already processed this trade
-        if (trade.processedBy && trade.processedBy.includes(follower.chatId)) {
+        if (trade.processedBy && trade.processedBy.includes(followerId)) {
             continue;
         }
 
-        Logger.header(`👤 FOLLOWER: ${follower.chatId} copying ${traderAddress.slice(0, 6)}...`);
+        Logger.header(`👤 FOLLOWER: ${followerId} copying ${traderAddress.slice(0, 6)}...`);
 
         try {
             const clobClient = await getClobClientForUser(follower);
-            const proxyWallet = follower.wallet.address;
+            if (!clobClient) continue;
+            
+            const proxyWallet = follower.wallet?.address;
+            if (!proxyWallet) {
+                Logger.warning(`[${followerId}] No wallet configured - skipping`);
+                continue;
+            }
 
             // Mark user as processing immediately (atomic-ish update)
             await Activity.updateOne(
                 { _id: trade._id }, 
-                { $addToSet: { processedBy: follower.chatId } }
+                { $addToSet: { processedBy: followerId } }
             );
 
             // Calculate E2E Latency
             const polymarketTime = trade.timestamp > 2000000000 ? trade.timestamp / 1000 : trade.timestamp;
             const latencySeconds = (Date.now() / 1000) - (polymarketTime / 1000);
 
-            Logger.trade(follower.chatId, trade.side || 'UNKNOWN', {
+            Logger.trade(followerId, trade.side || 'UNKNOWN', {
                 asset: trade.asset,
                 side: trade.side,
                 amount: trade.usdcSize,
@@ -90,7 +102,7 @@ const doTrading = async (trade: any) => {
             });
 
             if (PREVIEW_MODE) {
-                Logger.info(`🔍 PREVIEW MODE — trade logged for user ${follower.chatId} but NOT executed`);
+                Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             } else {
                 const my_positions: UserPositionInterface[] = await fetchData(
                     `https://data-api.polymarket.com/positions?user=${proxyWallet}`
@@ -110,7 +122,7 @@ const doTrading = async (trade: any) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
 
-                Logger.balance(my_balance, user_balance, follower.chatId);
+                Logger.balance(my_balance, user_balance, followerId);
 
                 // Execute the trade with FOLLOWER'S config
                 await postOrder(
@@ -120,12 +132,12 @@ const doTrading = async (trade: any) => {
                     user_position,
                     trade,
                     my_balance,
-                    follower.chatId,
+                    followerId,
                     follower.config // Pass individual user config
                 );
             }
         } catch (error) {
-            Logger.error(`Error processing trade for follower ${follower.chatId}: ${error}`);
+            Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
         }
         Logger.separator();
     }
@@ -133,10 +145,13 @@ const doTrading = async (trade: any) => {
     // After attempting all followers, check if we should mark the trade as completely processed
     const latestTrade = await Activity.findById(trade._id).lean() as unknown as IUserActivity | null;
     if (latestTrade) {
-        const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId));
+        const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId || (f._id as any).toString()));
         if (stillMissing.length === 0) {
             await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
             Logger.info(`✅ Trade ${trade.transactionHash?.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+            
+            // Notify web followers via Push
+            await broadcastTrade(traderAddress, trade);
         }
     }
 };
