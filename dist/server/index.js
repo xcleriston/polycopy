@@ -12,6 +12,8 @@ import swaggerUi from 'swagger-ui-express';
 import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup } from './auth.js';
+import bcrypt from 'bcryptjs';
+import User from '../models/user.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -27,6 +29,38 @@ const swaggerDoc = {
     },
 };
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+// --- Admin Bootstrap ---
+const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
+    const adminUser = process.env.ADMIN_USER || 'admin';
+    const adminPass = process.env.ADMIN_PASSWORD || 'hacker123';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@polyhacker.com';
+    try {
+        let user = yield User.findOne({
+            $or: [{ username: adminUser }, { email: adminEmail }]
+        });
+        const hashedPassword = yield bcrypt.hash(adminPass, 10);
+        if (!user) {
+            console.log(`🚀 Bootstrapping Admin User: ${adminUser}`);
+            user = new User({
+                username: adminUser,
+                email: adminEmail,
+                password: hashedPassword,
+                role: 'admin',
+                step: 'ready'
+            });
+            yield user.save();
+        }
+        else {
+            console.log(`⚡ Admin user exists, ensuring role and password integrity...`);
+            user.role = 'admin';
+            user.password = hashedPassword;
+            yield user.save();
+        }
+    }
+    catch (error) {
+        console.error('❌ Failed to bootstrap admin:', error);
+    }
+});
 // --- Auth Endpoints ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
@@ -34,12 +68,12 @@ app.post('/api/auth/logout', (_req, res) => {
     res.clearCookie('auth_token');
     res.json({ success: true });
 });
-// --- API Routes (Protected) ---
-let botStartTime = Date.now();
+// --- Public API ---
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
-import User from '../models/user.js';
+// --- API Routes (Protected) ---
+app.use('/api', authenticateToken);
 app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const mongoose = (yield import('mongoose')).default;
@@ -1153,7 +1187,7 @@ app.get('/signup', (req, res) => {
 app.get('/', authenticateToken, (req, res) => {
     res.type('html').send(dashboardHtml);
 });
-app.get('/config', (_req, res) => {
+app.get('/config', authenticateToken, authorizeAdmin, (_req, res) => {
     const configHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1434,12 +1468,13 @@ loadConfiguration();
 </html>`;
     res.type('html').send(configHtml);
 });
-export const startServer = (port = parseInt(process.env.PORT || '3000')) => {
+export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
+    yield bootstrapAdmin();
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
         console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
         console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
     });
-};
+});
 export default app;

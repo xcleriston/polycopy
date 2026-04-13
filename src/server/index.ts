@@ -4,6 +4,7 @@ import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 import bcrypt from 'bcryptjs';
+import User from '../models/user.js';
 
 const app = express();
 app.use(express.json());
@@ -22,6 +23,40 @@ const swaggerDoc = {
 };
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
+// --- Admin Bootstrap ---
+const bootstrapAdmin = async () => {
+    const adminUser = process.env.ADMIN_USER || 'admin';
+    const adminPass = process.env.ADMIN_PASSWORD || 'hacker123';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@polyhacker.com';
+
+    try {
+        let user = await User.findOne({ 
+            $or: [{ username: adminUser }, { email: adminEmail }] 
+        });
+
+        const hashedPassword = await bcrypt.hash(adminPass, 10);
+
+        if (!user) {
+            console.log(`🚀 Bootstrapping Admin User: ${adminUser}`);
+            user = new User({
+                username: adminUser,
+                email: adminEmail,
+                password: hashedPassword,
+                role: 'admin',
+                step: 'ready'
+            });
+            await user.save();
+        } else {
+            console.log(`⚡ Admin user exists, ensuring role and password integrity...`);
+            user.role = 'admin';
+            user.password = hashedPassword;
+            await user.save();
+        }
+    } catch (error) {
+        console.error('❌ Failed to bootstrap admin:', error);
+    }
+};
+
 // --- Auth Endpoints ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
@@ -30,14 +65,13 @@ app.post('/api/auth/logout', (_req, res) => {
     res.json({ success: true });
 });
 
-// --- API Routes (Protected) ---
-let botStartTime = Date.now();
-
+// --- Public API ---
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000), timestamp: new Date().toISOString() });
 });
 
-import User from '../models/user.js';
+// --- API Routes (Protected) ---
+app.use('/api', authenticateToken);
 
 app.get('/api/status', async (req: AuthRequest, res) => {
     const mongoose = (await import('mongoose')).default;
@@ -1187,7 +1221,7 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     res.type('html').send(dashboardHtml);
 });
 
-app.get('/config', (_req: Request, res: Response) => {
+app.get('/config', authenticateToken, authorizeAdmin, (_req: Request, res: Response) => {
     const configHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1469,7 +1503,8 @@ loadConfiguration();
     res.type('html').send(configHtml);
 });
 
-export const startServer = (port: number = parseInt(process.env.PORT || '3000')) => {
+export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
+    await bootstrapAdmin();
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
