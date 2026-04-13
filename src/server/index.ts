@@ -10,6 +10,8 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+let botStartTime = Date.now();
+
 // --- Swagger API Docs ---
 const swaggerDoc = {
     openapi: '3.0.0',
