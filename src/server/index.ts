@@ -1360,27 +1360,27 @@ const dashboardHtml = `<!DOCTYPE html>
         if (status.role === 'admin') {
           document.getElementById('admin-section').style.display = 'block';
           const users = await fetch('/api/users').then(r => r.json());
-          document.getElementById('user-body').innerHTML = users.map(u => `
+          document.getElementById('user-body').innerHTML = users.map(u => \`
             <tr>
-              <td class="text-hacker">${u.username || u.chatId}</td>
-              <td style="font-size: 0.7rem">${u.wallet?.address || '---'}</td>
-              <td>${u.config?.traderAddress?.slice(0,10) || 'None'} [${u.config?.strategy}]</td>
-              <td><span class="status-${u.config?.enabled ? 'ok' : 'warning'}">${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
+              <td class="text-hacker">\${u.username || u.chatId}</td>
+              <td style="font-size: 0.7rem">\${u.wallet?.address || '---'}</td>
+              <td>\${u.config?.traderAddress?.slice(0,10) || 'None'} [\${u.config?.strategy}]</td>
+              <td><span class="status-\${u.config?.enabled ? 'ok' : 'warning'}">\${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
               <td><button class="btn-hacker" style="padding: 2px 5px; font-size: 0.6rem" onclick="alert('Funcionalidade em desenvolvimento')">Edit</button></td>
             </tr>
-          `).join('');
+          \`).join('');
         }
 
-        document.getElementById('trade-body').innerHTML = trades.map(t => `
+        document.getElementById('trade-body').innerHTML = trades.map(t => \`
           <tr>
-            <td style="font-size: 0.7rem; color: var(--text-dim)">${new Date(t.timestamp).toLocaleString()}</td>
-            <td>${t.title || t.slug}</td>
-            <td><span style="color: ${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">${t.side}</span></td>
-            <td class="text-hacker">$${(t.usdcSize || 0).toFixed(2)}</td>
-            <td>${t.bot ? 'EXECUTED' : 'PENDING'}</td>
-            <td style="font-size: 0.7rem">${t.transactionHash?.slice(0,12) || '---'}</td>
+            <td style="font-size: 0.7rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
+            <td>\${t.title || t.slug}</td>
+            <td><span style="color: \${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">\${t.side}</span></td>
+            <td class="text-hacker">$\${(t.usdcSize || 0).toFixed(2)}</td>
+            <td>\${t.bot ? 'EXECUTED' : 'PENDING'}</td>
+            <td style="font-size: 0.7rem">\${t.transactionHash?.slice(0,12) || '---'}</td>
           </tr>
-        `).join('');
+        \`).join('');
 
       } catch (e) { console.error('Refresh fail:', e); }
     }

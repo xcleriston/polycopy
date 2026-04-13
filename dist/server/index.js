@@ -7,7 +7,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var _a, _b, _c, _d, _e, _f;
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { setupNewUser } from './setup.js';
@@ -1331,79 +1330,27 @@ const dashboardHtml = `<!DOCTYPE html>
         if (status.role === 'admin') {
           document.getElementById('admin-section').style.display = 'block';
           const users = await fetch('/api/users').then(r => r.json());
-          document.getElementById('user-body').innerHTML = users.map(u => `
-    < tr >
-    class {
-    };
-"text-hacker" > $;
-{
-    u.username || u.chatId;
-}
-/td>
-    < td;
-style = "font-size: 0.7rem" > $;
-{
-    ((_a = u.wallet) === null || _a === void 0 ? void 0 : _a.address) || '---';
-}
-/td>
-    < td > $;
-{
-    ((_c = (_b = u.config) === null || _b === void 0 ? void 0 : _b.traderAddress) === null || _c === void 0 ? void 0 : _c.slice(0, 10)) || 'None';
-}
-[$, { u, : (_d = .config) === null || _d === void 0 ? void 0 : _d.strategy }] < /td>
-    < td > class {
-};
-"status-${u.config?.enabled ? 'ok' : 'warning'}" > $;
-{
-    ((_e = u.config) === null || _e === void 0 ? void 0 : _e.enabled) ? 'ACTIVE' : 'IDLE';
-}
-/span></td >
-    class {
-    };
-"btn-hacker";
-style = "padding: 2px 5px; font-size: 0.6rem";
-onclick = "alert('Funcionalidade em desenvolvimento')" > Edit < /button></td >
-    /tr> `).join('');
+          document.getElementById('user-body').innerHTML = users.map(u => \`
+            <tr>
+              <td class="text-hacker">\${u.username || u.chatId}</td>
+              <td style="font-size: 0.7rem">\${u.wallet?.address || '---'}</td>
+              <td>\${u.config?.traderAddress?.slice(0,10) || 'None'} [\${u.config?.strategy}]</td>
+              <td><span class="status-\${u.config?.enabled ? 'ok' : 'warning'}">\${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
+              <td><button class="btn-hacker" style="padding: 2px 5px; font-size: 0.6rem" onclick="alert('Funcionalidade em desenvolvimento')">Edit</button></td>
+            </tr>
+          \`).join('');
         }
 
-        document.getElementById('trade-body').innerHTML = trades.map(t => `
-    < tr >
-    style;
-"font-size: 0.7rem; color: var(--text-dim)" > $;
-{
-    new Date(t.timestamp).toLocaleString();
-}
-/td>
-    < td > $;
-{
-    t.title || t.slug;
-}
-/td>
-    < td > style;
-"color: ${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}" > $;
-{
-    t.side;
-}
-/span></td >
-    class {
-    };
-"text-hacker" > $$;
-{
-    (t.usdcSize || 0).toFixed(2);
-}
-/td>
-    < td > $;
-{
-    t.bot ? 'EXECUTED' : 'PENDING';
-}
-/td>
-    < td;
-style = "font-size: 0.7rem" > $;
-{
-    ((_f = t.transactionHash) === null || _f === void 0 ? void 0 : _f.slice(0, 12)) || '---';
-}
-/td>
-    < /tr> `).join('');
+        document.getElementById('trade-body').innerHTML = trades.map(t => \`
+          <tr>
+            <td style="font-size: 0.7rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
+            <td>\${t.title || t.slug}</td>
+            <td><span style="color: \${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">\${t.side}</span></td>
+            <td class="text-hacker">$\${(t.usdcSize || 0).toFixed(2)}</td>
+            <td>\${t.bot ? 'EXECUTED' : 'PENDING'}</td>
+            <td style="font-size: 0.7rem">\${t.transactionHash?.slice(0,12) || '---'}</td>
+          </tr>
+        \`).join('');
 
       } catch (e) { console.error('Refresh fail:', e); }
     }
