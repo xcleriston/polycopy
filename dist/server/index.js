@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var _a, _b, _c, _d, _e, _f;
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { setupNewUser } from './setup.js';
@@ -1019,6 +1020,26 @@ const dashboardHtml = `<!DOCTYPE html>
   <style>${hackerStyles}
     body { padding: 40px; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+  <style>
+    :root { 
+      --bg: #030303; --card: rgba(20, 20, 20, 0.7); --border: #1a1a1a; --text: #e0e0e0; --text-dim: #888;
+      --accent: #00ff41; --accent-blue: #00d4ff; --danger: #ff3e3e; --warning: #ffb800;
+      --hacker-font: 'JetBrains Mono', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background-color: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; min-height: 100vh; overflow-x: hidden;
+      background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #030303 100%);
+    }
+    .scanline { width: 100%; height: 100px; z-index: 999; background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0,255,65,0.02) 50%, rgba(0,0,0,0) 100%); opacity: 0.1; position: fixed; bottom: 100%; animation: scanline 10s linear infinite; pointer-events: none; }
+    @keyframes scanline { 0% { bottom: 100%; } 80% { bottom: -100px; } 100% { bottom: -100px; } }
+    .glass { background: var(--card); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 12px; transition: 0.3s; }
+    .text-hacker { font-family: var(--hacker-font); text-transform: uppercase; letter-spacing: 1px; }
+    .btn-hacker { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 8px 16px; font-family: var(--hacker-font); font-size: 0.8rem; cursor: pointer; border-radius: 4px; transition: 0.3s; }
+    .btn-hacker:hover { background: rgba(0, 255, 65, 0.1); box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
+    
+    body { padding: 40px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
     .logo { font-size: 1.5rem; font-weight: 800; }
     .logo span { color: var(--accent); }
     .user-info { display: flex; align-items: center; gap: 15px; }
@@ -1045,7 +1066,27 @@ const dashboardHtml = `<!DOCTYPE html>
     .nav-tabs { display: flex; gap: 20px; margin-bottom: 30px; border-bottom: 1px solid var(--border); }
     .tab { padding: 10px 0; color: var(--text-dim); cursor: pointer; font-family: var(--hacker-font); font-size: 0.9rem; transition: 0.3s; position: relative; }
     .tab.active { color: var(--accent); }
-    .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent); shadow: 0 0 10px var(--accent); }
+    .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Forms in Config Tab */
+    .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; }
+    .config-card { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 25px; border-radius: 8px; }
+    .config-card h4 { font-family: var(--hacker-font); color: var(--accent); font-size: 0.9rem; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; filter: brightness(0.7); font-size: 0.75rem; margin-bottom: 8px; font-family: var(--hacker-font); }
+    input[type="text"], input[type="number"], input[type="url"], select {
+      width: 100%; background: #0a0a0a; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 4px; font-family: var(--hacker-font); font-size: 0.85rem;
+    }
+    input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 5px rgba(0,255,65,0.2); }
+    .description { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; }
+    .config-actions { margin-top: 40px; display: flex; gap: 15px; background: var(--card); padding: 20px; border-radius: 12px; border-left: 2px solid var(--accent); }
+    #message-banner { margin-bottom: 20px; padding: 15px; border-radius: 4px; font-family: var(--hacker-font); font-size: 0.8rem; display: none; }
+    .success-banner { background: rgba(0, 255, 65, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+    .error-banner { background: rgba(255, 62, 62, 0.1); border: 1px solid var(--danger); color: var(--danger); }
   </style>
 </head>
 <body>
@@ -1081,22 +1122,113 @@ const dashboardHtml = `<!DOCTYPE html>
   <div id="admin-section">
     <div class="section-title">ADMIN_CONTROL_PANEL</div>
     <div class="nav-tabs">
-      <div class="tab active">Network_Operations</div>
-      <div class="tab" onclick="window.location.href='/config'">System_Variables</div>
+      <div id="tab-ops" class="tab active" onclick="switchTab('ops')">Network_Operations</div>
+      <div id="tab-vars" class="tab" onclick="switchTab('vars')">System_Variables</div>
     </div>
-    <div class="table-container card glass">
-      <table id="user-table">
-        <thead>
-          <tr>
-            <th>Identity</th>
-            <th>Network_Wallet</th>
-            <th>Source_Strategy</th>
-            <th>Execution_Status</th>
-            <th>Admin_Actions</th>
-          </tr>
-        </thead>
-        <tbody id="user-body"></tbody>
-      </table>
+
+    <!-- Tab: Network Operations -->
+    <div id="content-ops" class="tab-content active">
+      <div class="table-container card glass">
+        <table id="user-table">
+          <thead>
+            <tr>
+              <th>Identity</th>
+              <th>Network_Wallet</th>
+              <th>Source_Strategy</th>
+              <th>Execution_Status</th>
+              <th>Admin_Actions</th>
+            </tr>
+          </thead>
+          <tbody id="user-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: System Variables -->
+    <div id="content-vars" class="tab-content">
+      <div id="message-banner"></div>
+      
+      <div class="config-grid">
+        <!-- Trading Strategy -->
+        <div class="config-card glass">
+          <h4>// TRADING_STRATEGY</h4>
+          <div class="form-group">
+            <label>Strategy_Type</label>
+            <select id="copyStrategy">
+              <option value="PERCENTAGE">Percentage</option>
+              <option value="FIXED">Fixed Amount</option>
+              <option value="ADAPTIVE">Adaptive</option>
+            </select>
+            <div class="description">Logic for calculating execution sizes</div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px">
+            <div class="form-group">
+              <label>Copy_Size (%)</label>
+              <input type="number" id="copySize" step="0.1" min="0.1" max="100">
+            </div>
+            <div class="form-group">
+              <label>Max_Order_Slot (USD)</label>
+              <input type="number" id="maxOrderSize" step="0.01">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Daily_Loss_Cap (%)</label>
+            <input type="number" id="dailyLossCap" step="1" max="100">
+          </div>
+        </div>
+
+        <!-- Performance -->
+        <div class="config-card glass">
+          <h4>// NET_PERFORMANCE_TIMING</h4>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px">
+            <div class="form-group">
+              <label>Fetch_Latency (sec)</label>
+              <input type="number" id="fetchInterval" min="1">
+            </div>
+            <div class="form-group">
+              <label>Max_Trade_Age (sec)</label>
+              <input type="number" id="tooOldTimestamp" min="1">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Network_Retry_Limit</label>
+            <input type="number" id="networkRetryLimit" min="1">
+          </div>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="config-card glass">
+          <h4>// API_ENDPOINTS_MAPPING</h4>
+          <div class="form-group">
+            <label>CLOB_HTTP_GATEWAY</label>
+            <input type="url" id="clobHttpUrl">
+          </div>
+          <div class="form-group">
+            <label>RPC_POLYGON_URL</label>
+            <input type="url" id="rpcUrl">
+          </div>
+          <div class="form-group">
+            <label>USDC_CONTRACT_HEX</label>
+            <input type="text" id="usdcContract">
+          </div>
+        </div>
+
+        <!-- Safety -->
+        <div class="config-card glass">
+          <h4>// SAFETY_DEBUG_PROTOCOLS</h4>
+          <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:10px">
+            <input type="checkbox" id="previewMode" style="width:20px; height:20px; accent-color:var(--accent)">
+            <label style="margin-bottom:0">ENABLE_PREVIEW_MODE (SAFE)</label>
+          </div>
+          <div class="description">Trades are simulated/logged but not signed/broadcasted</div>
+        </div>
+      </div>
+
+      <div class="config-actions glass">
+        <button onclick="saveConfiguration()" class="btn-hacker">COMMIT_CHANGES</button>
+        <button onclick="resetToDefaults()" class="btn-hacker" style="border-color:var(--warning); color:var(--warning)">RESTORE_DEFAULTS</button>
+        <button onclick="loadConfiguration()" class="btn-hacker" style="border-color:var(--text-dim); color:var(--text-dim)">SYNC_FROM_CLOUD</button>
+      </div>
     </div>
   </div>
 
@@ -1118,9 +1250,72 @@ const dashboardHtml = `<!DOCTYPE html>
   </div>
 
   <script>
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      if (tab === 'ops') {
+        document.getElementById('tab-ops').classList.add('active');
+        document.getElementById('content-ops').classList.add('active');
+      } else {
+        document.getElementById('tab-vars').classList.add('active');
+        document.getElementById('content-vars').classList.add('active');
+        loadConfiguration();
+      }
+    }
+
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/login';
+    }
+
+    async function loadConfiguration() {
+      try {
+        const response = await fetch('/api/config/advanced');
+        const config = await response.json();
+        Object.keys(config).forEach(key => {
+          const el = document.getElementById(key);
+          if (el) {
+            if (el.type === 'checkbox') el.checked = config[key] === 'true';
+            else el.value = config[key];
+          }
+        });
+      } catch (e) { showBanner('Failed to sync configs', 'error'); }
+    }
+
+    async function saveConfiguration() {
+      const keys = ['copyStrategy', 'copySize', 'maxOrderSize', 'dailyLossCap', 'fetchInterval', 'tooOldTimestamp', 'networkRetryLimit', 'clobHttpUrl', 'rpcUrl', 'usdcContract'];
+      const config = {};
+      keys.forEach(k => { config[k] = document.getElementById(k).value; });
+      config.previewMode = document.getElementById('previewMode').checked.toString();
+      
+      try {
+        const r = await fetch('/api/config/advanced', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        const res = await r.json();
+        if (res.success) showBanner('Changes committed successfully', 'success');
+        else showBanner('Commit failed: ' + res.error, 'error');
+      } catch (e) { showBanner('Network error during commit', 'error'); }
+    }
+
+    async function resetToDefaults() {
+      if (!confirm('EXECUTE_RESTORE_DEFAULTS?')) return;
+      try {
+        const r = await fetch('/api/config/reset', { method: 'POST' });
+        const res = await r.json();
+        if (res.success) { showBanner('Defaults restored', 'success'); loadConfiguration(); }
+      } catch (e) { showBanner('Restore failed', 'error'); }
+    }
+
+    function showBanner(msg, type) {
+      const b = document.getElementById('message-banner');
+      b.textContent = '// ' + msg.toUpperCase();
+      b.className = type === 'success' ? 'success-banner' : 'error-banner';
+      b.style.display = 'block';
+      setTimeout(() => { b.style.display = 'none'; }, 5000);
     }
 
     async function refresh() {
@@ -1136,27 +1331,79 @@ const dashboardHtml = `<!DOCTYPE html>
         if (status.role === 'admin') {
           document.getElementById('admin-section').style.display = 'block';
           const users = await fetch('/api/users').then(r => r.json());
-          document.getElementById('user-body').innerHTML = users.map(u => \`
-            <tr>
-              <td class="text-hacker">\${u.username || u.chatId}</td>
-              <td style="font-size: 0.7rem">\${u.wallet?.address || '---'}</td>
-              <td>\${u.config?.traderAddress?.slice(0,10) || 'None'} [\${u.config?.strategy}]</td>
-              <td><span class="status-\${u.config?.enabled ? 'ok' : 'warning'}">\${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
-              <td><button class="btn-hacker" style="padding: 2px 5px; font-size: 0.6rem" onclick="alert('Funcionalidade em desenvolvimento')">Edit</button></td>
-            </tr>
-          \`).join('');
+          document.getElementById('user-body').innerHTML = users.map(u => `
+    < tr >
+    class {
+    };
+"text-hacker" > $;
+{
+    u.username || u.chatId;
+}
+/td>
+    < td;
+style = "font-size: 0.7rem" > $;
+{
+    ((_a = u.wallet) === null || _a === void 0 ? void 0 : _a.address) || '---';
+}
+/td>
+    < td > $;
+{
+    ((_c = (_b = u.config) === null || _b === void 0 ? void 0 : _b.traderAddress) === null || _c === void 0 ? void 0 : _c.slice(0, 10)) || 'None';
+}
+[$, { u, : (_d = .config) === null || _d === void 0 ? void 0 : _d.strategy }] < /td>
+    < td > class {
+};
+"status-${u.config?.enabled ? 'ok' : 'warning'}" > $;
+{
+    ((_e = u.config) === null || _e === void 0 ? void 0 : _e.enabled) ? 'ACTIVE' : 'IDLE';
+}
+/span></td >
+    class {
+    };
+"btn-hacker";
+style = "padding: 2px 5px; font-size: 0.6rem";
+onclick = "alert('Funcionalidade em desenvolvimento')" > Edit < /button></td >
+    /tr> `).join('');
         }
 
-        document.getElementById('trade-body').innerHTML = trades.map(t => \`
-          <tr>
-            <td style="font-size: 0.7rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
-            <td>\${t.title || t.slug}</td>
-            <td><span style="color: \${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">\${t.side}</span></td>
-            <td class="text-hacker">$\${(t.usdcSize || 0).toFixed(2)}</td>
-            <td>\${t.bot ? 'EXECUTED' : 'PENDING'}</td>
-            <td style="font-size: 0.7rem">\${t.transactionHash?.slice(0,12) || '---'}</td>
-          </tr>
-        \`).join('');
+        document.getElementById('trade-body').innerHTML = trades.map(t => `
+    < tr >
+    style;
+"font-size: 0.7rem; color: var(--text-dim)" > $;
+{
+    new Date(t.timestamp).toLocaleString();
+}
+/td>
+    < td > $;
+{
+    t.title || t.slug;
+}
+/td>
+    < td > style;
+"color: ${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}" > $;
+{
+    t.side;
+}
+/span></td >
+    class {
+    };
+"text-hacker" > $$;
+{
+    (t.usdcSize || 0).toFixed(2);
+}
+/td>
+    < td > $;
+{
+    t.bot ? 'EXECUTED' : 'PENDING';
+}
+/td>
+    < td;
+style = "font-size: 0.7rem" > $;
+{
+    ((_f = t.transactionHash) === null || _f === void 0 ? void 0 : _f.slice(0, 12)) || '---';
+}
+/td>
+    < /tr> `).join('');
 
       } catch (e) { console.error('Refresh fail:', e); }
     }
@@ -1165,7 +1412,6 @@ const dashboardHtml = `<!DOCTYPE html>
     setInterval(refresh, 5000);
   </script>
 </body> </html>`;
-const dashboardHtmlPlaceholder = loginHtml; // not used, just to keep clean
 app.get('/login', (req, res) => {
     if (req.cookies.auth_token)
         return res.redirect('/');
@@ -1178,287 +1424,6 @@ app.get('/signup', (req, res) => {
 });
 app.get('/', authenticateToken, (req, res) => {
     res.type('html').send(dashboardHtml);
-});
-app.get('/config', authenticateToken, authorizeAdmin, (_req, res) => {
-    const configHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PolyCopy - Advanced Configuration</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:20px}
-.container{max-width:1000px;margin:0 auto}
-h1{color:var(--accent);margin-bottom:20px;font-size:1.5em}
-h2{color:var(--accent);margin-bottom:16px;font-size:1.2em;border-bottom:1px solid var(--border);padding-bottom:8px}
-.section{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px}
-.form-group{margin-bottom:16px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-label{display:block;margin-bottom:4px;color:#8b949e;font-size:0.9em;font-weight:500}
-input,select{width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)}
-input:focus,select:focus{border-color:var(--accent);outline:none}
-button{background:var(--accent);color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:600;margin-right:8px;margin-bottom:8px}
-button:hover{background:#4a8eff}
-button.danger{background:var(--red)}
-button.danger:hover{background:#da3633}
-button:disabled{background:#484f58;cursor:not-allowed}
-.success{background:#0f4d2f;border:1px solid #2d5a3d;border-radius:4px;padding:12px;margin-bottom:16px;color:#3fb950}
-.error{background:#4b111a;border:1px solid #6d1f27;border-radius:4px;padding:12px;margin-bottom:16px;color:#f85149}
-.warning{background:#692d1a;border:1px solid #8d4f2d;border-radius:4px;padding:12px;margin-bottom:16px;color:#d29922}
-.description{color:#8b949e;font-size:0.85em;margin-top:4px}
-.links{margin-top:16px}
-.links a{color:var(--accent);text-decoration:none;margin-right:16px}
-.links a:hover{text-decoration:underline}
-</style>
-</head>
-<body>
-<div class="container">
-<h1>Advanced Configuration</h1>
-
-<div class="warning">
-<strong>Warning:</strong> These are advanced settings. Incorrect values may cause the bot to malfunction. Use with caution.
-</div>
-
-<div id="message"></div>
-
-<div class="section">
-<h2>Trading Strategy</h2>
-<div class="form-group">
-<label for="copyStrategy">Copy Strategy</label>
-<select id="copyStrategy">
-<option value="PERCENTAGE">Percentage</option>
-<option value="FIXED">Fixed Amount</option>
-<option value="ADAPTIVE">Adaptive</option>
-</select>
-<div class="description">How the bot calculates trade sizes</div>
-</div>
-
-<div class="form-row">
-<div class="form-group">
-<label for="copySize">Copy Size (%)</label>
-<input type="number" id="copySize" step="0.1" min="0.1" max="100" value="10.0">
-<div class="description">Percentage to copy (for PERCENTAGE strategy)</div>
-</div>
-<div class="form-group">
-<label for="maxOrderSize">Max Order Size (USD)</label>
-<input type="number" id="maxOrderSize" step="0.01" min="1" value="100.0">
-<div class="description">Maximum amount per trade</div>
-</div>
-</div>
-
-<div class="form-row">
-<div class="form-group">
-<label for="minOrderSize">Min Order Size (USD)</label>
-<input type="number" id="minOrderSize" step="0.01" min="0.01" value="1.0">
-<div class="description">Minimum amount per trade</div>
-</div>
-<div class="form-group">
-<label for="slippageTolerance">Slippage Tolerance</label>
-<input type="number" id="slippageTolerance" step="0.01" min="0.01" max="0.5" value="0.05">
-<div class="description">Acceptable price deviation (0.05 = 5%)</div>
-</div>
-</div>
-
-<div class="form-group">
-<label for="dailyLossCap">Daily Loss Cap (%)</label>
-<input type="number" id="dailyLossCap" step="1" min="1" max="100" value="20">
-<div class="description">Stop trading if daily losses exceed this percentage</div>
-</div>
-</div>
-
-<div class="section">
-<h2>Performance & Timing</h2>
-<div class="form-row">
-<div class="form-group">
-<label for="fetchInterval">Fetch Interval (seconds)</label>
-<input type="number" id="fetchInterval" step="1" min="1" max="300" value="10">
-<div class="description">How often to check for new trades</div>
-</div>
-<div class="form-group">
-<label for="tooOldTimestamp">Max Trade Age (seconds)</label>
-<input type="number" id="tooOldTimestamp" step="1" min="1" max="300" value="1">
-<div class="description">Ignore trades older than this many seconds</div>
-</div>
-</div>
-
-<div class="form-row">
-<div class="form-group">
-<label for="retryLimit">Retry Limit</label>
-<input type="number" id="retryLimit" step="1" min="1" max="10" value="3">
-<div class="description">Max retry attempts for failed operations</div>
-</div>
-<div class="form-group">
-<label for="requestTimeout">Request Timeout (ms)</label>
-<input type="number" id="requestTimeout" step="1000" min="1000" max="60000" value="10000">
-<div class="description">Timeout for API requests</div>
-</div>
-</div>
-
-<div class="form-group">
-<label for="networkRetryLimit">Network Retry Limit</label>
-<input type="number" id="networkRetryLimit" step="1" min="1" max="10" value="3">
-<div class="description">Max retry attempts for network failures</div>
-</div>
-</div>
-
-<div class="section">
-<h2>API Endpoints</h2>
-<div class="form-group">
-<label for="clobHttpUrl">CLOB HTTP URL</label>
-<input type="url" id="clobHttpUrl" value="https://clob.polymarket.com/">
-<div class="description">Polymarket CLOB HTTP endpoint</div>
-</div>
-
-<div class="form-group">
-<label for="clobWsUrl">CLOB WebSocket URL</label>
-<input type="url" id="clobWsUrl" value="wss://ws-subscriptions-clob.polymarket.com/ws">
-<div class="description">Polymarket CLOB WebSocket endpoint</div>
-</div>
-
-<div class="form-group">
-<label for="rpcUrl">RPC URL</label>
-<input type="url" id="rpcUrl" value="https://poly.api.pocket.network">
-<div class="description">Polygon RPC endpoint</div>
-</div>
-
-<div class="form-group">
-<label for="usdcContract">USDC Contract Address</label>
-<input type="text" id="usdcContract" value="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174">
-<div class="description">USDC token contract on Polygon</div>
-</div>
-</div>
-
-<div class="section">
-<h2>Safety & Debug</h2>
-<div class="form-group">
-<label for="previewMode">
-<input type="checkbox" id="previewMode"> Preview Mode (Safe)
-</label>
-<div class="description">When enabled, trades are logged but not executed</div>
-</div>
-
-<div class="form-group">
-<label for="tradeAggregation">
-<input type="checkbox" id="tradeAggregation"> Enable Trade Aggregation
-</label>
-<div class="description">Combine multiple small trades into larger ones</div>
-</div>
-</div>
-
-<div class="section">
-<h2>Actions</h2>
-<button onclick="saveConfiguration()">Save Configuration</button>
-<button onclick="resetToDefaults()" class="danger">Reset to Defaults</button>
-<button onclick="loadConfiguration()">Reload Current</button>
-<div class="links">
-<a href="/">Back to Dashboard</a>
-</div>
-</div>
-
-</div>
-
-<script>
-let currentConfig = {};
-
-async function loadConfiguration() {
-    try {
-        const response = await fetch('/api/config/advanced');
-        currentConfig = await response.json();
-        
-        // Populate form fields
-        Object.keys(currentConfig).forEach(key => {
-            const element = document.getElementById(key);
-            if (element) {
-                if (element.type === 'checkbox') {
-                    element.checked = currentConfig[key] === 'true';
-                } else {
-                    element.value = currentConfig[key];
-                }
-            }
-        });
-        
-        showMessage('Configuration loaded successfully', 'success');
-    } catch (error) {
-        showMessage('Error loading configuration: ' + error.message, 'error');
-    }
-}
-
-async function saveConfiguration() {
-    try {
-        const config = {
-            copyStrategy: document.getElementById('copyStrategy').value,
-            copySize: document.getElementById('copySize').value,
-            maxOrderSize: document.getElementById('maxOrderSize').value,
-            minOrderSize: document.getElementById('minOrderSize').value,
-            slippageTolerance: document.getElementById('slippageTolerance').value,
-            dailyLossCap: document.getElementById('dailyLossCap').value,
-            fetchInterval: document.getElementById('fetchInterval').value,
-            tooOldTimestamp: document.getElementById('tooOldTimestamp').value,
-            retryLimit: document.getElementById('retryLimit').value,
-            requestTimeout: document.getElementById('requestTimeout').value,
-            networkRetryLimit: document.getElementById('networkRetryLimit').value,
-            clobHttpUrl: document.getElementById('clobHttpUrl').value,
-            clobWsUrl: document.getElementById('clobWsUrl').value,
-            rpcUrl: document.getElementById('rpcUrl').value,
-            usdcContract: document.getElementById('usdcContract').value,
-            previewMode: document.getElementById('previewMode').checked.toString(),
-            tradeAggregation: document.getElementById('tradeAggregation').checked.toString()
-        };
-
-        const response = await fetch('/api/config/advanced', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-            showMessage('Configuration saved successfully! Bot restart may be required for some changes.', 'success');
-            currentConfig = config;
-        } else {
-            showMessage('Error saving configuration: ' + result.error, 'error');
-        }
-    } catch (error) {
-        showMessage('Error saving configuration: ' + error.message, 'error');
-    }
-}
-
-async function resetToDefaults() {
-    if (!confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/config/reset', { method: 'POST' });
-        const result = await response.json();
-        
-        if (result.success) {
-            showMessage('Configuration reset to defaults! Bot restart may be required.', 'success');
-            await loadConfiguration();
-        } else {
-            showMessage('Error resetting configuration: ' + result.error, 'error');
-        }
-    } catch (error) {
-        showMessage('Error resetting configuration: ' + error.message, 'error');
-    }
-}
-
-function showMessage(text, type) {
-    const messageDiv = document.getElementById('message');
-    messageDiv.innerHTML = '<div class="' + type + '">' + text + '</div>';
-    setTimeout(() => {
-        messageDiv.innerHTML = '';
-    }, 5000);
-}
-
-// Load configuration on page load
-loadConfiguration();
-</script>
-</body>
-</html>`;
-    res.type('html').send(configHtml);
 });
 export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
     yield bootstrapAdmin();
