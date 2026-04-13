@@ -76,14 +76,24 @@ app.get('/api/health', (_req, res) => {
 app.use('/api', authenticateToken);
 app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const mongoose = (yield import('mongoose')).default;
-    res.json({
-        running: true,
-        dbConnected: mongoose.connection.readyState === 1,
-        uptime: Math.floor((Date.now() - botStartTime) / 1000),
-        username: ((_a = req.user) === null || _a === void 0 ? void 0 : _a.username) || 'ANONYMOUS',
-        role: ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role) || 'GUEST'
-    });
+    try {
+        const mongoose = (yield import('mongoose')).default;
+        const totalUsers = yield User.countDocuments();
+        const activeUsers = yield User.countDocuments({ 'config.enabled': true });
+        res.json({
+            running: true,
+            dbConnected: mongoose.connection.readyState === 1,
+            uptime: Math.floor((Date.now() - botStartTime) / 1000),
+            username: ((_a = req.user) === null || _a === void 0 ? void 0 : _a.username) || 'ANONYMOUS',
+            role: ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role) || 'GUEST',
+            totalUsers,
+            activeUsers,
+            previewMode: process.env.PREVIEW_MODE === 'true'
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch metrics' });
+    }
 }));
 app.get('/api/config', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     // Return summary of first few users for dashboard overview
@@ -1013,129 +1023,194 @@ const signupHtml = `<!DOCTYPE html>
 const dashboardHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Control Center</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { padding: 40px; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-  <style>
-    :root { 
-      --bg: #030303; --card: rgba(20, 20, 20, 0.7); --border: #1a1a1a; --text: #e0e0e0; --text-dim: #888;
-      --accent: #00ff41; --accent-blue: #00d4ff; --danger: #ff3e3e; --warning: #ffb800;
-      --hacker-font: 'JetBrains Mono', monospace;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background-color: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; min-height: 100vh; overflow-x: hidden;
-      background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #030303 100%);
-    }
-    .scanline { width: 100%; height: 100px; z-index: 999; background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0,255,65,0.02) 50%, rgba(0,0,0,0) 100%); opacity: 0.1; position: fixed; bottom: 100%; animation: scanline 10s linear infinite; pointer-events: none; }
-    @keyframes scanline { 0% { bottom: 100%; } 80% { bottom: -100px; } 100% { bottom: -100px; } }
-    .glass { background: var(--card); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 12px; transition: 0.3s; }
-    .text-hacker { font-family: var(--hacker-font); text-transform: uppercase; letter-spacing: 1px; }
-    .btn-hacker { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 8px 16px; font-family: var(--hacker-font); font-size: 0.8rem; cursor: pointer; border-radius: 4px; transition: 0.3s; }
-    .btn-hacker:hover { background: rgba(0, 255, 65, 0.1); box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
-    
-    body { padding: 40px; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-    .logo { font-size: 1.5rem; font-weight: 800; }
-    .logo span { color: var(--accent); }
-    .user-info { display: flex; align-items: center; gap: 15px; }
-    .role-badge { font-family: var(--hacker-font); font-size: 0.7rem; padding: 4px 8px; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; }
-    
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-bottom: 40px; }
-    .card { padding: 25px; position: relative; border-left: 2px solid var(--accent); }
-    .card h3 { font-family: var(--hacker-font); font-size: 0.8rem; color: var(--text-dim); margin-bottom: 10px; }
-    .card .value { font-size: 2rem; font-weight: 700; color: #fff; }
-    
-    .section-title { font-family: var(--hacker-font); color: var(--accent); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-    .section-title::after { content: ''; height: 1px; flex-grow: 1; background: var(--border); }
-    
-    .table-container { overflow-x: auto; margin-bottom: 40px; }
-    table { width: 100%; border-collapse: collapse; font-family: 'Outfit', sans-serif; }
-    th { text-align: left; padding: 15px; color: var(--text-dim); font-size: 0.75rem; font-family: var(--hacker-font); text-transform: uppercase; border-bottom: 1px solid var(--border); }
-    td { padding: 15px; border-bottom: 1px solid #111; font-size: 0.9rem; }
-    tr:hover { background: rgba(0, 255, 65, 0.02); }
-    
-    .status-ok { color: var(--accent); }
-    .status-warning { color: var(--warning); }
-    
-    #admin-section { display: none; }
-    .nav-tabs { display: flex; gap: 20px; margin-bottom: 30px; border-bottom: 1px solid var(--border); }
-    .tab { padding: 10px 0; color: var(--text-dim); cursor: pointer; font-family: var(--hacker-font); font-size: 0.9rem; transition: 0.3s; position: relative; }
-    .tab.active { color: var(--accent); }
-    .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PolyCopy SaaS Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0e14;
+  --sidebar: #151921;
+  --card: #1c212b;
+  --border: #2d343f;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.4);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --font-main: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
 
-    .tab-content { display: none; }
-    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+/* Sidebar */
+aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; transition: 0.3s; z-index: 1000; }
+.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.logo span { color: var(--accent); }
+.nav { flex: 1; padding: 20px 0; }
+.nav-item { padding: 12px 300px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; font-size: 0.95rem; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,0.03); }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
 
-    /* Forms in Config Tab */
-    .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; }
-    .config-card { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 25px; border-radius: 8px; }
-    .config-card h4 { font-family: var(--hacker-font); color: var(--accent); font-size: 0.9rem; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-    .form-group { margin-bottom: 20px; }
-    label { display: block; filter: brightness(0.7); font-size: 0.75rem; margin-bottom: 8px; font-family: var(--hacker-font); }
-    input[type="text"], input[type="number"], input[type="url"], select {
-      width: 100%; background: #0a0a0a; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 4px; font-family: var(--hacker-font); font-size: 0.85rem;
-    }
-    input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 5px rgba(0,255,65,0.2); }
-    .description { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; }
-    .config-actions { margin-top: 40px; display: flex; gap: 15px; background: var(--card); padding: 20px; border-radius: 12px; border-left: 2px solid var(--accent); }
-    #message-banner { margin-bottom: 20px; padding: 15px; border-radius: 4px; font-family: var(--hacker-font); font-size: 0.8rem; display: none; }
-    .success-banner { background: rgba(0, 255, 65, 0.1); border: 1px solid var(--accent); color: var(--accent); }
-    .error-banner { background: rgba(255, 62, 62, 0.1); border: 1px solid var(--danger); color: var(--danger); }
-  </style>
+/* Main Content */
+main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+.user-info { display: flex; align-items: center; gap: 12px; }
+.avatar { width: 35px; height: 35px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 0 15px var(--accent-glow); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 40px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); padding: 24px; border-radius: 16px; position: relative; overflow: hidden; }
+.stat-card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.03)); pointer-events: none; }
+.stat-label { color: var(--text-dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.stat-value { font-size: 2rem; font-weight: 700; color: #fff; }
+.stat-sub { font-size: 0.8rem; margin-top: 8px; font-family: var(--font-mono); }
+
+/* Tables & Content */
+.section { display: none; width: 100%; }
+.section.active { display: block; animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+h2 { margin-bottom: 24px; font-size: 1.25rem; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 16px 24px; color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); letter-spacing: 1px; }
+td { padding: 16px 24px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+tr:hover { background: rgba(59, 130, 246, 0.02); }
+
+/* Badges & Buttons */
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; font-family: var(--font-mono); }
+.badge-ready { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
+.badge-setup { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+
+.switch { position: relative; display: inline-block; width: 42px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--accent); }
+input:checked + .slider:before { transform: translateX(20px); }
+
+.btn { background: #2d343f; color: #fff; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.85rem; font-weight: 600; }
+.btn:hover { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px rgba(59, 130, 246, 0.1); }
+.btn-accent { background: var(--accent); border: none; }
+.btn-accent:hover { background: #2563eb; color: #fff; }
+.btn-danger { color: var(--danger); }
+.btn-danger:hover { color: #fff; background: var(--danger); border-color: var(--danger); }
+.btn-warning { color: var(--warning); }
+.btn-warning:hover { color: #000; background: var(--warning); border-color: var(--warning); }
+
+/* Modal */
+.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); }
+.modal-content { background: var(--sidebar); margin: 10% auto; padding: 32px; border: 1px solid var(--border); width: 500px; border-radius: 24px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+.form-group { margin-bottom: 20px; }
+label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500; }
+input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 10px; font-family: var(--font-main); transition: 0.3s; }
+input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px; }
+
+/* Config Cards */
+.config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; }
+.config-group { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 25px; border-radius: 16px; }
+.config-group h3 { font-size: 0.9rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+#message-banner { margin-bottom: 20px; padding: 15px 24px; border-radius: 10px; font-weight: 600; display: none; animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+.success-banner { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); }
+.error-banner { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); }
+</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <header>
-    <div class="logo">POLY<span>HACKER</span></div>
-    <div class="user-info">
-      <span id="username" class="text-hacker">USER_404</span>
-      <span id="role-badge" class="role-badge">FOLLOWER</span>
-      <button onclick="logout()" class="btn-hacker" style="padding: 5px 10px; font-size: 0.7rem; border-color: var(--danger); color: var(--danger)">Logout</button>
+  <aside>
+    <div class="logo">POLY<span>COPY</span></div>
+    <div class="nav">
+      <div class="nav-item active" onclick="showSection('dashboard', this)">
+        <span>📊</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showSection('users', this)">
+        <span>👥</span> Gerenciar Usuários
+      </div>
+      <div class="nav-item" onclick="showSection('config', this)">
+        <span>⚙️</span> Configurações Globais
+      </div>
+      <div class="nav-item" onclick="showSection('logs', this)">
+        <span>📜</span> Logs de Trading
+      </div>
     </div>
-  </header>
+    <div style="padding: 30px; border-top: 1px solid var(--border)">
+      <button onclick="logout()" class="btn" style="width: 100%; color: var(--danger); border-color: var(--danger)">Sair do Painel</button>
+    </div>
+  </aside>
 
-  <div class="grid">
-    <div class="card glass">
-      <h3>BALANCE_USDC</h3>
-      <div id="balance" class="value">$0.00</div>
-    </div>
-    <div class="card glass" style="border-left-color: var(--accent-blue)">
-      <h3>ACTIVE_TRADES</h3>
-      <div id="active-trades" class="value">0</div>
-    </div>
-    <div class="card glass">
-      <h3>TOTAL_PNL</h3>
-      <div id="pnl" class="value">$0.00</div>
-    </div>
-    <div class="card glass">
-      <h3>SYSTEM_STATUS</h3>
-      <div id="status" class="value status-ok">OPERATIONAL</div>
-    </div>
-  </div>
+  <main>
+    <header>
+      <h2 id="section-title">Dashboard Overview</h2>
+      <div class="user-info">
+        <div style="text-align: right">
+          <div id="admin-name" style="font-weight: 700; color: #fff">Admin User</div>
+          <div id="admin-badge" class="badge badge-ready">PANEL_ADMIN</div>
+        </div>
+        <div class="avatar">A</div>
+      </div>
+    </header>
 
-  <div id="admin-section">
-    <div class="section-title">ADMIN_CONTROL_PANEL</div>
-    <div class="nav-tabs">
-      <div id="tab-ops" class="tab active" onclick="switchTab('ops')">Network_Operations</div>
-      <div id="tab-vars" class="tab" onclick="switchTab('vars')">System_Variables</div>
-    </div>
+    <div id="message-banner"></div>
 
-    <!-- Tab: Network Operations -->
-    <div id="content-ops" class="tab-content active">
-      <div class="table-container card glass">
-        <table id="user-table">
+    <!-- Section: Dashboard -->
+    <div id="section-dashboard" class="section active">
+      <div class="grid">
+        <div class="stat-card">
+          <div class="stat-label">Total de Usuários</div>
+          <div id="st-total-users" class="stat-value">0</div>
+          <div class="stat-sub" style="color: var(--success)">SaaS Members</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Usuários Ativos</div>
+          <div id="st-active-users" class="stat-value">0</div>
+          <div class="stat-sub" style="color: var(--accent)">Bots Executando</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Modo do Sistema</div>
+          <div id="st-sys-mode" class="stat-value" style="font-size: 1.5rem">PREVIEW</div>
+          <div id="st-sys-sub" class="stat-sub" style="color: var(--warning)">Seguro (Simulação)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Uptime do Servidor</div>
+          <div id="st-uptime" class="stat-value" style="font-size: 1.5rem">00:00:00</div>
+          <div class="stat-sub">Serviços Online</div>
+        </div>
+      </div>
+
+      <h2>Atividade Recente (Global)</h2>
+      <div class="card">
+        <table>
           <thead>
             <tr>
-              <th>Identity</th>
-              <th>Network_Wallet</th>
-              <th>Source_Strategy</th>
-              <th>Execution_Status</th>
-              <th>Admin_Actions</th>
+              <th>Data/Hora</th>
+              <th>Follower</th>
+              <th>Recurso</th>
+              <th>Vetor</th>
+              <th>Tamanho</th>
+              <th>Resultado</th>
+            </tr>
+          </thead>
+          <tbody id="dash-trade-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section: Users -->
+    <div id="section-users" class="section">
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Identidade</th>
+              <th>Carteira Operacional</th>
+              <th>Estratégia / Trader</th>
+              <th>Status Bot</th>
+              <th>Ativo?</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody id="user-body"></tbody>
@@ -1143,217 +1218,280 @@ const dashboardHtml = `<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Tab: System Variables -->
-    <div id="content-vars" class="tab-content">
-      <div id="message-banner"></div>
-      
+    <!-- Section: Config -->
+    <div id="section-config" class="section">
       <div class="config-grid">
-        <!-- Trading Strategy -->
-        <div class="config-card glass">
-          <h4>// TRADING_STRATEGY</h4>
+        <div class="config-group">
+          <h3>Estratégia de Cópia Global</h3>
           <div class="form-group">
-            <label>Strategy_Type</label>
+            <label>Tipo de Cálculo</label>
             <select id="copyStrategy">
-              <option value="PERCENTAGE">Percentage</option>
-              <option value="FIXED">Fixed Amount</option>
-              <option value="ADAPTIVE">Adaptive</option>
+              <option value="PERCENTAGE">Porcentagem (Proporcional)</option>
+              <option value="FIXED">Valor Fixo (USD)</option>
+              <option value="ADAPTIVE">Adaptativa (IA)</option>
             </select>
-            <div class="description">Logic for calculating execution sizes</div>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px">
             <div class="form-group">
-              <label>Copy_Size (%)</label>
-              <input type="number" id="copySize" step="0.1" min="0.1" max="100">
+              <label>Tamanho Padrão (%)</label>
+              <input type="number" id="copySize" step="0.1">
             </div>
             <div class="form-group">
-              <label>Max_Order_Slot (USD)</label>
-              <input type="number" id="maxOrderSize" step="0.01">
+              <label>Limite Max USD</label>
+              <input type="number" id="maxOrderSize" step="1">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Daily_Loss_Cap (%)</label>
-            <input type="number" id="dailyLossCap" step="1" max="100">
           </div>
         </div>
 
-        <!-- Performance -->
-        <div class="config-card glass">
-          <h4>// NET_PERFORMANCE_TIMING</h4>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px">
-            <div class="form-group">
-              <label>Fetch_Latency (sec)</label>
-              <input type="number" id="fetchInterval" min="1">
-            </div>
-            <div class="form-group">
-              <label>Max_Trade_Age (sec)</label>
-              <input type="number" id="tooOldTimestamp" min="1">
-            </div>
-          </div>
+        <div class="config-group">
+          <h3>Infraestrutura (Variaveis Sensíveis)</h3>
           <div class="form-group">
-            <label>Network_Retry_Limit</label>
-            <input type="number" id="networkRetryLimit" min="1">
-          </div>
-        </div>
-
-        <!-- Endpoints -->
-        <div class="config-card glass">
-          <h4>// API_ENDPOINTS_MAPPING</h4>
-          <div class="form-group">
-            <label>CLOB_HTTP_GATEWAY</label>
-            <input type="url" id="clobHttpUrl">
-          </div>
-          <div class="form-group">
-            <label>RPC_POLYGON_URL</label>
+            <label>RPC URL (Polygon)</label>
             <input type="url" id="rpcUrl">
           </div>
           <div class="form-group">
-            <label>USDC_CONTRACT_HEX</label>
-            <input type="text" id="usdcContract">
+            <label>Check Interval (Segundos)</label>
+            <input type="number" id="fetchInterval">
           </div>
-        </div>
-
-        <!-- Safety -->
-        <div class="config-card glass">
-          <h4>// SAFETY_DEBUG_PROTOCOLS</h4>
-          <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:10px">
+          <div class="form-group" style="display:flex; align-items:center; gap:12px; margin-top:10px">
             <input type="checkbox" id="previewMode" style="width:20px; height:20px; accent-color:var(--accent)">
-            <label style="margin-bottom:0">ENABLE_PREVIEW_MODE (SAFE)</label>
+            <label style="margin-bottom:0">MODO_PREVIEW_GLOBAL (Simulação Segura)</label>
           </div>
-          <div class="description">Trades are simulated/logged but not signed/broadcasted</div>
         </div>
       </div>
+      <div class="card" style="padding: 24px; margin-top: 30px; display: flex; gap: 15px">
+        <button onclick="saveGlobalConfig()" class="btn btn-accent" style="padding: 12px 30px">Aplicar Mudanças Globais</button>
+        <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para Padrões</button>
+      </div>
+    </div>
 
-      <div class="config-actions glass">
-        <button onclick="saveConfiguration()" class="btn-hacker">COMMIT_CHANGES</button>
-        <button onclick="resetToDefaults()" class="btn-hacker" style="border-color:var(--warning); color:var(--warning)">RESTORE_DEFAULTS</button>
-        <button onclick="loadConfiguration()" class="btn-hacker" style="border-color:var(--text-dim); color:var(--text-dim)">SYNC_FROM_CLOUD</button>
+    <!-- Section: Logs -->
+    <div id="section-logs" class="section">
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>ID da Transação</th>
+              <th>Vetor</th>
+              <th>Volume</th>
+              <th>Status de Rede</th>
+            </tr>
+          </thead>
+          <tbody id="log-trade-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Edit User -->
+  <div id="modal-edit" class="modal">
+    <div class="modal-content">
+      <h2 style="margin-bottom:20px">Configurar Membro SaaS</h2>
+      <input type="hidden" id="edit-chatId">
+      <div class="form-group">
+        <label>Endereço do Trader Monitorado</label>
+        <input type="text" id="edit-trader" placeholder="0x...">
+      </div>
+      <div class="form-group">
+        <label>Estratégia Proporcional</label>
+        <select id="edit-strategy">
+          <option value="PERCENTAGE">Percentage (%)</option>
+          <option value="FIXED">Fixed (USD)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tamanho da Cópia (Value)</label>
+        <input type="number" id="edit-size" step="0.1">
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeModal()" class="btn">Cancelar</button>
+        <button onclick="commitUserEdit()" class="btn btn-accent">Atualizar Cadastro</button>
       </div>
     </div>
   </div>
 
-  <div class="section-title">LOG_ACTIVITY_STREAM</div>
-  <div class="table-container card glass">
-    <table id="trade-table">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Resource</th>
-          <th>Vector</th>
-          <th>Size</th>
-          <th>Outcome</th>
-          <th>Network_ID</th>
-        </tr>
-      </thead>
-      <tbody id="trade-body"></tbody>
-    </table>
-  </div>
-
   <script>
-    function switchTab(tab) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      if (tab === 'ops') {
-        document.getElementById('tab-ops').classList.add('active');
-        document.getElementById('content-ops').classList.add('active');
-      } else {
-        document.getElementById('tab-vars').classList.add('active');
-        document.getElementById('content-vars').classList.add('active');
-        loadConfiguration();
-      }
-    }
-
-    async function logout() {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      window.location.href = '/login';
-    }
-
-    async function loadConfiguration() {
-      try {
-        const response = await fetch('/api/config/advanced');
-        const config = await response.json();
-        Object.keys(config).forEach(key => {
-          const el = document.getElementById(key);
-          if (el) {
-            if (el.type === 'checkbox') el.checked = config[key] === 'true';
-            else el.value = config[key];
-          }
-        });
-      } catch (e) { showBanner('Failed to sync configs', 'error'); }
-    }
-
-    async function saveConfiguration() {
-      const keys = ['copyStrategy', 'copySize', 'maxOrderSize', 'dailyLossCap', 'fetchInterval', 'tooOldTimestamp', 'networkRetryLimit', 'clobHttpUrl', 'rpcUrl', 'usdcContract'];
-      const config = {};
-      keys.forEach(k => { config[k] = document.getElementById(k).value; });
-      config.previewMode = document.getElementById('previewMode').checked.toString();
-      
-      try {
-        const r = await fetch('/api/config/advanced', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config)
-        });
-        const res = await r.json();
-        if (res.success) showBanner('Changes committed successfully', 'success');
-        else showBanner('Commit failed: ' + res.error, 'error');
-      } catch (e) { showBanner('Network error during commit', 'error'); }
-    }
-
-    async function resetToDefaults() {
-      if (!confirm('EXECUTE_RESTORE_DEFAULTS?')) return;
-      try {
-        const r = await fetch('/api/config/reset', { method: 'POST' });
-        const res = await r.json();
-        if (res.success) { showBanner('Defaults restored', 'success'); loadConfiguration(); }
-      } catch (e) { showBanner('Restore failed', 'error'); }
-    }
-
-    function showBanner(msg, type) {
-      const b = document.getElementById('message-banner');
-      b.textContent = '// ' + msg.toUpperCase();
-      b.className = type === 'success' ? 'success-banner' : 'error-banner';
-      b.style.display = 'block';
-      setTimeout(() => { b.style.display = 'none'; }, 5000);
+    function showSection(id, el) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      document.getElementById('section-' + id).classList.add('active');
+      el.classList.add('active');
+      document.getElementById('section-title').textContent = id.charAt(0).toUpperCase() + id.slice(1);
+      if (id === 'config') loadGlobalConfig();
     }
 
     async function refresh() {
       try {
-        const [status, trades] = await Promise.all([
+        const [status, users, trades] = await Promise.all([
           fetch('/api/status').then(r => r.json()),
-          fetch('/api/trades?limit=15').then(r => r.json())
+          fetch('/api/users').then(r => r.json()),
+          fetch('/api/trades?limit=20').then(r => r.json())
         ]);
 
-        document.getElementById('username').textContent = status.username || 'ANONYMOUS';
-        document.getElementById('role-badge').textContent = status.role || 'GUEST';
+        // Stats
+        document.getElementById('admin-name').textContent = status.username || 'Admin';
+        document.getElementById('st-total-users').textContent = status.totalUsers;
+        document.getElementById('st-active-users').textContent = status.activeUsers;
+        document.getElementById('st-uptime').textContent = formatUptime(status.uptime);
         
-        if (status.role === 'admin') {
-          document.getElementById('admin-section').style.display = 'block';
-          const users = await fetch('/api/users').then(r => r.json());
-          document.getElementById('user-body').innerHTML = users.map(u => \`
-            <tr>
-              <td class="text-hacker">\${u.username || u.chatId}</td>
-              <td style="font-size: 0.7rem">\${u.wallet?.address || '---'}</td>
-              <td>\${u.config?.traderAddress?.slice(0,10) || 'None'} [\${u.config?.strategy}]</td>
-              <td><span class="status-\${u.config?.enabled ? 'ok' : 'warning'}">\${u.config?.enabled ? 'ACTIVE' : 'IDLE'}</span></td>
-              <td><button class="btn-hacker" style="padding: 2px 5px; font-size: 0.6rem" onclick="alert('Funcionalidade em desenvolvimento')">Edit</button></td>
-            </tr>
-          \`).join('');
+        const modeEl = document.getElementById('st-sys-mode');
+        const modeSubEl = document.getElementById('st-sys-sub');
+        if (status.previewMode) {
+          modeEl.textContent = 'PREVIEW';
+          modeEl.style.color = 'var(--text)';
+          modeSubEl.textContent = 'Simulação Segura Ativa';
+          modeSubEl.style.color = 'var(--warning)';
+        } else {
+          modeEl.textContent = 'PRODUCTION';
+          modeEl.style.color = 'var(--success)';
+          modeSubEl.textContent = 'Operação Real em Chain';
+          modeSubEl.style.color = 'var(--success)';
         }
 
-        document.getElementById('trade-body').innerHTML = trades.map(t => \`
+        // Users Table
+        document.getElementById('user-body').innerHTML = users.map(u => \`
           <tr>
-            <td style="font-size: 0.7rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
-            <td>\${t.title || t.slug}</td>
-            <td><span style="color: \${t.side === 'BUY' ? 'var(--accent)' : 'var(--danger)'}">\${t.side}</span></td>
-            <td class="text-hacker">$\${(t.usdcSize || 0).toFixed(2)}</td>
-            <td>\${t.bot ? 'EXECUTED' : 'PENDING'}</td>
-            <td style="font-size: 0.7rem">\${t.transactionHash?.slice(0,12) || '---'}</td>
+            <td>
+              <div style="font-weight: 700; color: #fff">\${u.username || u.chatId}</div>
+              <div style="font-size: 0.7rem; color: var(--text-dim)">\${u.email || 'Web Session'}</div>
+            </td>
+            <td style="font-family: var(--font-mono); font-size: 0.75rem">\${u.wallet?.address || '---'}</td>
+            <td>
+              <div style="font-size: 0.75rem; color: var(--text-dim)">Follows: \${u.config?.traderAddress?.slice(0,10) || 'None'}</div>
+              <div style="font-weight: 600">\${u.config?.strategy} (\${u.config?.copySize})</div>
+            </td>
+            <td><span class="badge \${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">\${u.step.toUpperCase()}</span></td>
+            <td>
+              <label class="switch">
+                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u.chatId}', this.checked)">
+                <span class="slider"></span>
+              </label>
+            </td>
+            <td>
+              <div style="display: flex; gap: 8px">
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">🔧</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+              </div>
+            </td>
           </tr>
         \`).join('');
 
-      } catch (e) { console.error('Refresh fail:', e); }
+        // Trade Tables (Dash and Logs)
+        const tradesHtml = trades.map(t => \`
+          <tr>
+            <td style="font-size: 0.75rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
+            <td style="font-weight: 500">\${t.chatId || 'System'}</td>
+            <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis">\${t.title || t.slug}</td>
+            <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
+            <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
+            <td><span style="color: \${t.bot ? 'var(--success)' : 'var(--warning)'}">\${t.bot ? 'EXECUTED' : 'PENDING'}</span></td>
+          </tr>
+        \`).join('');
+        document.getElementById('dash-trade-body').innerHTML = tradesHtml;
+        document.getElementById('log-trade-body').innerHTML = tradesHtml; // Detailed view could be richer
+
+      } catch (e) { console.error('Refresh failed:', e); }
     }
+
+    async function toggleUser(chatId, enabled) {
+      await fetch(\`/api/users/\${chatId}/config\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: { enabled } })
+      });
+      showBanner(enabled ? 'Membro SaaS Ativado' : 'Bot Suspenso', 'success');
+      refresh();
+    }
+
+    function editUser(chatId, trader, strategy, size) {
+      document.getElementById('edit-chatId').value = chatId;
+      document.getElementById('edit-trader').value = trader || '';
+      document.getElementById('edit-strategy').value = strategy || 'PERCENTAGE';
+      document.getElementById('edit-size').value = size || 0;
+      document.getElementById('modal-edit').style.display = 'block';
+    }
+
+    async function commitUserEdit() {
+      const chatId = document.getElementById('edit-chatId').value;
+      const config = {
+        traderAddress: document.getElementById('edit-trader').value,
+        strategy: document.getElementById('edit-strategy').value,
+        copySize: parseFloat(document.getElementById('edit-size').value)
+      };
+      
+      const res = await fetch(\`/api/users/\${chatId}/config\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+      });
+      if (res.ok) {
+        showBanner('Configuração do Usuário Atualizada', 'success');
+        closeModal();
+        refresh();
+      }
+    }
+
+    async function resetUser(chatId) {
+      if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
+      await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+      showBanner('Usuário resetado com sucesso', 'warning');
+      refresh();
+    }
+
+    async function deleteUser(chatId) {
+      if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
+      await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+      showBanner('Membro excluído do SaaS', 'danger');
+      refresh();
+    }
+
+    async function loadGlobalConfig() {
+      const res = await fetch('/api/config/advanced');
+      const c = await res.json();
+      document.getElementById('copyStrategy').value = c.copyStrategy;
+      document.getElementById('copySize').value = c.copySize;
+      document.getElementById('maxOrderSize').value = c.maxOrderSize;
+      document.getElementById('rpcUrl').value = c.rpcUrl;
+      document.getElementById('fetchInterval').value = c.fetchInterval;
+      document.getElementById('previewMode').checked = c.previewMode === 'true';
+    }
+
+    async function saveGlobalConfig() {
+      const config = {
+        copyStrategy: document.getElementById('copyStrategy').value,
+        copySize: document.getElementById('copySize').value,
+        maxOrderSize: document.getElementById('maxOrderSize').value,
+        rpcUrl: document.getElementById('rpcUrl').value,
+        fetchInterval: document.getElementById('fetchInterval').value,
+        previewMode: document.getElementById('previewMode').checked.toString()
+      };
+      const res = await fetch('/api/config/advanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      if (res.ok) showBanner('Configurações Globais Aplicadas', 'success');
+    }
+
+    function formatUptime(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      return [h, m, sec].map(v => v < 10 ? '0' + v : v).join(':');
+    }
+
+    function showBanner(msg, type) {
+      const b = document.getElementById('message-banner');
+      b.textContent = msg.toUpperCase();
+      b.className = type + '-banner';
+      b.style.display = 'block';
+      setTimeout(() => b.style.display = 'none', 4000);
+    }
+
+    function closeModal() { document.getElementById('modal-edit').style.display = 'none'; }
+    async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
 
     refresh();
     setInterval(refresh, 5000);
