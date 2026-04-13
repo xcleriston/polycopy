@@ -4,6 +4,7 @@ import createClobClient from './utils/createClobClient.js';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
 import { startServer } from './server/index.js';
+import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 
@@ -111,6 +112,14 @@ export const main = async () => {
 
         // Start web UI + API server
         startServer(PORT);
+
+        // Start Telegram Bot (non-blocking)
+        if (ENV.TELEGRAM_BOT_TOKEN) {
+            const telegramServer = new TelegramServer(ENV.TELEGRAM_BOT_TOKEN);
+            telegramServer.startPolling().catch(err => {
+                Logger.error(`Telegram Bot Critical Error: ${err.message || err}`);
+            });
+        }
     } catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);
         await gracefulShutdown('startup-error');
