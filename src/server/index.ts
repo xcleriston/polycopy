@@ -904,7 +904,7 @@ const loginHtml = `<!DOCTYPE html>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Poly Hacker | Entry Point</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>\${hackerStyles}
+  <style>${hackerStyles}
     body { display: flex; align-items: center; justify-content: center; height: 100vh; }
     .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
     .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; letter-spacing: -1px; }
@@ -960,7 +960,7 @@ const signupHtml = `<!DOCTYPE html>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Poly Hacker | Register</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>\${hackerStyles}
+  <style>${hackerStyles}
     body { display: flex; align-items: center; justify-content: center; height: 100vh; }
     .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
     .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; }
@@ -1021,7 +1021,7 @@ const dashboardHtml = `<!DOCTYPE html>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Poly Hacker | Control Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>\${hackerStyles}
+  <style>${hackerStyles}
     body { padding: 40px; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
     .logo { font-size: 1.5rem; font-weight: 800; }
