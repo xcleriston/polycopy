@@ -127,7 +127,7 @@ const fetchTradeDataForTrader = async ({ address, UserActivity, UserPosition }: 
 
             await UserActivity({
                 proxyWallet: activity.proxyWallet,
-                timestamp: activity.timestamp,
+                timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
                 type: activity.type,
                 size: activity.size,

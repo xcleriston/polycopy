@@ -506,7 +506,7 @@ configHtml += Object.entries(cfg).filter(([k]) => k !== 'telegramConfig').map(([
 document.getElementById('config').innerHTML = configHtml;
 
 if(tr.length===0){document.getElementById('trades').innerHTML='<p style="padding:12px;color:#8b949e">'+i18n[lang].noTrades+'</p>';return}
-document.getElementById('trades').innerHTML='<table><tr><th>Time</th><th>Type</th><th>Side</th><th>Amount</th><th>Price</th><th>Market</th></tr>'+tr.map(t=>\`<tr\${t.isCopied?' style="background-color: rgba(56, 139, 253, 0.1);"':''}><td>\${new Date(t.timestamp*1000).toLocaleString()}</td><td>\${t.isCopied?'<span style="color: #58a6ff; font-weight: bold;">COPIED</span>':'Original'}</td><td class="\${(t.side||'').toLowerCase()}">\${t.side||'-'}</td><td>$\${(t.usdcSize||0).toFixed(2)}</td><td>\${(t.price||0).toFixed(4)}</td><td>\${(t.title||t.slug||'-').slice(0,40)}</td></tr>\`).join('')+'</table>';
+document.getElementById('trades').innerHTML='<table><tr><th>Time</th><th>Type</th><th>Side</th><th>Amount</th><th>Price</th><th>Market</th></tr>'+tr.map(t=>\`<tr\${t.isCopied?' style="background-color: rgba(56, 139, 253, 0.1);"':''}><td>\${new Date(t.timestamp).toLocaleString()}</td><td>\${t.isCopied?'<span style="color: #58a6ff; font-weight: bold;">COPIED</span>':'Original'}</td><td class="\${(t.side||'').toLowerCase()}">\${t.side||'-'}</td><td>$\${(t.usdcSize||0).toFixed(2)}</td><td>\${(t.price||0).toFixed(4)}</td><td>\${(t.title||t.slug||'-').slice(0,40)}</td></tr>\`).join('')+'</table>';
 }catch(e){document.getElementById('status').innerHTML='<span class="badge red">Error</span>'}
 }
 refresh();setInterval(refresh,5000);
