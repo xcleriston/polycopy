@@ -1080,7 +1080,7 @@ aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--
 .logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
 .nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 300px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; font-size: 0.95rem; }
+.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; font-size: 0.95rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.03); }
 .nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
 
@@ -1152,7 +1152,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 </head>
 <body>
   <aside>
-    <div class="logo">POLY<span>COPY</span></div>
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
       <div class="nav-item active" onclick="showSection('dashboard', this)">
         <span>📊</span> Dashboard
