@@ -1800,6 +1800,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <input type="number" id="bot-maxPrice" step="0.01">
                         </div>
                     </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
+                        <div class="form-group">
+                            <label style="color:var(--success)">Auto Take-Profit (%)</label>
+                            <input type="number" id="bot-tpPercent" step="1" placeholder="Ex: 50">
+                            <small style="color:var(--text-dim)">Venda automática ao atingir este lucro (0 = desativado)</small>
+                        </div>
+                        <div class="form-group">
+                            <label style="color:var(--danger)">Auto Stop-Loss (%)</label>
+                            <input type="number" id="bot-slPercent" step="1" placeholder="Ex: -20">
+                            <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuízo (0 = desativado)</small>
+                        </div>
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
                             <label>Trade Min ($)</label>
@@ -2103,6 +2115,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-maxExposure', c.maxExposure || 500);
             setVal('bot-orderType', c.orderType || 'MARKET');
             setVal('bot-slippage', c.slippage || 0.05);
+            setVal('bot-tpPercent', c.tpPercent || 0);
+            setVal('bot-slPercent', c.slPercent || 0);
             setVal('bot-minPrice', c.minPrice || 0);
             setVal('bot-maxPrice', c.maxPrice || 1.0);
             setVal('bot-minTrade', c.minTradeSize || 0);
@@ -2276,6 +2290,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
             orderType: document.getElementById('bot-orderType').value,
             slippage: parseFloat(document.getElementById('bot-slippage').value),
+            tpPercent: parseFloat(document.getElementById('bot-tpPercent').value),
+            slPercent: parseFloat(document.getElementById('bot-slPercent').value),
             minPrice: parseFloat(document.getElementById('bot-minPrice').value),
             maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
             minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
