@@ -1722,10 +1722,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
-                <div style="text-align: right">
-                    <div style="font-size: 0.65rem; color: var(--text-dim); margin-bottom: 4px">SUA CARTEIRA (ENVIE USDC)</div>
-                    <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 4px">0x...</div>
-                </div>
                 <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
             </div>
         </div>
@@ -1834,7 +1830,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         </div>
 
         <div class="card" style="margin-top: 24px">
-            <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>💳</span> Gestão da Carteira</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
+                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💳</span> Gestão da Carteira</h3>
+                <div style="text-align: right">
+                    <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px">CARTEIRA OPERACIONAL</div>
+                    <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
+                </div>
+            </div>
             <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
                 ⚠️ <strong>Robô em Operação:</strong> Você precisa desativar o robô no dashboard principal para alterar a carteira.
             </div>
