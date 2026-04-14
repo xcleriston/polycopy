@@ -1687,22 +1687,40 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px">
-            <div class="card">
-                <label>Carteira de Operação</label>
-                <div id="user-wallet-addr" class="wallet-box">---</div>
-                <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4">Envie <strong>USDC</strong> (Polygon) para este endereço para começar a copiar.</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px">
+            <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
+                <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">💰</div>
+                <div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Saldo Disponível</div>
+                    <div id="stat-balance" style="font-weight: 700; font-size: 1.1rem; color: #fff">$0.00</div>
+                </div>
             </div>
-            <div class="card">
-                <label>Trader Monitorado</label>
-                <div style="display: flex; align-items: center; gap: 12px; margin: 15px 0">
+            <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
+                <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">📊</div>
+                <div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em Posições</div>
+                    <div id="stat-exposure" style="font-weight: 700; font-size: 1.1rem; color: var(--success)">$0.00</div>
+                </div>
+            </div>
+            <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
+                <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">🎯</div>
+                <div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Trader Monitorado</div>
+                    <div id="stat-trader" style="font-weight: 700; font-size: 0.9rem; color: #fff">Desconhecido</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px">
+            <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 20px">
+                <div style="display: flex; align-items: center; gap: 15px">
                     <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">👤</div>
                     <div>
                         <div id="trader-name" style="font-weight: 700; color: #fff">Nenhum</div>
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="switchTab('config')">Alterar Trader</button>
+                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
             </div>
         </div>
 
@@ -1785,7 +1803,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <input type="number" id="bot-maxTrade" step="1">
                         </div>
                     </div>
+                    </div>
                     
+                    <div class="form-group" style="margin-top: 20px">
+                        <label>Volume Máximo em Operação (Total USD)</label>
+                        <input type="number" id="bot-maxExposure" step="1">
+                        <small style="color:var(--text-dim)">O bot parará de abrir novos trades se o volume total nas posições exceder este valor.</small>
+                    </div>
+
                     <div style="margin-top: 20px; display: grid; gap: 12px">
                         <label class="switch-container">
                             <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
@@ -1955,6 +1980,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
             </div>
 
+            <div class="form-group">
+                <label>Volume Máximo em Aberto (Total USD)</label>
+                <input type="number" id="setup-maxExposure" value="500" step="1">
+                <small style="color:var(--text-dim)">O bot parará de negociar se seu volume total em posições passar disso.</small>
+            </div>
+
             <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
                     💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
@@ -1968,6 +1999,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     async function finalizeSetup(btn) {
         const strategy = document.getElementById('setup-strategy').value;
         const size = parseFloat(document.getElementById('setup-size').value);
+        const maxExposure = parseFloat(document.getElementById('setup-maxExposure').value);
         
         if (isNaN(size) || size <= 0) return showBanner('Valor Inválido', 'warning');
         
@@ -1975,7 +2007,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ strategy, copySize: size, enabled: true, finalize: true })
+            body: JSON.stringify({ strategy, copySize: size, maxExposure, enabled: true, finalize: true })
         });
         loadUser();
     }
@@ -1997,6 +2029,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('bot-trader').value = c.traderAddress || '';
         document.getElementById('bot-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('bot-size').value = c.copySize || 10;
+        document.getElementById('bot-maxExposure').value = c.maxExposure || 500;
         document.getElementById('bot-orderType').value = c.orderType || 'MARKET';
         document.getElementById('bot-slippage').value = c.slippage || 0.05;
         document.getElementById('bot-minPrice').value = c.minPrice || 0;
@@ -2008,6 +2041,17 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('bot-copySell').checked = c.copySell !== false;
 
         refreshTrades();
+        refreshStats();
+    }
+
+    async function refreshStats() {
+        try {
+            const res = await fetch('/api/user/stats');
+            const data = await res.json();
+            document.getElementById('stat-balance').textContent = \`$\${(data.balance || 0).toFixed(2)}\`;
+            document.getElementById('stat-exposure').textContent = \`$\${(data.exposure || 0).toFixed(2)}\`;
+            document.getElementById('stat-trader').textContent = currentUser.config.traderAddress.slice(0,6) + '...' + currentUser.config.traderAddress.slice(-4);
+        } catch (e) {}
     }
 
     async function refreshTrades() {
@@ -2015,15 +2059,23 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         const trades = await res.json();
         const traderMap = {}; // Cache for trader names if needed
 
-        document.getElementById('user-trade-body').innerHTML = (trades || []).map(t => \`
+        document.getElementById('user-trade-body').innerHTML = (trades || []).map(t => {
+            const status = t.followerStatus || 'SUCESSO';
+            const isSuccess = status === 'SUCESSO';
+            const isSkipped = status.startsWith('PULADO');
+            const color = isSuccess ? 'var(--success)' : (isSkipped ? 'var(--warning)' : 'var(--danger)');
+            const bg = isSuccess ? 'rgba(16, 185, 129, 0.1)' : (isSkipped ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)');
+            
+            return \`
             <tr>
                 <td style="font-size: 0.75rem">\${new Date(t.timestamp).toLocaleString()}</td>
                 <td style="font-weight: 600">\${t.title || t.slug}</td>
                 <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
                 <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
-                <td><span class="badge" style="background: rgba(16, 185, 129, 0.1); color: var(--success)">SUCESSO</span></td>
+                <td><span class="badge" title="\${t.followerStatuses?.[currentUser.chatId || currentUser._id]?.details || ''}" style="background: \${bg}; color: \${color}">\${status}</span></td>
             </tr>
-        \`).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhum trade capturado ainda.</td></tr>';
+            \`;
+        }).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhum trade capturado ainda.</td></tr>';
         
         // Update Trader Info based on latest trade
         if (trades && trades.length > 0 && trades[0].pseudonym) {
@@ -2045,6 +2097,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             traderAddress: document.getElementById('bot-trader').value,
             strategy: document.getElementById('bot-strategy').value,
             copySize: parseFloat(document.getElementById('bot-size').value),
+            maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
             orderType: document.getElementById('bot-orderType').value,
             slippage: parseFloat(document.getElementById('bot-slippage').value),
             minPrice: parseFloat(document.getElementById('bot-minPrice').value),
@@ -2072,6 +2125,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
+    
+    // Auto refresh stats
+    setInterval(refreshStats, 30000);
+    setInterval(refreshTrades, 15000);
+    
     loadUser();
   </script>
 </body> </html>`;
@@ -2158,7 +2216,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -2192,6 +2250,8 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.copyBuy = copyBuy;
     if (copySell !== undefined)
         user.config.copySell = copySell;
+    if (maxExposure !== undefined)
+        user.config.maxExposure = maxExposure;
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
@@ -2203,11 +2263,33 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
     try {
         const { Activity } = yield import('../models/userHistory.js');
         const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-        const trades = yield Activity.find({ processedBy: userId }).sort({ timestamp: -1 }).limit(10).lean();
+        const tradesData = yield Activity.find({ processedBy: userId }).sort({ timestamp: -1 }).limit(10).lean();
+        // Map per-user status to the trade object
+        const trades = tradesData.map((t) => {
+            var _a, _b;
+            return (Object.assign(Object.assign({}, t), { followerStatus: ((_b = (_a = t.followerStatuses) === null || _a === void 0 ? void 0 : _a[userId]) === null || _b === void 0 ? void 0 : _b.status) || 'SUCESSO' }));
+        });
         res.json(trades);
     }
     catch (e) {
         res.status(500).json({ error: 'Failed to fetch your trades' });
+    }
+}));
+app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const user = req.fullUser;
+        if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
+            return res.json({ balance: 0, exposure: 0 });
+        const balance = yield getMyBalance(user.wallet.address);
+        // Fetch positions to calculate exposure
+        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+        res.json({ balance, exposure });
+    }
+    catch (e) {
+        console.error('Stats error:', e);
+        res.status(500).json({ error: 'Failed to fetch stats' });
     }
 }));
 app.get('/', authenticateToken, (req, res) => {

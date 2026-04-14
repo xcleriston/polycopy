@@ -12,6 +12,7 @@ export interface IUserActivity extends Document {
     details?: any;
     // Multi-user tracking
     processedBy: string[];
+    followerStatuses?: Record<string, { status: string; details?: string }>;
     // Compatibility fields
     bot?: boolean;
     botExcutedTime?: number;
@@ -47,6 +48,7 @@ const UserActivitySchema: Schema = new Schema({
     profileImageOptimized: { type: String },
     bot: { type: Boolean, default: false },
     processedBy: [{ type: String }], // Array of chatIds who already processed this
+    followerStatuses: { type: Schema.Types.Mixed, default: {} }, // map of { followerId: { status, error } }
 
     // Fields from IUserActivity
     action: { type: String },

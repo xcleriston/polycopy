@@ -30,15 +30,27 @@ const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boo
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
 
+const recordStatus = async (activityId: string, followerId: string, status: string, details?: string) => {
+    try {
+        await Activity.updateOne(
+            { _id: activityId },
+            { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date() } } }
+        );
+    } catch (e) {
+        Logger.error(`Failed to record status for ${followerId}: ${e}`);
+    }
+};
+
 const postOrder = async (
     clobClient: ClobClient,
     condition: string,
     my_position: UserPositionInterface | undefined,
     user_position: UserPositionInterface | undefined,
-    trade: UserActivityInterface,
+    trade: any, // Use any for raw activity data access
     my_balance: number,
     followerId: string,
-    userConfig: any 
+    userConfig: any,
+    my_positions: UserPositionInterface[] = [] // Optional positions for exposure check
 ) => {
     // Create a complete strategy config using defaults + user overrides
     const config = {
@@ -57,30 +69,36 @@ const postOrder = async (
     // Side filter
     if (condition === 'buy' && config.copyBuy === false) {
         Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
+        await recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
         return;
     }
     if (condition === 'sell' && config.copySell === false) {
         Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
+        await recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
         return;
     }
 
     // Price filter
     if (config.minPrice > 0 && tradePrice < config.minPrice) {
         Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
+        await recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
         return;
     }
     if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
         Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
+        await recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
         return;
     }
 
     // Trade size filter
     if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
         Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
+        await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
         return;
     }
     if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
         Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+        await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
         return;
     }
 
@@ -109,8 +127,18 @@ const postOrder = async (
 
         Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
 
+        // 3. Exposure Check
+        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
+            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
+            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+            return;
+        }
+
         if (orderCalc.finalAmount === 0) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
+            await recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
         }
 
@@ -130,7 +158,9 @@ const postOrder = async (
             }, orderBook.asks[0]);
 
             if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
-                Logger.warning(`[${followerId}] Price slippage too high ($${minPriceAsk.price} vs target $${trade.price}) - skipping trade`);
+                const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
+                Logger.warning(`[${followerId}] ${reason} - skipping trade`);
+                await recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
                 break;
             }
 
@@ -155,11 +185,18 @@ const postOrder = async (
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
                 remaining -= order_arges.amount;
+                await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`);
             } else {
                 const errorMessage = extractOrderError(resp);
-                if (isInsufficientBalanceOrAllowanceError(errorMessage)) break;
+                if (isInsufficientBalanceOrAllowanceError(errorMessage)) {
+                    await recordStatus(trade._id, followerId, 'ERRO (SALDO)', errorMessage || 'Saldo ou Allowance insuficiente');
+                    break;
+                }
                 retry += 1;
-                Logger.warning(`[${followerId}] Order failed (${retry}/${retryLimit})`);
+                Logger.warning(`[${followerId}] Order failed (${retry}/${retryLimit}): ${errorMessage}`);
+                if (retry >= retryLimit) {
+                    await recordStatus(trade._id, followerId, 'ERRO (API)', errorMessage || 'Erro ao postar ordem');
+                }
             }
         }
         

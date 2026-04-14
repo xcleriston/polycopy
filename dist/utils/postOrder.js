@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { OrderType, Side } from '@polymarket/clob-client';
+import { Activity } from '../models/userHistory.js';
 import Logger from './logger.js';
 import { calculateOrderSize, CopyStrategy } from '../config/copyStrategy.js';
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
@@ -37,7 +38,17 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
     const lower = message.toLowerCase();
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
-const postOrder = (clobClient, condition, my_position, user_position, trade, my_balance, followerId, userConfig) => __awaiter(void 0, void 0, void 0, function* () {
+const recordStatus = (activityId, followerId, status, details) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield Activity.updateOne({ _id: activityId }, { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date() } } });
+    }
+    catch (e) {
+        Logger.error(`Failed to record status for ${followerId}: ${e}`);
+    }
+});
+const postOrder = (clobClient_1, condition_1, my_position_1, user_position_1, trade_1, my_balance_1, followerId_1, userConfig_1, ...args_1) => __awaiter(void 0, [clobClient_1, condition_1, my_position_1, user_position_1, trade_1, my_balance_1, followerId_1, userConfig_1, ...args_1], void 0, function* (clobClient, condition, my_position, user_position, trade, // Use any for raw activity data access
+my_balance, followerId, userConfig, my_positions = [] // Optional positions for exposure check
+) {
     // Create a complete strategy config using defaults + user overrides
     const config = Object.assign({ strategy: userConfig.strategy || CopyStrategy.PERCENTAGE, copySize: userConfig.copySize || 10.0, maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100'), minOrderSizeUSD: 1.0, tradeMultiplier: 1.0 }, userConfig);
     // 1. Pre-execution Filters
@@ -46,28 +57,34 @@ const postOrder = (clobClient, condition, my_position, user_position, trade, my_
     // Side filter
     if (condition === 'buy' && config.copyBuy === false) {
         Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
+        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
         return;
     }
     if (condition === 'sell' && config.copySell === false) {
         Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
+        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
         return;
     }
     // Price filter
     if (config.minPrice > 0 && tradePrice < config.minPrice) {
         Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
+        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
         return;
     }
     if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
         Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
+        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
         return;
     }
     // Trade size filter
     if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
         Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
+        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
         return;
     }
     if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
         Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
         return;
     }
     // 2. Reverse Copy Logic
@@ -84,8 +101,17 @@ const postOrder = (clobClient, condition, my_position, user_position, trade, my_
         const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
         const orderCalc = calculateOrderSize(config, trade.usdcSize, my_balance, currentPositionValue);
         Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
+        // 3. Exposure Check
+        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
+            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
+            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+            return;
+        }
         if (orderCalc.finalAmount === 0) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
         }
         let remaining = orderCalc.finalAmount;
@@ -101,7 +127,9 @@ const postOrder = (clobClient, condition, my_position, user_position, trade, my_
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
             if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
-                Logger.warning(`[${followerId}] Price slippage too high ($${minPriceAsk.price} vs target $${trade.price}) - skipping trade`);
+                const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
+                Logger.warning(`[${followerId}] ${reason} - skipping trade`);
+                yield recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
                 break;
             }
             if (remaining < MIN_ORDER_SIZE_USD)
@@ -122,13 +150,19 @@ const postOrder = (clobClient, condition, my_position, user_position, trade, my_
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
                 remaining -= order_arges.amount;
+                yield recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`);
             }
             else {
                 const errorMessage = extractOrderError(resp);
-                if (isInsufficientBalanceOrAllowanceError(errorMessage))
+                if (isInsufficientBalanceOrAllowanceError(errorMessage)) {
+                    yield recordStatus(trade._id, followerId, 'ERRO (SALDO)', errorMessage || 'Saldo ou Allowance insuficiente');
                     break;
+                }
                 retry += 1;
-                Logger.warning(`[${followerId}] Order failed (${retry}/${retryLimit})`);
+                Logger.warning(`[${followerId}] Order failed (${retry}/${retryLimit}): ${errorMessage}`);
+                if (retry >= retryLimit) {
+                    yield recordStatus(trade._id, followerId, 'ERRO (API)', errorMessage || 'Erro ao postar ordem');
+                }
             }
         }
         // Update specific meta-fields for THIS follower's execution if needed

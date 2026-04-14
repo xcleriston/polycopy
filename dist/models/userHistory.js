@@ -23,6 +23,7 @@ const UserActivitySchema = new Schema({
     profileImageOptimized: { type: String },
     bot: { type: Boolean, default: false },
     processedBy: [{ type: String }], // Array of chatIds who already processed this
+    followerStatuses: { type: Schema.Types.Mixed, default: {} }, // map of { followerId: { status, error } }
     // Fields from IUserActivity
     action: { type: String },
     market: { type: String },

@@ -100,7 +100,8 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 }, 0);
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
-                yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config // Pass individual user config
+                yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, // Pass individual user config
+                my_positions // Pass all positions for exposure calculation
                 );
             }
         }

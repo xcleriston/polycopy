@@ -133,7 +133,8 @@ const doTrading = async (trade: any) => {
                     trade,
                     my_balance,
                     followerId,
-                    follower.config // Pass individual user config
+                    follower.config, // Pass individual user config
+                    my_positions // Pass all positions for exposure calculation
                 );
             }
         } catch (error) {
