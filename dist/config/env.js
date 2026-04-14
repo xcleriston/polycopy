@@ -18,6 +18,7 @@ const validateRequiredEnv = () => {
         'CLOB_HTTP_URL',
         'CLOB_WS_URL',
         'RPC_URL',
+        'WSS_RPC_URL',
         'USDC_CONTRACT_ADDRESS',
     ];
     const optional = [
@@ -278,8 +279,10 @@ export const ENV = {
     TRADE_AGGREGATION_WINDOW_SECONDS: parseInt(process.env.TRADE_AGGREGATION_WINDOW_SECONDS || '300', 10), // 5 minutes default
     RPC_URL: process.env.RPC_URL,
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS,
+    POLYMARKET_EXCHANGE_ADDR: process.env.POLYMARKET_EXCHANGE_ADDR || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E',
     // Telegram settings (optional)
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
     MONGODB_URI: process.env.MONGODB_URI,
+    WSS_RPC_URL: process.env.WSS_RPC_URL,
 };

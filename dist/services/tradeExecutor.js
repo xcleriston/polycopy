@@ -154,7 +154,7 @@ const tradeExecutor = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         if (!isRunning)
             break;
-        yield new Promise((resolve) => setTimeout(resolve, 500));
+        yield new Promise((resolve) => setTimeout(resolve, 100));
     }
     Logger.info('Trade executor stopped');
 });
