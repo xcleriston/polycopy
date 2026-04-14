@@ -1863,6 +1863,28 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
             </div>
         </div>
+
+        <div class="card" style="margin-top: 24px">
+            <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>💳</span> Gestão da Carteira</h3>
+            <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
+                ⚠️ <strong>Robô em Operação:</strong> Você precisa desativar o robô no dashboard principal para alterar a carteira.
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+                <div>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Importar carteira existente via Chave Privada:</p>
+                    <div class="form-group">
+                        <input type="password" id="settings-import-pk" placeholder="Chave Privada (0x...)">
+                    </div>
+                    <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                </div>
+                <div style="border-left: 1px solid var(--border); padding-left: 24px">
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
+                    <button id="btn-generate-settings" class="btn btn-sm" onclick="generateWalletSettings(this)">Gerar Nova Carteira</button>
+                    <small style="display:block; margin-top:10px; color:var(--text-dim)">Atenção: A carteira antiga será substituída no sistema.</small>
+                </div>
+            </div>
+        </div>
     </div>
   </main>
 
@@ -2091,9 +2113,46 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const botSell = document.getElementById('bot-copySell');
             if (botSell) botSell.checked = c.copySell !== false;
 
+            // Wallet management safety UI
+            const isBotActive = !!c.enabled;
+            const warning = document.getElementById('wallet-active-warning');
+            const btnImport = document.getElementById('btn-import-settings');
+            const btnGenerate = document.getElementById('btn-generate-settings');
+            const inputPk = document.getElementById('settings-import-pk');
+
+            if (warning) warning.style.display = isBotActive ? 'block' : 'none';
+            if (btnImport) btnImport.disabled = isBotActive;
+            if (btnGenerate) btnGenerate.disabled = isBotActive;
+            if (inputPk) inputPk.disabled = isBotActive;
+
             refreshTrades();
             refreshStats();
         } catch (err) { console.error('Render dashboard crash:', err); }
+    }
+
+    async function importWalletSettings(btn) {
+        const pk = document.getElementById('settings-import-pk').value;
+        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
+        btn.disabled = true; btn.textContent = 'Importando...';
+        const res = await fetch('/api/user/import-wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ privateKey: pk })
+        });
+        const data = await res.json();
+        btn.disabled = false; btn.textContent = 'Atualizar Chave Privada';
+        if (res.ok) { showBanner('Carteira Atualizada!', 'success'); loadUser(); }
+        else { showBanner(data.error || 'Falha ao importar', 'danger'); }
+    }
+
+    async function generateWalletSettings(btn) {
+        if (!confirm('Isso criará uma nova carteira e substituirá a atual. Deseja continuar?')) return;
+        btn.disabled = true; btn.textContent = 'Gerando...';
+        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+        const data = await res.json();
+        btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+        if (res.ok) { showBanner('Nova Carteira Gerada!', 'success'); loadUser(); }
+        else { showBanner(data.error || 'Falha ao gerar', 'danger'); }
     }
 
     async function refreshStats() {
@@ -2220,9 +2279,8 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         const user = await User.findById(req.user?.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
         
-        // Allow re-generation if user is not in 'ready' step (fix for stuck onboarding)
-        if (user.wallet?.address && user.step === 'ready') {
-            return res.status(400).json({ error: 'Wallet already exists and bot is active' });
+        if (user.config?.enabled) {
+            return res.status(400).json({ error: 'Desative o robô no dashboard antes de alterar a carteira' });
         }
 
         const newWallet = ethers.Wallet.createRandom();
@@ -2257,9 +2315,8 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         const user = await User.findById(req.user?.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
         
-        // Allow overwrite if setup not complete
-        if (user.wallet?.address && user.step === 'ready') {
-            return res.status(400).json({ error: 'Usuário já possui carteira ativa' });
+        if (user.config?.enabled) {
+            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
         }
 
         user.wallet = {
