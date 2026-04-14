@@ -6,6 +6,7 @@ import User from '../models/user.js';
 import Logger from './logger.js';
 import { calculateOrderSize, getTradeMultiplier, CopyStrategy, CopyStrategyConfig } from '../config/copyStrategy.js';
 import telegram from './telegram.js';
+import fetchData from './fetchData.js';
 
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
 
@@ -116,6 +117,77 @@ const postOrder = async (
 
     if (effectiveCondition === 'buy') {
         Logger.info(`[${followerId}] Executing BUY strategy...`);
+
+        // Phase 5 Advanced Filters
+        if ((config.maxMarketCount && config.maxMarketCount > 0) || 
+            (config.sniperModeSec && config.sniperModeSec > 0) || 
+            (config.lastMinuteModeSec && config.lastMinuteModeSec > 0) || 
+            (config.minMarketLiquidity && config.minMarketLiquidity > 0)) {
+            
+            // 1. Max Markets check
+            if (config.maxMarketCount > 0) {
+                const uniqueConditionIds = new Set(my_positions.map(p => p.conditionId));
+                if (!uniqueConditionIds.has(trade.conditionId) && uniqueConditionIds.size >= config.maxMarketCount) {
+                    const reason = `Limite de Mercados Simultâneos atingido (${uniqueConditionIds.size} >= ${config.maxMarketCount})`;
+                    Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                    await recordStatus(trade._id, followerId, 'PULADO (FASE 5)', reason);
+                    return;
+                }
+            }
+
+            // 2. Fetch Gamma Market Data for Time & Liquidity
+            if (config.sniperModeSec > 0 || config.lastMinuteModeSec > 0 || config.minMarketLiquidity > 0) {
+                try {
+                     const marketDataArr = await fetchData(`https://gamma-api.polymarket.com/events?id=${trade.asset || trade.conditionId}`);
+                     // Gamma events endpoint uses IDs or we can query markets directly
+                     // Fallback to markets if events fails or we just use markets condition_id
+                     const marketsArr = await fetchData(`https://gamma-api.polymarket.com/markets?condition_id=${trade.conditionId}`);
+                     
+                     if (marketsArr && marketsArr.length > 0) {
+                         const metadata = marketsArr[0];
+                         
+                         // Anti-Scam Liquidity (Volume as Fallback)
+                         const liquidity = metadata.liquidityNum || metadata.volume24hr || 0;
+                         if (config.minMarketLiquidity > 0 && liquidity < config.minMarketLiquidity) {
+                             const reason = `Liquidez/Volume ($${liquidity.toFixed(0)}) menor que o exigido ($${config.minMarketLiquidity})`;
+                             Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                             await recordStatus(trade._id, followerId, 'PULADO (ANTI-SCAM)', reason);
+                             return;
+                         }
+
+                         const nowMs = Date.now();
+                         const tradeTime = trade.timestamp > 2000000000 ? trade.timestamp : trade.timestamp * 1000;
+
+                         // Sniper Mode
+                         if (config.sniperModeSec > 0 && metadata.startDate) {
+                             const startMs = new Date(metadata.startDate).getTime();
+                             const diffSec = (tradeTime - startMs) / 1000;
+                             if (diffSec > config.sniperModeSec) {
+                                 const reason = `Sniper Mode: Trade ocorreu ${diffSec.toFixed(0)}s após início (Máx aprovado: ${config.sniperModeSec}s)`;
+                                 Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                                 await recordStatus(trade._id, followerId, 'PULADO (SNIPER)', reason);
+                                 return;
+                             }
+                         }
+
+                         // Last Minute Mode
+                         if (config.lastMinuteModeSec > 0 && metadata.endDate) {
+                             const endMs = new Date(metadata.endDate).getTime();
+                             const diffSecToClose = (endMs - tradeTime) / 1000;
+                             // Notice: endDate on Gamma API might be set far into the future (e.g. 2100) if no known end date exists.
+                             if (diffSecToClose > config.lastMinuteModeSec && endMs < 4102444800000) {
+                                  const reason = `Last Minute Mode: Mercado demorará ${diffSecToClose.toFixed(0)}s para fechar (Mín exigido: ${config.lastMinuteModeSec}s)`;
+                                  Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                                  await recordStatus(trade._id, followerId, 'PULADO (LAST MINUTE)', reason);
+                                  return;
+                             }
+                         }
+                     }
+                } catch (err) {
+                     Logger.warning(`[${followerId}] Falha ao checar Fase 5 Metadata: ${err}`);
+                }
+            }
+        }
 
         // Get current position size 
         const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;

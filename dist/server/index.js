@@ -1895,6 +1895,32 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         </div>
 
         <div class="card" style="margin-top: 24px">
+            <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Filtros Avançados & Anti-Scam (Fase 5)</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+                <div class="form-group">
+                    <label>Sniper Mode (Segundos) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Desativado)</span></label>
+                    <input type="number" id="bot-sniperModeSec" step="1" placeholder="Ex: 60">
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades feitos nos primeiros X segs. do mercado.</small>
+                </div>
+                <div class="form-group">
+                    <label>Last-Minute Mode (Segundos) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Desativado)</span></label>
+                    <input type="number" id="bot-lastMinuteModeSec" step="1" placeholder="Ex: 60">
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades se o mercado fechar em menos de X segs.</small>
+                </div>
+                <div class="form-group">
+                    <label>Máximo de Mercados Simultâneos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
+                    <input type="number" id="bot-maxMarketCount" step="1" placeholder="Ex: 10">
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso você já esteja em posições de muitos mercados.</small>
+                </div>
+                <div class="form-group">
+                    <label>Liquidez Mínima do Mercado ($USD) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Zero)</span></label>
+                    <input type="number" id="bot-minMarketLiquidity" step="1" placeholder="Ex: 10000">
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Filtro Anti-Scam. Rejeita mercados "rasos" e arriscados.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
                 <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💳</span> Gestão da Carteira</h3>
                 <div style="text-align: right">
@@ -2151,6 +2177,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-maxPerMarket', c.maxPerMarket || 100);
             setVal('bot-maxPerToken', c.maxPerToken || 50);
             setVal('bot-totalSpendLimit', c.totalSpendLimit || 0);
+            setVal('bot-sniperModeSec', c.sniperModeSec || 0);
+            setVal('bot-lastMinuteModeSec', c.lastMinuteModeSec || 0);
+            setVal('bot-maxMarketCount', c.maxMarketCount || 0);
+            setVal('bot-minMarketLiquidity', c.minMarketLiquidity || 0);
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2329,7 +2359,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             buyAtMin: document.getElementById('bot-buyAtMin').checked,
             reverseCopy: document.getElementById('bot-reverse').checked,
             copyBuy: document.getElementById('bot-copyBuy').checked,
-            copySell: document.getElementById('bot-copySell').checked
+            copySell: document.getElementById('bot-copySell').checked,
+            sniperModeSec: parseInt(document.getElementById('bot-sniperModeSec').value) || 0,
+            lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value) || 0,
+            maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
+            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2477,7 +2511,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -2521,6 +2555,14 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.maxPerToken = maxPerToken;
     if (totalSpendLimit !== undefined)
         user.config.totalSpendLimit = totalSpendLimit;
+    if (sniperModeSec !== undefined)
+        user.config.sniperModeSec = sniperModeSec;
+    if (lastMinuteModeSec !== undefined)
+        user.config.lastMinuteModeSec = lastMinuteModeSec;
+    if (maxMarketCount !== undefined)
+        user.config.maxMarketCount = maxMarketCount;
+    if (minMarketLiquidity !== undefined)
+        user.config.minMarketLiquidity = minMarketLiquidity;
     if (req.body.finalize === true) {
         user.step = 'ready';
     }

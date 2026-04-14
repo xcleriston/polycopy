@@ -33,6 +33,11 @@ const UserSchema = new Schema({
         maxPerToken: { type: Number, default: 50.0 },
         ignoreTradesUnder: { type: Number, default: 0.0 },
         totalSpendLimit: { type: Number, default: 0.0 }, // 0 means no limit
+        // Phase 5 Advanced Filters
+        sniperModeSec: { type: Number, default: 0 },
+        lastMinuteModeSec: { type: Number, default: 0 },
+        maxMarketCount: { type: Number, default: 0 }, // 0 means no limit
+        minMarketLiquidity: { type: Number, default: 0 },
     },
     totalSpentUSD: { type: Number, default: 0.0 },
     step: { type: String, default: 'start' },
