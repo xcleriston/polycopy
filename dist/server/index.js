@@ -2129,15 +2129,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', `, $$, {};
-(data.balance || 0).toFixed(2);
-`);
-            setTxt('stat-exposure', `;
-$$;
-{
-    (data.exposure || 0).toFixed(2);
-}
-`);
+            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
+            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
             
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
