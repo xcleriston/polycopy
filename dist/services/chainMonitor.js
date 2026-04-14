@@ -22,9 +22,17 @@ export const startChainMonitor = () => __awaiter(void 0, void 0, void 0, functio
         return;
     }
     try {
+        Logger.info('Initializing High-Speed Monitor...');
         const provider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
+        // Handle provider errors specifically to prevent Uncaught Exceptions
+        provider.on("error", (e) => {
+            Logger.error('WebSocket connection lost/failed. Retrying in 10s...');
+            provider.destroy();
+            setTimeout(startChainMonitor, 10000);
+        });
         const contract = new ethers.Contract(POLYMARKET_EXCHANGE_ADDR, EXCHANGE_ABI, provider);
         Logger.success('⚡ Connected to Polygon WebSocket for real-time monitoring');
+        // Registering listener... (rest of logic)
         contract.on("OrderFilled", (...args) => __awaiter(void 0, void 0, void 0, function* () {
             const event = args[args.length - 1]; // Last arg is the event object
             const { maker, taker, makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled, transactionHash } = event.args || event;
@@ -68,14 +76,10 @@ export const startChainMonitor = () => __awaiter(void 0, void 0, void 0, functio
                 }
             }
         }));
-        // Keep-alive heartbeat
-        provider.on("error", (e) => {
-            Logger.error('WebSocket Provider Error:' + e);
-            setTimeout(startChainMonitor, 5000); // Reconnect
-        });
+        // Keep-alive heartbeat handled by provider.on("error") above
     }
     catch (error) {
-        Logger.error('Failed to start Chain Monitor:' + error);
-        setTimeout(startChainMonitor, 10000);
+        Logger.error('Immediate Chain Monitor error: ' + error);
+        setTimeout(startChainMonitor, 15000);
     }
 });
