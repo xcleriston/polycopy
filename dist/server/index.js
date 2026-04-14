@@ -1851,43 +1851,19 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.querySelectorAll('.step').forEach(s => s.className = 'step');
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
-        document.getElementById('step-content').innerHTML = `
-    < p, style = "margin-bottom:20px; color:var(--text-dim); line-height:1.5" > A, plataforma, utiliza, uma, carteira, exclusiva, para, você, Gere, uma, nova, ou, importe, uma, existente, via, Chave, Privada;
-/p>
-    < button;
-class {
-}
-"btn";
-onclick = "generateWallet(this)";
-style = "margin-bottom:12px" > Gerar;
-Nova;
-Carteira < /button>
-    < div;
-style = "margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)" >
-    style;
-"flex:1; height:1px; background:var(--border)" > /div>
-    < span;
-style = "font-size:0.7rem; font-weight:700" > OU;
-IMPORTAR < /span>
-    < div;
-style = "flex:1; height:1px; background:var(--border)" > /div>
-    < /div>
-    < div;
-class {
-}
-"form-group" >
-    type;
-"password";
-id = "import-pk";
-placeholder = "Chave Privada (0x...)" >
-    /div>
-    < button;
-class {
-}
-"btn btn-outline";
-onclick = "importWallet(this)" > Importar;
-Chave;
-Privada < /button> `;
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
+            <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">OU IMPORTAR</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <div class="form-group">
+                <input type="password" id="import-pk" placeholder="Chave Privada (0x...)">
+            </div>
+            <button class="btn btn-outline" onclick="importWallet(this)">Importar Chave Privada</button>
+        \`;
     }
 
     async function generateWallet(btn) {
@@ -1934,42 +1910,14 @@ Privada < /button> `;
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = `
-    < p;
-style = "margin-bottom:20px; color:var(--text-dim); line-height:1.5" > Informe;
-o;
-endereço;
-do
-    trader;
-while (que);
-deseja;
-copiar.O;
-bot;
-monitorará;
-cada;
-aposta;
-dele;
-no;
-Polymarket. < /p>
-    < div;
-class {
-}
-"form-group" >
-    Endereço;
-da;
-Carteira(Polymarket) < /label>
-    < input;
-type = "text";
-id = "setup-trader";
-placeholder = "0x...";
-value = "${currentUser.config?.traderAddress || ''}" >
-    /div>
-    < button;
-class {
-}
-"btn";
-onclick = "nextToStep3(this)" > Próximo;
-Passo: Estratégia < /button> `;
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
+            <div class="form-group">
+                <label>Endereço da Carteira (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
+            </div>
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+        \`;
     }
 
     async function nextToStep3(btn) {
@@ -1990,87 +1938,31 @@ Passo: Estratégia < /button> `;
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
-        document.getElementById('step-content').innerHTML = `
-    < p;
-style = "margin-bottom:20px; color:var(--text-dim); line-height:1.5" > Como;
-você;
-deseja;
-copiar;
-os;
-trades ? Defina : ;
-o;
-valor;
-inicial;
-da;
-operação. < /p>
-    < div;
-class {
-}
-"form-group" >
-    Estratégia < /label>
-    < select;
-id = "setup-strategy" >
-    value;
-"PERCENTAGE" > Cópia;
-Proporcional( % ) < /option>
-    < option;
-value = "FIXED" > Valor;
-Fixo(USD) < /option>
-    < /select>
-    < /div>
-    < div;
-class {
-}
-"form-group" >
-    Tamanho;
-da;
-Cópia(Valor, ou % ) < /label>
-    < input;
-type = "number";
-id = "setup-size";
-value = "10";
-step = "0.1" >
-    style;
-"color:var(--text-dim)" > Ex;
-10 % ;
-do
-    trader;
-while (ou);
-10;
-USD;
-fixos. < /small>
-    < /div>
-    < div;
-style = "background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px" >
-    style;
-"font-size: 0.85rem; line-height: 1.4; color: var(--accent)" >
-;
-Você;
-poderá;
-alterar;
-essas;
-e;
-outras;
-configurações;
-avançadas(Slippage, Filtros, TP / SL);
-a;
-qualquer;
-momento;
-no;
-seu;
-Painel;
-de;
-Controle.
-    < /p>
-    < /div>
-    < button;
-class {
-}
-"btn";
-onclick = "finalizeSetup(this)" > Finalizar;
-e;
-Iniciar;
-Bot < /button> `;
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
+            
+            <div class="form-group">
+                <label>Estratégia</label>
+                <select id="setup-strategy">
+                    <option value="PERCENTAGE">Cópia Proporcional (%)</option>
+                    <option value="FIXED">Valor Fixo (USD)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Tamanho da Cópia (Valor ou %)</label>
+                <input type="number" id="setup-size" value="10" step="0.1">
+                <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
+            </div>
+
+            <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
+                <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
+                    💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                </p>
+            </div>
+
+            <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
+        \`;
     }
 
     async function finalizeSetup(btn) {

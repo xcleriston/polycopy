@@ -1882,7 +1882,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.querySelectorAll('.step').forEach(s => s.className = 'step');
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
-        document.getElementById('step-content').innerHTML = `
+        document.getElementById('step-content').innerHTML = \`
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
@@ -1894,7 +1894,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <input type="password" id="import-pk" placeholder="Chave Privada (0x...)">
             </div>
             <button class="btn btn-outline" onclick="importWallet(this)">Importar Chave Privada</button>
-        `;
+        \`;
     }
 
     async function generateWallet(btn) {
@@ -1941,14 +1941,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = `
+        document.getElementById('step-content').innerHTML = \`
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
                 <label>Endereço da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
+                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
             <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
-        `;
+        \`;
     }
 
     async function nextToStep3(btn) {
@@ -1969,7 +1969,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
-        document.getElementById('step-content').innerHTML = `
+        document.getElementById('step-content').innerHTML = \`
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
             
             <div class="form-group">
@@ -1993,7 +1993,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
 
             <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
-        `;
+        \`;
     }
 
     async function finalizeSetup(btn) {
