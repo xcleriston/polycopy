@@ -1292,27 +1292,86 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
   <!-- Modal Edit User -->
   <div id="modal-edit" class="modal">
-    <div class="modal-content">
-      <h2 style="margin-bottom:20px">Configurar Membro SaaS</h2>
+    <div class="modal-content" style="width: 700px; margin: 5% auto">
+      <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
+        <span>⚙️</span> Configurar Membro SaaS
+      </h2>
       <input type="hidden" id="edit-chatId">
-      <div class="form-group">
-        <label>Endereço do Trader Monitorado</label>
-        <input type="text" id="edit-trader" placeholder="0x...">
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+        <!-- Coluna 1: Básico -->
+        <div>
+          <div class="form-group">
+            <label>Endereço do Trader Monitorado</label>
+            <input type="text" id="edit-trader" placeholder="0x...">
+          </div>
+          <div class="form-group">
+            <label>Estratégia de Cópia</label>
+            <select id="edit-strategy">
+              <option value="PERCENTAGE">Percentage (%)</option>
+              <option value="FIXED">Fixed (USD)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tamanho da Cópia (Valor/%)</label>
+            <input type="number" id="edit-size" step="0.1">
+          </div>
+          <div class="form-group">
+            <label>Tipo de Ordem</label>
+            <select id="edit-orderType">
+              <option value="MARKET">Market (Instantânea)</option>
+              <option value="LIMIT">Limit (Preço Alvo)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Slippage Máximo (%)</label>
+            <input type="number" id="edit-slippage" step="0.01">
+          </div>
+        </div>
+
+        <!-- Coluna 2: Avançado -->
+        <div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label>Preço Mínimo ($)</label>
+              <input type="number" id="edit-minPrice" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Preço Máximo ($)</label>
+              <input type="number" id="edit-maxPrice" step="0.01">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label>Trade Mínimo ($)</label>
+              <input type="number" id="edit-minTrade" step="1">
+            </div>
+            <div class="form-group">
+              <label>Trade Máximo ($)</label>
+              <input type="number" id="edit-maxTrade" step="1">
+            </div>
+          </div>
+          
+          <div style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border)">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
+               <input type="checkbox" id="edit-reverse" style="width:18px; height:18px">
+               <label style="margin-bottom:0">Reverse Copy (Inverter Lado)</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
+               <input type="checkbox" id="edit-copyBuy" style="width:18px; height:18px">
+               <label style="margin-bottom:0">Copiar Compras (BUY)</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px">
+               <input type="checkbox" id="edit-copySell" style="width:18px; height:18px">
+               <label style="margin-bottom:0">Copiar Vendas (SELL)</label>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="form-group">
-        <label>Estratégia Proporcional</label>
-        <select id="edit-strategy">
-          <option value="PERCENTAGE">Percentage (%)</option>
-          <option value="FIXED">Fixed (USD)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Tamanho da Cópia (Value)</label>
-        <input type="number" id="edit-size" step="0.1">
-      </div>
+
       <div class="modal-footer">
         <button onclick="closeModal()" class="btn">Cancelar</button>
-        <button onclick="commitUserEdit()" class="btn btn-accent">Atualizar Cadastro</button>
+        <button onclick="commitUserEdit()" class="btn btn-accent" style="padding-left: 30px; padding-right: 30px">Aplicar Configurações</button>
       </div>
     </div>
   </div>
@@ -1376,7 +1435,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">🔧</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">🔧</button>
                 <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
                 <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
               </div>
@@ -1411,12 +1470,28 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       refresh();
     }
 
-    function editUser(chatId, trader, strategy, size) {
-      document.getElementById('edit-chatId').value = chatId;
-      document.getElementById('edit-trader').value = trader || '';
-      document.getElementById('edit-strategy').value = strategy || 'PERCENTAGE';
-      document.getElementById('edit-size').value = size || 0;
-      document.getElementById('modal-edit').style.display = 'block';
+    async function editUser(chatId) {
+      try {
+        const res = await fetch(\`/api/users/\${chatId}\`);
+        const user = await res.json();
+        const c = user.config || {};
+        
+        document.getElementById('edit-chatId').value = chatId;
+        document.getElementById('edit-trader').value = c.traderAddress || '';
+        document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
+        document.getElementById('edit-size').value = c.copySize || 0;
+        document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
+        document.getElementById('edit-slippage').value = c.slippage || 0.05;
+        document.getElementById('edit-minPrice').value = c.minPrice || 0;
+        document.getElementById('edit-maxPrice').value = c.maxPrice || 1.0;
+        document.getElementById('edit-minTrade').value = c.minTradeSize || 0;
+        document.getElementById('edit-maxTrade').value = c.maxTradeSize || 1000;
+        document.getElementById('edit-reverse').checked = !!c.reverseCopy;
+        document.getElementById('edit-copyBuy').checked = c.copyBuy !== false;
+        document.getElementById('edit-copySell').checked = c.copySell !== false;
+        
+        document.getElementById('modal-edit').style.display = 'block';
+      } catch (e) { showBanner('Erro ao carregar usuário', 'danger'); }
     }
 
     async function commitUserEdit() {
@@ -1424,7 +1499,16 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
         strategy: document.getElementById('edit-strategy').value,
-        copySize: parseFloat(document.getElementById('edit-size').value)
+        copySize: parseFloat(document.getElementById('edit-size').value),
+        orderType: document.getElementById('edit-orderType').value,
+        slippage: parseFloat(document.getElementById('edit-slippage').value),
+        minPrice: parseFloat(document.getElementById('edit-minPrice').value),
+        maxPrice: parseFloat(document.getElementById('edit-maxPrice').value),
+        minTradeSize: parseFloat(document.getElementById('edit-minTrade').value),
+        maxTradeSize: parseFloat(document.getElementById('edit-maxTrade').value),
+        reverseCopy: document.getElementById('edit-reverse').checked,
+        copyBuy: document.getElementById('edit-copyBuy').checked,
+        copySell: document.getElementById('edit-copySell').checked
       };
       
       const res = await fetch(\`/api/users/\${chatId}/config\`, {
@@ -1432,10 +1516,13 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config })
       });
+      
       if (res.ok) {
-        showBanner('Configuração do Usuário Atualizada', 'success');
+        showBanner('Configurações do Membro Atualizadas', 'success');
         closeModal();
         refresh();
+      } else {
+        showBanner('Falha ao atualizar configurações', 'danger');
       }
     }
 
@@ -1536,7 +1623,7 @@ aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
 main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px; max-width: 600px; margin: 40px auto; }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
 .step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
 .step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
