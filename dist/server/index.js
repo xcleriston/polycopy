@@ -1735,7 +1735,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <th>DATA/HORA</th>
                             <th>MERCADO</th>
                             <th>LADO</th>
-                            <th>VALOR</th>
+                            <th>VALOR TRADER</th>
+                            <th>ENTRADA</th>
+                            <th>ATUAL</th>
+                            <th>P&amp;L TRADER</th>
                             <th>STATUS</th>
                         </tr>
                     </thead>
@@ -2147,32 +2150,80 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function refreshTrades() {
-        const res = await fetch('/api/user/trades');
-        const trades = await res.json();
-        const traderMap = {}; // Cache for trader names if needed
+        try {
+            const res = await fetch('/api/user/trades');
+            if (!res.ok) return;
+            const trades = await res.json();
+            const tbody = document.getElementById('user-trade-body');
+            if (!tbody) return;
 
-        document.getElementById('user-trade-body').innerHTML = (trades || []).map(t => {
-            const status = t.followerStatus || 'SUCESSO';
-            const isSuccess = status === 'SUCESSO';
-            const isSkipped = status.startsWith('PULADO');
-            const color = isSuccess ? 'var(--success)' : (isSkipped ? 'var(--warning)' : 'var(--danger)');
-            const bg = isSuccess ? 'rgba(16, 185, 129, 0.1)' : (isSkipped ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)');
-            
-            return \`
-            <tr>
-                <td style="font-size: 0.75rem">\${new Date(t.timestamp).toLocaleString()}</td>
-                <td style="font-weight: 600">\${t.title || t.slug}</td>
-                <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
-                <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
-                <td><span class="badge" title="\${t.followerStatuses?.[currentUser?.id || currentUser?.chatId || 'none']?.details || ''}" style="background: \${bg}; color: \${color}">\${status}</span></td>
-            </tr>
-            \`;
-        }).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhum trade capturado ainda.</td></tr>';
-        
-        // Update Trader Info based on latest trade
-        if (trades && trades.length > 0 && trades[0].pseudonym) {
-            document.getElementById('trader-name').textContent = trades[0].pseudonym || trades[0].name || 'Desconhecido';
-        }
+            if (!trades || trades.length === 0) {
+                tbody.innerHTML = \`<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                return;
+            }
+
+            tbody.innerHTML = trades.map(t => {
+                const status = t.executionStatus || 'DETECTADO';
+
+                // Status styling
+                const statusStyles = {
+                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '✅' },
+                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '⚡' },
+                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '💸' },
+                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '📊' },
+                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '⚠️' },
+                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '📏' },
+                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🚫' },
+                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💲' },
+                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🧩' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' },
+                };
+                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '🔵' };
+
+                // P&L styling
+                let pnlHtml = '<span style="color:var(--text-dim)">—</span>';
+                if (t.pnlPercent !== null && t.pnlPercent !== undefined) {
+                    const pnlColor = t.pnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
+                    const pnlIcon = t.pnlPercent >= 0 ? '↑' : '↓';
+                    pnlHtml = \`<span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${t.pnlLabel}</span>\`;
+                }
+
+                // Entry price
+                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}¢\` : '—';
+                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}¢\` : '—';
+
+                // Chain vs API detection badge
+                const sourceBadge = t.isChainDetected
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
+                    : '';
+
+                // Market link
+                const marketLink = t.slug
+                    ? \`<a href="https://polymarket.com/event/\${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="\${t.title}">\${(t.title || t.slug).slice(0,35)}...\${sourceBadge}</a>\`
+                    : \`<span style="font-size:0.85rem">\${(t.title || 'Detectando...').slice(0,35)}\${sourceBadge}</span>\`;
+
+                const tooltip = t.executionDetails ? \` title="\${t.executionDetails}"\` : '';
+
+                return \`
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                    <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
+                    <td>\${marketLink}</td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'▲ COMPRA':'▼ VENDA'}</span></td>
+                    <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
+                    <td>\${pnlHtml}</td>
+                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
+                </tr>\`;
+            }).join('');
+
+            // Update Trader Info
+            if (trades.length > 0 && trades[0].pseudonym) {
+                const el = document.getElementById('trader-name');
+                if (el) el.textContent = trades[0].pseudonym || 'Desconhecido';
+            }
+        } catch(e) { console.error('Trades refresh fail:', e); }
     }
 
     async function toggleBotMain() {
@@ -2221,9 +2272,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
     
-    // Auto refresh stats
+    // Auto refresh stats e trades em tempo real
     setInterval(refreshStats, 30000);
-    setInterval(refreshTrades, 15000);
+    setInterval(refreshTrades, 5000);
     
     loadUser();
   </script>
@@ -2358,20 +2409,82 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     res.json({ success: true });
 }));
 app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c, _d;
     try {
         const { Activity } = yield import('../models/userHistory.js');
-        const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-        const tradesData = yield Activity.find({ processedBy: userId }).sort({ timestamp: -1 }).limit(10).lean();
-        // Map per-user status to the trade object
-        const trades = tradesData.map((t) => {
-            var _a, _b;
-            return (Object.assign(Object.assign({}, t), { followerStatus: (userId && ((_b = (_a = t.followerStatuses) === null || _a === void 0 ? void 0 : _a[userId]) === null || _b === void 0 ? void 0 : _b.status)) || 'SUCESSO' }));
-        });
-        res.json(trades);
+        const user = req.fullUser;
+        const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
+        const traderAddress = (_d = (_c = user === null || user === void 0 ? void 0 : user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) === null || _d === void 0 ? void 0 : _d.toLowerCase();
+        // Build query: show all trades from trader being monitored, OR any processed by this user
+        const query = traderAddress
+            ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
+            : { processedBy: userId, type: 'TRADE' };
+        const tradesData = yield Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
+        // Enrich with current market price for P&L calculation
+        const enriched = yield Promise.all(tradesData.map((t) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b, _c;
+            let curPrice = null;
+            let pnlPercent = null;
+            let pnlLabel = '';
+            try {
+                if (t.asset) {
+                    const mktRes = yield fetchData(`https://clob.polymarket.com/markets/${t.conditionId}`);
+                    const token = (_a = mktRes === null || mktRes === void 0 ? void 0 : mktRes.tokens) === null || _a === void 0 ? void 0 : _a.find((tk) => tk.token_id === t.asset);
+                    if (token) {
+                        curPrice = parseFloat(token.price);
+                        if (t.price && curPrice !== null) {
+                            const entryPrice = parseFloat(t.price);
+                            if (t.side === 'BUY') {
+                                pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
+                            }
+                            else {
+                                pnlPercent = ((entryPrice - curPrice) / entryPrice) * 100;
+                            }
+                            pnlLabel = (pnlPercent >= 0 ? '+' : '') + pnlPercent.toFixed(1) + '%';
+                        }
+                    }
+                }
+            }
+            catch (_) { /* best-effort */ }
+            // Determine this user's execution status
+            const userStatus = userId && ((_b = t.followerStatuses) === null || _b === void 0 ? void 0 : _b[userId]);
+            let executionStatus;
+            let executionDetails = '';
+            if (userStatus) {
+                executionStatus = userStatus.status;
+                executionDetails = userStatus.details || '';
+            }
+            else if ((_c = t.processedBy) === null || _c === void 0 ? void 0 : _c.includes(userId)) {
+                executionStatus = 'SUCESSO';
+            }
+            else {
+                // Was detected but not attempted for this user yet or not their trader
+                executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
+            }
+            return {
+                _id: t._id,
+                timestamp: t.timestamp,
+                title: t.title || t.slug || 'Mercado Desconhecido',
+                slug: t.slug,
+                eventSlug: t.eventSlug,
+                side: t.side,
+                usdcSize: t.usdcSize,
+                price: t.price,
+                curPrice,
+                pnlPercent,
+                pnlLabel,
+                outcome: t.outcome,
+                transactionHash: t.transactionHash,
+                executionStatus,
+                executionDetails,
+                isChainDetected: t.isChainDetected || false
+            };
+        })));
+        res.json(enriched);
     }
     catch (e) {
-        res.status(500).json({ error: 'Failed to fetch your trades' });
+        console.error('[TRADES]', e);
+        res.status(500).json({ error: 'Failed to fetch trades' });
     }
 }));
 app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
