@@ -1862,11 +1862,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         if (!currentUser) return;
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || !hasTrader) {
+        if (!hasWallet || !hasTrader || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
-            if (!hasWallet) renderStep1(); else renderStep2();
+            
+            if (!hasWallet) renderStep1();
+            else if (!hasTrader) renderStep2();
+            else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
             switchTab(currentTab);
@@ -1875,9 +1879,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     function renderStep1() {
+        document.querySelectorAll('.step').forEach(s => s.className = 'step');
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
-        document.getElementById('step-content').innerHTML = \`
+        document.getElementById('step-content').innerHTML = `
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
@@ -1889,7 +1894,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <input type="password" id="import-pk" placeholder="Chave Privada (0x...)">
             </div>
             <button class="btn btn-outline" onclick="importWallet(this)">Importar Chave Privada</button>
-        \`;
+        `;
     }
 
     async function generateWallet(btn) {
@@ -1932,26 +1937,76 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     function renderStep2() {
+        document.querySelectorAll('.step').forEach(s => s.className = 'step');
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = \`
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
                 <label>Endereço da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
+                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="finishSetup(this)">Concluir Configuração</button>
-        \`;
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+        `;
     }
 
-    async function finishSetup(btn) {
+    async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
         if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
-        btn.disabled = true;
+        btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ traderAddress: addr, enabled: true })
+            body: JSON.stringify({ traderAddress: addr, finalize: false })
+        });
+        loadUser();
+    }
+
+    function renderStep3() {
+        document.querySelectorAll('.step').forEach(s => s.className = 'step');
+        document.getElementById('s1').className = 'step done';
+        document.getElementById('s2').className = 'step done';
+        document.getElementById('s3').className = 'step active';
+        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
+            
+            <div class="form-group">
+                <label>Estratégia</label>
+                <select id="setup-strategy">
+                    <option value="PERCENTAGE">Cópia Proporcional (%)</option>
+                    <option value="FIXED">Valor Fixo (USD)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Tamanho da Cópia (Valor ou %)</label>
+                <input type="number" id="setup-size" value="10" step="0.1">
+                <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
+            </div>
+
+            <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
+                <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
+                    💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                </p>
+            </div>
+
+            <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
+        `;
+    }
+
+    async function finalizeSetup(btn) {
+        const strategy = document.getElementById('setup-strategy').value;
+        const size = parseFloat(document.getElementById('setup-size').value);
+        
+        if (isNaN(size) || size <= 0) return showBanner('Valor Inválido', 'warning');
+        
+        btn.disabled = true; btn.textContent = 'Iniciando Operação...';
+        await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strategy, copySize: size, enabled: true, finalize: true })
         });
         loadUser();
     }
@@ -2162,7 +2217,9 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (copyBuy !== undefined) user.config.copyBuy = copyBuy;
     if (copySell !== undefined) user.config.copySell = copySell;
     
-    user.step = 'ready';
+    if (req.body.finalize === true) {
+        user.step = 'ready';
+    }
     await user.save();
     res.json({ success: true });
 });
