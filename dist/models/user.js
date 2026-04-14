@@ -27,7 +27,14 @@ const UserSchema = new Schema({
         copyBuy: { type: Boolean, default: true },
         copySell: { type: Boolean, default: true },
         maxExposure: { type: Number, default: 500.0 },
+        // Phase 1 New Configs
+        buyAtMin: { type: Boolean, default: false },
+        maxPerMarket: { type: Number, default: 100.0 },
+        maxPerToken: { type: Number, default: 50.0 },
+        ignoreTradesUnder: { type: Number, default: 0.0 },
+        totalSpendLimit: { type: Number, default: 0.0 }, // 0 means no limit
     },
+    totalSpentUSD: { type: Number, default: 0.0 },
     step: { type: String, default: 'start' },
     refCode: { type: String },
 }, { timestamps: true });

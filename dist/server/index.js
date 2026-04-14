@@ -1812,13 +1812,34 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 20px">
-                        <label>Volume Máximo em Operação (Total USD)</label>
-                        <input type="number" id="bot-maxExposure" step="1">
-                        <small style="color:var(--text-dim)">O bot parará de abrir novos trades se o volume total nas posições exceder este valor.</small>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
+                        <div class="form-group">
+                            <label>Max Por Mercado ($ USD)</label>
+                            <input type="number" id="bot-maxPerMarket" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Por Token Yes/No ($ USD)</label>
+                            <input type="number" id="bot-maxPerToken" step="1">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
+                        <div class="form-group">
+                            <label>Limite Geral de Gasto (Total USD)</label>
+                            <input type="number" id="bot-totalSpendLimit" step="1">
+                            <small style="color:var(--text-dim)">Pausa automaticamente após alcançar este gasto.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Volume Máximo em Aberto ($)</label>
+                            <input type="number" id="bot-maxExposure" step="1">
+                            <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
+                        </div>
                     </div>
 
                     <div style="margin-top: 20px; display: grid; gap: 12px">
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                        </label>
                         <label class="switch-container">
                             <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
                         </label>
@@ -2086,7 +2107,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-maxPrice', c.maxPrice || 1.0);
             setVal('bot-minTrade', c.minTradeSize || 0);
             setVal('bot-maxTrade', c.maxTradeSize || 1000);
+            setVal('bot-maxPerMarket', c.maxPerMarket || 100);
+            setVal('bot-maxPerToken', c.maxPerToken || 50);
+            setVal('bot-totalSpendLimit', c.totalSpendLimit || 0);
             
+            const botBuyAtMin = document.getElementById('bot-buyAtMin');
+            if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
             const botRev = document.getElementById('bot-reverse');
             if (botRev) botRev.checked = !!c.reverseCopy;
             const botBuy = document.getElementById('bot-copyBuy');
@@ -2254,6 +2280,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
             minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
             maxTradeSize: parseFloat(document.getElementById('bot-maxTrade').value),
+            maxPerMarket: parseFloat(document.getElementById('bot-maxPerMarket').value),
+            maxPerToken: parseFloat(document.getElementById('bot-maxPerToken').value),
+            totalSpendLimit: parseFloat(document.getElementById('bot-totalSpendLimit').value),
+            buyAtMin: document.getElementById('bot-buyAtMin').checked,
             reverseCopy: document.getElementById('bot-reverse').checked,
             copyBuy: document.getElementById('bot-copyBuy').checked,
             copySell: document.getElementById('bot-copySell').checked
@@ -2370,7 +2400,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -2406,6 +2436,14 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.copySell = copySell;
     if (maxExposure !== undefined)
         user.config.maxExposure = maxExposure;
+    if (buyAtMin !== undefined)
+        user.config.buyAtMin = buyAtMin;
+    if (maxPerMarket !== undefined)
+        user.config.maxPerMarket = maxPerMarket;
+    if (maxPerToken !== undefined)
+        user.config.maxPerToken = maxPerToken;
+    if (totalSpendLimit !== undefined)
+        user.config.totalSpendLimit = totalSpendLimit;
     if (req.body.finalize === true) {
         user.step = 'ready';
     }

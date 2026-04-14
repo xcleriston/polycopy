@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { OrderType, Side } from '@polymarket/clob-client';
 import { Activity } from '../models/userHistory.js';
+import User from '../models/user.js';
 import Logger from './logger.js';
 import { calculateOrderSize, CopyStrategy } from '../config/copyStrategy.js';
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
@@ -101,7 +102,17 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
         const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
         const orderCalc = calculateOrderSize(config, trade.usdcSize, my_balance, currentPositionValue);
         Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
-        // 3. Exposure Check
+        // Check Buy at Min
+        if (config.buyAtMin && orderCalc.finalAmount > 0 && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+            orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
+            orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
+        }
+        if (orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+            Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
+            return;
+        }
+        // 3. Exposure and Spend Checks
         const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
         if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
             const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
@@ -109,9 +120,29 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
             return;
         }
-        if (orderCalc.finalAmount === 0) {
-            Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
+        // F1.2 Max Per Market
+        const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+        if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
+            const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
+            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+            return;
+        }
+        // F1.3 Max Per Token
+        const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+        if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
+            const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
+            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+            return;
+        }
+        // F1.5 Total Spend Limit
+        const userRec = yield User.findById(followerId);
+        const totalSpent = (userRec === null || userRec === void 0 ? void 0 : userRec.totalSpentUSD) || 0;
+        if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
+            const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
+            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
             return;
         }
         let remaining = orderCalc.finalAmount;
@@ -155,6 +186,8 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                     myEntryPrice: order_arges.price,
                     myExecutedAt: new Date(),
                 });
+                // Update total spent
+                yield User.updateOne({ _id: followerId }, { $inc: { totalSpentUSD: order_arges.amount } });
             }
             else {
                 const errorMessage = extractOrderError(resp);
