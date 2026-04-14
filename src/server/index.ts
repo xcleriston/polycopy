@@ -1753,6 +1753,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
+                <div style="text-align: right">
+                    <div style="font-size: 0.65rem; color: var(--text-dim); margin-bottom: 4px">SUA CARTEIRA (ENVIE USDC)</div>
+                    <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 4px">0x...</div>
+                </div>
                 <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
             </div>
         </div>
@@ -2048,8 +2052,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     function renderMainDashboard() {
         const c = currentUser.config || {};
-        document.getElementById('user-wallet-addr').textContent = currentUser.wallet?.address || '---';
-        document.getElementById('trader-addr-display').textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+        const walletAddr = document.getElementById('user-wallet-addr');
+        if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
+        
+        const addrDisplay = document.getElementById('trader-addr-display');
+        if (addrDisplay) addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
         
         // Status UI
         const statusText = document.getElementById('bot-status-text');
