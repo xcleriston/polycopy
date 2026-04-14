@@ -30,57 +30,63 @@ export const startChainMonitor = async () => {
         const contract = new ethers.Contract(POLYMARKET_EXCHANGE_ADDR, EXCHANGE_ABI, provider);
 
         Logger.success('⚡ Connected to Polygon WebSocket for real-time monitoring');
-        // Registering listener... (rest of logic)
 
         contract.on("OrderFilled", async (...args) => {
-            const event = args[args.length - 1]; // Last arg is the event object
-            const { maker, taker, makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled, transactionHash } = event.args || event;
-            
-            const makerAddr = maker.toLowerCase();
-            const takerAddr = taker.toLowerCase();
+            try {
+                const event = args[args.length - 1];
+                const eventArgs = event.args || {};
+                const { maker, taker, makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled } = eventArgs;
 
-            // Check if either maker or taker is one of our monitored traders
-            const monitoredTraders = await User.distinct('config.traderAddress', { 'config.enabled': true });
-            const monitoredLower = monitoredTraders.map(t => t.toLowerCase());
+                // Safe tx hash extraction — location varies between ethers v5 versions
+                const txHash: string | undefined = event?.transactionHash || event?.log?.transactionHash || event?.hash;
 
-            const isMakerMonitored = monitoredLower.includes(makerAddr);
-            const isTakerMonitored = monitoredLower.includes(takerAddr);
-
-            if (isMakerMonitored || isTakerMonitored) {
-                const targetTrader = isMakerMonitored ? makerAddr : takerAddr;
-                Logger.header(`⚡ ON-CHAIN TRADE DETECTED: ${targetTrader.slice(0, 6)}...`);
-
-                // Determine side and asset
-                // AssetId 0 is usually USDC (Collateral)
-                // If makerAssetId is 0, maker is SENDING USDC to GET tokens (BUY)
-                // If takerAssetId is 0, taker is SENDING USDC to GET tokens (BUY)
-                
-                const isBuy = isMakerMonitored ? (makerAssetId.toString() === '0') : (takerAssetId.toString() === '0');
-                const condTokenId = isMakerMonitored ? (isBuy ? takerAssetId : makerAssetId) : (isBuy ? makerAssetId : takerAssetId);
-
-                // Create a basic activity record
-                // Note: Human readable titles/slugs will be filled by the polling monitor backup
-                const activityData = {
-                    traderAddress: targetTrader,
-                    timestamp: Date.now(),
-                    transactionHash: event.log.transactionHash,
-                    conditionId: condTokenId.toString(),
-                    type: 'TRADE',
-                    side: isBuy ? 'BUY' : 'SELL',
-                    usdcSize: isBuy ? 
-                        Number(ethers.utils.formatUnits(isMakerMonitored ? makerAmountFilled : takerAmountFilled, 6)) : 
-                        Number(ethers.utils.formatUnits(isMakerMonitored ? takerAmountFilled : makerAmountFilled, 6)),
-                    bot: false, // Mark as unprocessed for tradeExecutor
-                    processedBy: [],
-                    isChainDetected: true
-                };
-
-                // Check if already exists (prevent race condition with polling)
-                const exists = await Activity.findOne({ transactionHash: activityData.transactionHash });
-                if (!exists) {
-                    await Activity.create(activityData);
-                    Logger.success(`🚀 Instant copy triggered for ${targetTrader.slice(0, 6)} via Blockchain Event`);
+                if (!maker || !taker || !txHash) {
+                    Logger.warning('⚠️ Incomplete event data received, skipping...');
+                    return;
                 }
+
+                const makerAddr = maker.toLowerCase();
+                const takerAddr = taker.toLowerCase();
+
+                const monitoredTraders = await User.distinct('config.traderAddress', { 'config.enabled': true });
+                const monitoredLower = (monitoredTraders as string[]).map((t: string) => t.toLowerCase());
+
+                const isMakerMonitored = monitoredLower.includes(makerAddr);
+                const isTakerMonitored = monitoredLower.includes(takerAddr);
+
+                if (isMakerMonitored || isTakerMonitored) {
+                    const targetTrader = isMakerMonitored ? makerAddr : takerAddr;
+                    Logger.header(`⚡ ON-CHAIN TRADE DETECTED: ${targetTrader.slice(0, 6)}...`);
+
+                    // AssetId 0 = USDC. If makerAssetId is 0, maker is sending USDC → buying tokens
+                    const isBuy = isMakerMonitored ? (makerAssetId.toString() === '0') : (takerAssetId.toString() === '0');
+                    const condTokenId = isMakerMonitored
+                        ? (isBuy ? takerAssetId : makerAssetId)
+                        : (isBuy ? makerAssetId : takerAssetId);
+
+                    const activityData = {
+                        traderAddress: targetTrader,
+                        timestamp: Date.now(),
+                        transactionHash: txHash,
+                        conditionId: condTokenId.toString(),
+                        type: 'TRADE',
+                        side: isBuy ? 'BUY' : 'SELL',
+                        usdcSize: isBuy
+                            ? Number(ethers.utils.formatUnits(isMakerMonitored ? makerAmountFilled : takerAmountFilled, 6))
+                            : Number(ethers.utils.formatUnits(isMakerMonitored ? takerAmountFilled : makerAmountFilled, 6)),
+                        bot: false,
+                        processedBy: [],
+                        isChainDetected: true
+                    };
+
+                    const exists = await Activity.findOne({ transactionHash: activityData.transactionHash });
+                    if (!exists) {
+                        await Activity.create(activityData);
+                        Logger.success(`🚀 Instant copy triggered for ${targetTrader.slice(0, 6)} via Blockchain Event`);
+                    }
+                }
+            } catch (err) {
+                Logger.error(`Chain event processing error: ${err}`);
             }
         });
 
