@@ -1381,11 +1381,11 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         }
 
         // Users Table
-        document.getElementById('user-body').innerHTML = users.map(u => \`
+        document.getElementById('user-body').innerHTML = users.map(u => `
           <tr>
             <td>
               <div style="font-weight: 700; color: #fff">\${u.username || u.chatId}</div>
-              <div style="font-size: 0.7rem; color: var(--text-dim)">\${u.email || 'Web Session'}</div>
+              <div style="font-size: 0.7rem; color: var(--text-dim">\${u.email || 'Web Session'}</div>
             </td>
             <td style="font-family: var(--font-mono); font-size: 0.75rem">\${u.wallet?.address || '---'}</td>
             <td>
@@ -1407,7 +1407,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
               </div>
             </td>
           </tr>
-        \`).join('');
+        `).join('');
 
         // Trade Tables (Dash and Logs)
         const tradesHtml = trades.map(t => \`
@@ -1647,10 +1647,17 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
     let currentUser = null;
 
     async function loadUser() {
-        const res = await fetch('/api/user/me');
-        const data = await res.json();
-        currentUser = data;
-        renderDashboard();
+        try {
+            const res = await fetch('/api/user/me');
+            if (!res.ok) throw new Error('Failed to fetch user data');
+            const data = await res.json();
+            currentUser = data;
+            console.log('[WEB BOT] Current User:', currentUser);
+            renderDashboard();
+        } catch (e) {
+            console.error('[WEB BOT] Load Error:', e);
+            document.body.innerHTML = '<div style="padding:40px"><h1>Erro de Carregamento</h1><p>Por favor, tente novamente.</p></div>';
+        }
     }
 
     function renderDashboard() {
@@ -1841,7 +1848,10 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 });
 
 app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
-    if (req.user?.role === 'admin') {
+    const userRole = req.user?.role || 'follower';
+    console.log(\`[DASHBOARD] Routing user \${req.user?.username} with role \${userRole}\`);
+    
+    if (userRole === 'admin') {
         res.type('html').send(adminDashboardHtml);
     } else {
         res.type('html').send(userDashboardHtml);
