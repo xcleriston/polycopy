@@ -17,7 +17,7 @@ export const startChainMonitor = async () => {
     }
 
     try {
-        const provider = new ethers.WebSocketProvider(ENV.WSS_RPC_URL);
+        const provider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
         const contract = new ethers.Contract(POLYMARKET_EXCHANGE_ADDR, EXCHANGE_ABI, provider);
 
         Logger.success('⚡ Connected to Polygon WebSocket for real-time monitoring');
@@ -58,8 +58,8 @@ export const startChainMonitor = async () => {
                     type: 'TRADE',
                     side: isBuy ? 'BUY' : 'SELL',
                     usdcSize: isBuy ? 
-                        Number(ethers.formatUnits(isMakerMonitored ? makerAmountFilled : takerAmountFilled, 6)) : 
-                        Number(ethers.formatUnits(isMakerMonitored ? takerAmountFilled : makerAmountFilled, 6)),
+                        Number(ethers.utils.formatUnits(isMakerMonitored ? makerAmountFilled : takerAmountFilled, 6)) : 
+                        Number(ethers.utils.formatUnits(isMakerMonitored ? takerAmountFilled : makerAmountFilled, 6)),
                     bot: false, // Mark as unprocessed for tradeExecutor
                     processedBy: [],
                     isChainDetected: true
