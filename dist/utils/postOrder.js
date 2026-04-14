@@ -38,9 +38,9 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
     const lower = message.toLowerCase();
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
-const recordStatus = (activityId, followerId, status, details) => __awaiter(void 0, void 0, void 0, function* () {
+const recordStatus = (activityId, followerId, status, details, extra) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield Activity.updateOne({ _id: activityId }, { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date() } } });
+        yield Activity.updateOne({ _id: activityId }, { $set: { [`followerStatuses.${followerId}`]: Object.assign({ status, details, timestamp: new Date() }, extra) } });
     }
     catch (e) {
         Logger.error(`Failed to record status for ${followerId}: ${e}`);
@@ -150,7 +150,11 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
                 remaining -= order_arges.amount;
-                yield recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`);
+                yield recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
+                    myEntryAmount: order_arges.amount,
+                    myEntryPrice: order_arges.price,
+                    myExecutedAt: new Date(),
+                });
             }
             else {
                 const errorMessage = extractOrderError(resp);

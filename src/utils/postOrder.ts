@@ -30,11 +30,11 @@ const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boo
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
 
-const recordStatus = async (activityId: string, followerId: string, status: string, details?: string) => {
+const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
         await Activity.updateOne(
             { _id: activityId },
-            { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date() } } }
+            { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date(), ...extra } } }
         );
     } catch (e) {
         Logger.error(`Failed to record status for ${followerId}: ${e}`);
@@ -185,7 +185,11 @@ const postOrder = async (
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
                 remaining -= order_arges.amount;
-                await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`);
+                await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
+                    myEntryAmount: order_arges.amount,
+                    myEntryPrice: order_arges.price,
+                    myExecutedAt: new Date(),
+                });
             } else {
                 const errorMessage = extractOrderError(resp);
                 if (isInsufficientBalanceOrAllowanceError(errorMessage)) {

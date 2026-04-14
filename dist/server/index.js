@@ -1739,6 +1739,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <th>ENTRADA</th>
                             <th>ATUAL</th>
                             <th>P&amp;L TRADER</th>
+                            <th title="Quanto você colocou nessa operação">MINHA ENTRADA</th>
+                            <th title="Seu lucro/prejuízo atual em USD">MEU LUCRO</th>
                             <th>STATUS</th>
                         </tr>
                     </thead>
@@ -2158,7 +2160,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2214,6 +2216,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
+                    <td style="font-weight:700; color:#adf">${t.myEntryAmount !== null ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td>${t.myPnlUSD !== null ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
                     <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
@@ -2461,6 +2465,19 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 // Was detected but not attempted for this user yet or not their trader
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
             }
+            // Extract user's own execution data
+            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
+            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
+            // Calculate user's real P&L in USD
+            let myPnlUSD = null;
+            let myPnlLabel = '';
+            let myCurrentValue = null;
+            if (myEntryAmount !== null && myEntryPrice !== null && curPrice !== null) {
+                const myTokens = myEntryAmount / myEntryPrice;
+                myCurrentValue = myTokens * curPrice;
+                myPnlUSD = myCurrentValue - myEntryAmount;
+                myPnlLabel = (myPnlUSD >= 0 ? '+$' : '-$') + Math.abs(myPnlUSD).toFixed(2);
+            }
             return {
                 _id: t._id,
                 timestamp: t.timestamp,
@@ -2473,6 +2490,11 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 curPrice,
                 pnlPercent,
                 pnlLabel,
+                myEntryAmount,
+                myEntryPrice,
+                myCurrentValue,
+                myPnlUSD,
+                myPnlLabel,
                 outcome: t.outcome,
                 transactionHash: t.transactionHash,
                 executionStatus,
