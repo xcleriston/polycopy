@@ -1899,16 +1899,36 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function importWallet(btn) {
-        const pk = document.getElementById('import-pk').value;
+        const pkInput = document.getElementById('import-pk');
+        const pk = pkInput.value.trim();
         if (!pk) return showBanner('Informe a Chave Privada', 'warning');
-        btn.disabled = true; btn.textContent = 'Validando...';
-        const res = await fetch('/api/user/import-wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ privateKey: pk })
-        });
-        if (res.ok) loadUser();
-        else { showBanner('Chave Privada Inválida', 'danger'); btn.disabled = false; btn.textContent = 'Importar Chave Privada'; }
+        
+        btn.disabled = true; 
+        const originalText = btn.textContent;
+        btn.textContent = 'Validando...';
+        
+        try {
+            const res = await fetch('/api/user/import-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: pk })
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                showBanner('Carteira Importada com Sucesso!', 'success');
+                setTimeout(() => loadUser(), 1000);
+            } else {
+                showBanner(data.error || 'Erro ao importar carteira', 'danger');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        } catch (e) {
+            console.error('Import error:', e);
+            showBanner('Erro de conexão com o servidor', 'danger');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
     }
 
     function renderStep2() {
@@ -2041,38 +2061,64 @@ app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
     } : { error: 'Not logged in' });
 });
 
-app.post('/api/user/generate-wallet', async (req: AuthRequest, res) => {
-    const user = await User.findById(req.user?.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.wallet?.address) return res.status(400).json({ error: 'Wallet already exists' });
+app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const user = await User.findById(req.user?.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        
+        // Allow re-generation if user is not in 'ready' step (fix for stuck onboarding)
+        if (user.wallet?.address && user.step === 'ready') {
+            return res.status(400).json({ error: 'Wallet already exists and bot is active' });
+        }
 
-    const newWallet = ethers.Wallet.createRandom();
-    user.wallet = {
-        address: newWallet.address,
-        privateKey: newWallet.privateKey
-    };
-    user.step = 'setup';
-    await user.save();
-    res.json({ success: true, address: newWallet.address });
+        const newWallet = ethers.Wallet.createRandom();
+        user.wallet = {
+            address: newWallet.address,
+            privateKey: newWallet.privateKey
+        };
+        user.step = 'setup';
+        await user.save();
+        console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
+        res.json({ success: true, address: newWallet.address });
+    } catch (e) {
+        console.error('[WALLET] Generation error:', e);
+        res.status(500).json({ error: 'Failed to generate wallet' });
+    }
 });
 
 app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        const { privateKey } = req.body;
+        let { privateKey } = req.body;
         if (!privateKey) return res.status(400).json({ error: 'Private key required' });
+        
+        // Cleanup key and ensure 0x prefix
+        privateKey = privateKey.trim();
+        if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
+        
+        if (privateKey.length !== 66) {
+            return res.status(400).json({ error: 'Chave privada inválida (formato incorreto)' });
+        }
+
         const wallet = new ethers.Wallet(privateKey);
         const user = await User.findById(req.user?.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
         
+        // Allow overwrite if setup not complete
+        if (user.wallet?.address && user.step === 'ready') {
+            return res.status(400).json({ error: 'Usuário já possui carteira ativa' });
+        }
+
         user.wallet = {
             address: wallet.address,
             privateKey: wallet.privateKey
         };
         user.step = 'setup';
         await user.save();
+        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
         res.json({ success: true, address: wallet.address });
     } catch (e) {
-        res.status(400).json({ error: 'Invalid private key' });
+        console.error('[WALLET] Import error:', e);
+        res.status(400).json({ error: 'Chave Privada Inválida ou Malformada' });
     }
 });
 
