@@ -1658,6 +1658,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
       <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📌</span> Posições Abertas</div>
       <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
       <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚪</span> Sair</div>
     </div>
@@ -1745,6 +1746,32 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </tr>
                     </thead>
                     <tbody id="user-trade-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-positions" class="tab-view" style="display: none">
+        <h1 style="margin-bottom: 10px">Suas Posições <span>Abertas</span></h1>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Visualize seus tokens ativos e como andam em tempo real. O TP/SL usará essas informações.</p>
+        
+        <div class="card">
+            <div style="overflow-x: auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>MERCADO</th>
+                            <th>ATIVO</th>
+                            <th>ENTRADA</th>
+                            <th>ATUAL</th>
+                            <th>QTD TOKENS</th>
+                            <th>VALOR (USD)</th>
+                            <th>P&amp;L (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-positions-body">
+                        <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posições...</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -2325,7 +2352,41 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     // Auto refresh stats e trades em tempo real
     setInterval(refreshStats, 30000);
     setInterval(refreshTrades, 5000);
+    setInterval(refreshPositions, 15000);
     
+    async function refreshPositions() {
+        try {
+            const res = await fetch('/api/user/positions');
+            if (!res.ok) return;
+            const positions = await res.json();
+            const tbody = document.getElementById('user-positions-body');
+            if (!tbody) return;
+
+            if (!positions || positions.length === 0) {
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>\`;
+                return;
+            }
+
+            tbody.innerHTML = positions.map(p => {
+                const pnl = p.pnlPercent !== undefined ? p.pnlPercent : 0;
+                const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
+                const pnlIcon = pnl >= 0 ? '↑' : '↓';
+                
+                const mktLink = \`<a href="https://polymarket.com/event/\${p.slug || ''}" target="_blank" style="color:var(--accent); font-size:0.85rem">\${(p.title || 'Mercado Desconhecido').slice(0, 45)}...</a>\`;
+
+                return \`<tr>
+                    <td>\${mktLink}</td>
+                    <td><span style="font-weight:700">\${p.assetName || p.asset.slice(0,6)}</span></td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}¢</td>
+                    <td style="font-weight:700">\${p.size.toFixed(2)}</td>
+                    <td style="font-weight:700; color:#fff">$\${p.currentValue.toFixed(2)}</td>
+                    <td><span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${(pnl>=0?'+':'')}\${pnl.toFixed(2)}%</span></td>
+                </tr>\`;
+            }).join('');
+        } catch(e) { console.error('Positions refresh fail:', e); }
+    }
+
     loadUser();
   </script>
 </body> </html>`;
@@ -2465,6 +2526,45 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     }
     yield user.save();
     res.json({ success: true });
+}));
+app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const user = req.fullUser;
+        if (!user || !user.wallet || !user.wallet.address) {
+            return res.status(400).json({ error: 'Carteira não configurada' });
+        }
+        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        if (!Array.isArray(positionsData)) {
+            return res.json([]);
+        }
+        // Filter valid open positions and calculate live P&L
+        const activePositions = positionsData.filter(p => p.size > 0 && p.currentValue > 0).map(pos => {
+            const entryPrice = pos.avgPrice || 0;
+            const curPrice = pos.currentValue / pos.size;
+            let pnlPercent = 0;
+            if (entryPrice > 0) {
+                pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
+            }
+            return {
+                asset: pos.asset,
+                title: pos.title,
+                slug: pos.slug,
+                size: pos.size,
+                currentValue: pos.currentValue,
+                avgPrice: entryPrice,
+                curPrice: curPrice,
+                pnlPercent: pnlPercent,
+                assetName: pos.outcome || 'Token',
+            };
+        });
+        // Ensure descending order by value
+        activePositions.sort((a, b) => b.currentValue - a.currentValue);
+        res.json(activePositions);
+    }
+    catch (e) {
+        console.error('Error fetching positions:', e);
+        res.status(500).json({ error: 'Erro ao buscar posições' });
+    }
 }));
 app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d;
