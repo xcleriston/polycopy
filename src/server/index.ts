@@ -2052,12 +2052,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
   </script>
 </body> </html>`;
 
+// Enrichen AuthRequest with full User data for all /api/user/ routes
+app.use('/api/user/', async (req: any, _res, next) => {
+    if (req.user?.id) {
+        req.fullUser = await User.findById(req.user.id).lean();
+    }
+    next();
+});
+
 app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
-    res.json(req.user ? {
-        username: req.user.username,
-        role: req.user.role,
-        wallet: (req as any).fullUser?.wallet,
-        config: (req as any).fullUser?.config
+    const user = (req as any).fullUser;
+    res.json(user ? {
+        username: user.username || user.chatId,
+        role: user.role,
+        wallet: user.wallet,
+        config: user.config,
+        step: user.step
     } : { error: 'Not logged in' });
 });
 
@@ -2155,14 +2165,6 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     user.step = 'ready';
     await user.save();
     res.json({ success: true });
-});
-
-// Enrichen AuthRequest with full User data for /api/user/me
-app.use('/api/user/', async (req: any, _res, next) => {
-    if (req.user?.id) {
-        req.fullUser = await User.findById(req.user.id).lean();
-    }
-    next();
 });
 
 app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => {

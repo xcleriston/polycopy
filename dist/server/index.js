@@ -2020,13 +2020,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     loadUser();
   </script>
 </body> </html>`;
+// Enrichen AuthRequest with full User data for all /api/user/ routes
+app.use('/api/user/', (req, _res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) {
+        req.fullUser = yield User.findById(req.user.id).lean();
+    }
+    next();
+}));
 app.get('/api/user/me', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    res.json(req.user ? {
-        username: req.user.username,
-        role: req.user.role,
-        wallet: (_a = req.fullUser) === null || _a === void 0 ? void 0 : _a.wallet,
-        config: (_b = req.fullUser) === null || _b === void 0 ? void 0 : _b.config
+    const user = req.fullUser;
+    res.json(user ? {
+        username: user.username || user.chatId,
+        role: user.role,
+        wallet: user.wallet,
+        config: user.config,
+        step: user.step
     } : { error: 'Not logged in' });
 }));
 app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -2131,14 +2140,6 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     user.step = 'ready';
     yield user.save();
     res.json({ success: true });
-}));
-// Enrichen AuthRequest with full User data for /api/user/me
-app.use('/api/user/', (req, _res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) {
-        req.fullUser = yield User.findById(req.user.id).lean();
-    }
-    next();
 }));
 app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
