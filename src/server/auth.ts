@@ -107,8 +107,8 @@ export const signup = async (req: Request, res: Response) => {
             username,
             email,
             password: hashedPassword,
-            role: 'follower', // Default for web signup
-            step: 'ready', // Standalone starts ready for config
+            role: 'follower', // ALWAYS follower for self-signup
+            step: 'start', // Initial step for the wizard
             config: {
                 enabled: false,
                 strategy: 'PERCENTAGE',

@@ -69,7 +69,12 @@ app.post('/api/auth/logout', (_req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: Math.floor((Date.now() - botStartTime) / 1000) });
+    res.json({ 
+        status: 'ok', 
+        uptime: Math.floor((Date.now() - botStartTime) / 1000),
+        v: '2.5.0-RBAC-FIX-V3',
+        ts: new Date().toISOString()
+    });
 });
 
 // --- Protect all other /api routes ---
@@ -1381,15 +1386,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         }
 
         // Users Table
-        document.getElementById('user-body').innerHTML = users.map(u => `
+        document.getElementById('user-body').innerHTML = users.map(u => \`
           <tr>
             <td>
               <div style="font-weight: 700; color: #fff">\${u.username || u.chatId}</div>
-              <div style="font-size: 0.7rem; color: var(--text-dim">\${u.email || 'Web Session'}</div>
+              <div style="font-size: 0.7rem; color: var(--text-dim)">\${u.email || 'Web Session'}</div>
             </td>
             <td style="font-family: var(--font-mono); font-size: 0.75rem">\${u.wallet?.address || '---'}</td>
             <td>
-              <div style="font-size: 0.75rem; color: var(--text-dim)">Follows: \${u.config?.traderAddress?.slice(0,10) || 'None'}</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim)">Seguindo: \${u.config?.traderAddress?.slice(0,10) || 'Nenhum'}</div>
               <div style="font-weight: 600">\${u.config?.strategy} (\${u.config?.copySize})</div>
             </td>
             <td><span class="badge \${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">\${u.step.toUpperCase()}</span></td>
@@ -1407,7 +1412,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
               </div>
             </td>
           </tr>
-        `).join('');
+        \`).join('');
 
         // Trade Tables (Dash and Logs)
         const tradesHtml = trades.map(t => \`
@@ -1639,159 +1644,109 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
             </table>
         </div>
     </div>
-  </main>
-
-  <div id="message-banner"></div>
-
-  <script>
+    <div id="message-banner"></div>
+<script>
     let currentUser = null;
 
     async function loadUser() {
         try {
             const res = await fetch('/api/user/me');
-            if (!res.ok) throw new Error('Failed to fetch user data');
-            const data = await res.json();
-            currentUser = data;
-            console.log('[WEB BOT] Current User:', currentUser);
+            if (!res.ok) throw new Error('Não autorizado');
+            currentUser = await res.json();
             renderDashboard();
-        } catch (e) {
-            console.error('[WEB BOT] Load Error:', e);
-            document.body.innerHTML = '<div style="padding:40px"><h1>Erro de Carregamento</h1><p>Por favor, tente novamente.</p></div>';
-        }
+        } catch (e) { window.location.href = '/login'; }
     }
-
     function renderDashboard() {
-        if (!currentUser.wallet || !currentUser.wallet.address) {
-            renderStep1();
-        } else if (!currentUser.config || !currentUser.config.traderAddress) {
-            renderStep2();
-        } else {
-            document.getElementById('setup-wizard').style.display = 'none';
-            document.getElementById('bot-dashboard').style.display = 'block';
-            document.getElementById('user-wallet-addr').textContent = currentUser.wallet.address;
-            document.getElementById('bot-trader').value = currentUser.config.traderAddress;
-            
-            const badge = document.getElementById('bot-status-badge');
-            if (currentUser.config.enabled) {
-                badge.textContent = 'EXECUTANDO';
-                badge.style.background = 'rgba(16, 185, 129, 0.2)';
-                badge.style.color = 'var(--success)';
-            } else {
-                badge.textContent = 'PAUSADO';
-                badge.style.background = 'rgba(239, 68, 68, 0.2)';
-                badge.style.color = 'var(--danger)';
-            }
-        }
+        if (!currentUser) return;
+        const hasWallet = currentUser.wallet?.address?.length > 20;
+        const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        document.getElementById('setup-wizard').style.display = (hasWallet && hasTrader) ? 'none' : 'block';
+        document.getElementById('bot-dashboard').style.display = (hasWallet && hasTrader) ? 'block' : 'none';
+        if (!hasWallet) renderStep1();
+        else if (!hasTrader) renderStep2();
+        else renderMainDashboard();
     }
-
     function renderStep1() {
         document.getElementById('s1').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Step 1: Criar sua Identidade';
-        document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom: 20px">Vamos gerar uma carteira exclusiva para suas operações no Polygon.</p>
-            <button class="btn" onclick="generateWallet()">Gerar Minha Carteira</button>
-        \`;
+        document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira Web';
+        document.getElementById('step-content').innerHTML = \`<button class="btn" onclick="generateWallet(this)">Gerar Minha Carteira</button>\`;
     }
-
-    async function generateWallet() {
+    async function generateWallet(btn) {
+        btn.disabled = true;
         const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
-        if (res.ok) {
-            showBanner('Carteira Gerada!', 'success');
-            loadUser();
-        }
+        if (res.ok) loadUser();
     }
-
     function renderStep2() {
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Step 2: Configurar Trader';
+        document.getElementById('wizard-title').textContent = 'Passo 2: Configurar Trader';
         document.getElementById('step-content').innerHTML = \`
             <div class="form-group">
-                <label>Endereço do Trader a Copiar (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x...">
+                <label>Endereço do Trader (0x...)</label>
+                <input type="text" id="setup-trader" value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="saveInitialConfig()">Finalizar e Ativar Bot</button>
+            <button class="btn" onclick="finishSetup(this)">Salvar e Iniciar Bot</button>
         \`;
     }
-
-    async function saveInitialConfig() {
-        const traderAddress = document.getElementById('setup-trader').value;
-        const res = await fetch('/api/user/update-config', {
+    async function finishSetup(btn) {
+        const addr = document.getElementById('setup-trader').value;
+        await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ traderAddress, enabled: true })
+            body: JSON.stringify({ traderAddress: addr, enabled: true })
         });
-        if (res.ok) {
-            showBanner('Bot Ativado com Sucesso!', 'success');
-            loadUser();
-        }
+        loadUser();
     }
-
+    function renderMainDashboard() {
+        document.getElementById('user-wallet-addr').textContent = currentUser.wallet?.address || '---';
+        document.getElementById('bot-trader').value = currentUser.config?.traderAddress || '';
+        refreshTrades();
+    }
+    async function refreshTrades() {
+        const res = await fetch('/api/user/trades');
+        const trades = await res.json();
+        document.getElementById('user-trade-body').innerHTML = (trades || []).map(t => \`
+            <tr>
+                <td style="font-size: 0.75rem">\${new Date(t.timestamp).toLocaleString()}</td>
+                <td>\${t.title || t.slug}</td>
+                <td>\${t.side}</td>
+                <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
+            </tr>
+        \`).join('');
+    }
     async function toggleBotMain() {
-        const nextState = !currentUser.config.enabled;
-        const res = await fetch('/api/user/update-config', {
+        await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: nextState })
+            body: JSON.stringify({ enabled: !currentUser.config.enabled })
         });
-        if (res.ok) {
-            showBanner(nextState ? 'Bot Ativado' : 'Bot Pausado', 'success');
-            loadUser();
-        }
+        loadUser();
     }
-
-    async function refresh() {
-        try {
-            const [me, trades] = await Promise.all([
-                fetch('/api/user/me').then(r => r.json()),
-                fetch('/api/user/trades').then(r => r.json())
-            ]);
-            currentUser = me;
-            renderDashboard();
-            
-            if (trades && trades.length > 0) {
-                document.getElementById('user-trade-body').innerHTML = trades.map(t => \`
-                    <tr>
-                        <td style="font-size: 0.75rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
-                        <td style="font-weight: 600">\${t.title || t.slug}</td>
-                        <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
-                        <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
-                        <td><span class="badge badge-ready">EXECUTADO</span></td>
-                    </tr>
-                \`).join('');
-            }
-        } catch (e) { console.error('Refresh error:', e); }
-    }
-
     async function updateBotConfig() {
         const traderAddress = document.getElementById('bot-trader').value;
-        const res = await fetch('/api/user/update-config', {
+        await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ traderAddress })
         });
-        if (res.ok) showBanner('Configuração Atualizada', 'success');
+        showBanner('Configuração Atualizada');
     }
-
-    function showBanner(msg, type) {
+    function showBanner(msg) {
         const b = document.getElementById('message-banner');
         b.textContent = msg.toUpperCase();
-        b.className = 'success-banner'; // Simplify
         b.style.display = 'block';
-        setTimeout(() => b.style.display = 'none', 3000);
+        setTimeout(() => b.style.display = 'none', 4000);
     }
-
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
     loadUser();
   </script>
 </body> </html>`;
 
-// --- Web API Extensions for User Dashboard ---
-app.get('/api/user/me', (req: AuthRequest, res) => {
+app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
     res.json(req.user ? {
         username: req.user.username,
         role: req.user.role,
-        wallet: (req as any).fullUser?.wallet, // We'll enrich this in the middleware or fetch here
+        wallet: (req as any).fullUser?.wallet,
         config: (req as any).fullUser?.config
     } : { error: 'Not logged in' });
 });
@@ -1849,7 +1804,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
 app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     const userRole = req.user?.role || 'follower';
-    console.log(\`[DASHBOARD] Routing user \${req.user?.username} with role \${userRole}\`);
+    console.log(`[DASHBOARD] Routing user ${req.user?.username} with role ${userRole}`);
     
     if (userRole === 'admin') {
         res.type('html').send(adminDashboardHtml);
