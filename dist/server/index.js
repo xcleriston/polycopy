@@ -2020,48 +2020,71 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     function renderMainDashboard() {
-        const c = currentUser.config || {};
-        const walletAddr = document.getElementById('user-wallet-addr');
-        if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
-        
-        const addrDisplay = document.getElementById('trader-addr-display');
-        if (addrDisplay) addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
-        
-        // Status UI
-        const statusText = document.getElementById('bot-status-text');
-        const masterBtn = document.getElementById('bot-master-btn');
-        statusText.textContent = c.enabled ? 'ATIVO' : 'PAUSADO';
-        statusText.className = c.enabled ? 'status-active' : 'status-paused';
-        masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR AGORA';
-        masterBtn.style.background = c.enabled ? 'var(--danger)' : 'var(--success)';
+        try {
+            const c = currentUser.config || {};
+            const walletAddr = document.getElementById('user-wallet-addr');
+            if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
+            
+            const addrDisplay = document.getElementById('trader-addr-display');
+            if (addrDisplay) addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+            
+            // Status UI
+            const statusText = document.getElementById('bot-status-text');
+            const masterBtn = document.getElementById('bot-master-btn');
+            if (statusText) {
+                statusText.textContent = c.enabled ? 'ATIVO' : 'PAUSADO';
+                statusText.className = c.enabled ? 'status-active' : 'status-paused';
+            }
+            if (masterBtn) {
+                masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR AGORA';
+                masterBtn.style.background = c.enabled ? 'var(--danger)' : 'var(--success)';
+            }
 
-        // Config Fill
-        document.getElementById('bot-trader').value = c.traderAddress || '';
-        document.getElementById('bot-strategy').value = c.strategy || 'PERCENTAGE';
-        document.getElementById('bot-size').value = c.copySize || 10;
-        document.getElementById('bot-maxExposure').value = c.maxExposure || 500;
-        document.getElementById('bot-orderType').value = c.orderType || 'MARKET';
-        document.getElementById('bot-slippage').value = c.slippage || 0.05;
-        document.getElementById('bot-minPrice').value = c.minPrice || 0;
-        document.getElementById('bot-maxPrice').value = c.maxPrice || 1.0;
-        document.getElementById('bot-minTrade').value = c.minTradeSize || 0;
-        document.getElementById('bot-maxTrade').value = c.maxTradeSize || 1000;
-        document.getElementById('bot-reverse').checked = !!c.reverseCopy;
-        document.getElementById('bot-copyBuy').checked = c.copyBuy !== false;
-        document.getElementById('bot-copySell').checked = c.copySell !== false;
+            // Config Fill
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            setVal('bot-trader', c.traderAddress || '');
+            setVal('bot-strategy', c.strategy || 'PERCENTAGE');
+            setVal('bot-size', c.copySize || 10);
+            setVal('bot-maxExposure', c.maxExposure || 500);
+            setVal('bot-orderType', c.orderType || 'MARKET');
+            setVal('bot-slippage', c.slippage || 0.05);
+            setVal('bot-minPrice', c.minPrice || 0);
+            setVal('bot-maxPrice', c.maxPrice || 1.0);
+            setVal('bot-minTrade', c.minTradeSize || 0);
+            setVal('bot-maxTrade', c.maxTradeSize || 1000);
+            
+            const botRev = document.getElementById('bot-reverse');
+            if (botRev) botRev.checked = !!c.reverseCopy;
+            const botBuy = document.getElementById('bot-copyBuy');
+            if (botBuy) botBuy.checked = c.copyBuy !== false;
+            const botSell = document.getElementById('bot-copySell');
+            if (botSell) botSell.checked = c.copySell !== false;
 
-        refreshTrades();
-        refreshStats();
+            refreshTrades();
+            refreshStats();
+        } catch (err) { console.error('Render dashboard crash:', err); }
     }
 
     async function refreshStats() {
         try {
             const res = await fetch('/api/user/stats');
             const data = await res.json();
-            document.getElementById('stat-balance').textContent = \`$\${(data.balance || 0).toFixed(2)}\`;
-            document.getElementById('stat-exposure').textContent = \`$\${(data.exposure || 0).toFixed(2)}\`;
-            document.getElementById('stat-trader').textContent = currentUser.config.traderAddress.slice(0,6) + '...' + currentUser.config.traderAddress.slice(-4);
-        } catch (e) {}
+            const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+            setTxt('stat-balance', `, $$, {};
+(data.balance || 0).toFixed(2);
+`);
+            setTxt('stat-exposure', `;
+$$;
+{
+    (data.exposure || 0).toFixed(2);
+}
+`);
+            
+            if (currentUser.config?.traderAddress) {
+                const addr = currentUser.config.traderAddress;
+                setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
+            }
+        } catch (e) { console.error('Stats refresh fail:', e); }
     }
 
     async function refreshTrades() {
@@ -2094,12 +2117,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function toggleBotMain() {
-        await fetch('/api/user/update-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: !currentUser.config.enabled })
-        });
-        loadUser();
+        try {
+            const nextState = !(currentUser.config?.enabled);
+            await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: nextState })
+            });
+            loadUser();
+        } catch (e) { console.error('Toggle bot fail:', e); }
     }
 
     async function updateBotConfig() {
@@ -2294,6 +2320,7 @@ app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, vo
         if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
             return res.json({ balance: 0, exposure: 0 });
         const balance = yield getMyBalance(user.wallet.address);
+        console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
         // Fetch positions to calculate exposure
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
