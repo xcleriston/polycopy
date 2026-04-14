@@ -12,6 +12,7 @@ import { Activity } from '../models/userHistory.js';
 import User from '../models/user.js';
 import Logger from './logger.js';
 import { calculateOrderSize, CopyStrategy } from '../config/copyStrategy.js';
+import telegram from './telegram.js';
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
 // Polymarket minimum order sizes
 const MIN_ORDER_SIZE_USD = 1.0;
@@ -180,6 +181,7 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 const tokensBought = order_arges.amount / order_arges.price;
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
+                telegram.tradeExecuted(followerId, 'BUY', order_arges.amount, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
                 yield recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
                     myEntryAmount: order_arges.amount,
@@ -246,6 +248,7 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 retry = 0;
                 totalSoldTokens += order_arges.amount;
                 Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
+                telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
             }
             else {

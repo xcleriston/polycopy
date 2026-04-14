@@ -5,6 +5,7 @@ import { Activity, getUserActivityModel } from '../models/userHistory.js';
 import User from '../models/user.js';
 import Logger from './logger.js';
 import { calculateOrderSize, getTradeMultiplier, CopyStrategy, CopyStrategyConfig } from '../config/copyStrategy.js';
+import telegram from './telegram.js';
 
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
 
@@ -219,6 +220,7 @@ const postOrder = async (
                 const tokensBought = order_arges.amount / order_arges.price;
                 totalBoughtTokens += tokensBought;
                 Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
+                telegram.tradeExecuted(followerId, 'BUY', order_arges.amount, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
                 await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
                     myEntryAmount: order_arges.amount,
@@ -295,6 +297,7 @@ const postOrder = async (
                 retry = 0;
                 totalSoldTokens += order_arges.amount;
                 Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
+                telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
             } else {
                 retry += 1;

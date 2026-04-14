@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import User from '../models/user.js';
+import fetchData from '../utils/fetchData.js';
 class TelegramBot {
     constructor(token) {
         this.token = token;
@@ -363,6 +364,7 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
 *🚀 COMANDOS:*
 /start - Iniciar configuração
 /status - Ver status atual
+/positions - Ver posições abertas
 /wallet - Informações da carteira
 /config - Ver configurações
 /help - Esta mensagem de ajuda
@@ -399,6 +401,9 @@ Se precisar de ajuda, contate nosso suporte.
             else if (text === null || text === void 0 ? void 0 : text.startsWith('/wallet')) {
                 yield this.sendStatus(chatId);
             }
+            else if (text === null || text === void 0 ? void 0 : text.startsWith('/positions')) {
+                yield this.handlePositions(chatId);
+            }
             else if (text === null || text === void 0 ? void 0 : text.startsWith('/config')) {
                 yield this.sendStatus(chatId);
             }
@@ -407,6 +412,56 @@ Se precisar de ajuda, contate nosso suporte.
             }
             else if ((user === null || user === void 0 ? void 0 : user.step) === 'trader' && text) {
                 yield this.processTraderAddress(chatId, text);
+            }
+        });
+    }
+    handlePositions(chatId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const user = yield User.findOne({ chatId });
+            if (!user || !user.wallet || !user.wallet.address) {
+                yield this.sendMessage(chatId, '❌ Você ainda não configurou uma carteira. Use /start');
+                return;
+            }
+            yield this.sendMessage(chatId, '⏳ Buscando suas posições em tempo real...');
+            try {
+                const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+                if (!Array.isArray(positionsData)) {
+                    yield this.sendMessage(chatId, '❌ Erro ao buscar dados da Polymarket.');
+                    return;
+                }
+                const activePositions = positionsData.filter(p => p.size > 0 && p.currentValue > 0);
+                if (activePositions.length === 0) {
+                    yield this.sendMessage(chatId, '📭 *Você não tem nenhuma posição aberta no momento.*');
+                    return;
+                }
+                let msg = `📌 *SUAS POSIÇÕES ABERTAS*\n\n`;
+                let totalExposure = 0;
+                let totalPnl = 0;
+                activePositions.sort((a, b) => b.currentValue - a.currentValue).forEach(pos => {
+                    const entryPrice = pos.avgPrice || 0;
+                    const curPrice = pos.currentValue / pos.size;
+                    let pnlPercent = 0;
+                    let pnlUSD = 0;
+                    if (entryPrice > 0) {
+                        pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
+                        pnlUSD = pos.currentValue - (pos.size * entryPrice);
+                    }
+                    totalExposure += pos.currentValue;
+                    totalPnl += pnlUSD;
+                    const pnlIcon = pnlUSD >= 0 ? '🟢' : '🔴';
+                    msg += `*${(pos.title || 'Mercado').slice(0, 35)}...*\n`;
+                    msg += `↳ ${pos.outcome || 'Token'} | ${pos.size.toFixed(1)} tokens\n`;
+                    msg += `↳ Entrada: ${(entryPrice * 100).toFixed(1)}¢ | Atual: ${(curPrice * 100).toFixed(1)}¢\n`;
+                    msg += `↳ Valor: $${pos.currentValue.toFixed(2)} | P&L: ${pnlIcon} ${pnlPercent > 0 ? '+' : ''}${pnlPercent.toFixed(1)}%\n\n`;
+                });
+                msg += `━━━━━━━━━━━━━━\n`;
+                msg += `💰 *Exposição Total:* $${totalExposure.toFixed(2)}\n`;
+                msg += `📈 *P&L Aberto:* ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`;
+                yield this.sendMessage(chatId, msg);
+            }
+            catch (error) {
+                console.error('Error fetching positions for telegram /positions:', error);
+                yield this.sendMessage(chatId, '❌ Ocorreu um erro ao buscar suas posições.');
             }
         });
     }

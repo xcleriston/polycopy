@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import User, { IUser } from '../models/user.js';
+import fetchData from '../utils/fetchData.js';
 
 interface User {
     chatId: string;
@@ -388,6 +389,7 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
 *🚀 COMANDOS:*
 /start - Iniciar configuração
 /status - Ver status atual
+/positions - Ver posições abertas
 /wallet - Informações da carteira
 /config - Ver configurações
 /help - Esta mensagem de ajuda
@@ -421,12 +423,73 @@ Se precisar de ajuda, contate nosso suporte.
             await this.sendHelp(chatId);
         } else if (text?.startsWith('/wallet')) {
             await this.sendStatus(chatId);
+        } else if (text?.startsWith('/positions')) {
+            await this.handlePositions(chatId);
         } else if (text?.startsWith('/config')) {
             await this.sendStatus(chatId);
         } else if (user?.step === 'connect_wallet' && text) {
             await this.processPrivateKey(chatId, text);
         } else if (user?.step === 'trader' && text) {
             await this.processTraderAddress(chatId, text);
+        }
+    }
+
+    private async handlePositions(chatId: string) {
+        const user = await User.findOne({ chatId });
+        if (!user || !user.wallet || !user.wallet.address) {
+            await this.sendMessage(chatId, '❌ Você ainda não configurou uma carteira. Use /start');
+            return;
+        }
+
+        await this.sendMessage(chatId, '⏳ Buscando suas posições em tempo real...');
+
+        try {
+            const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+            if (!Array.isArray(positionsData)) {
+                await this.sendMessage(chatId, '❌ Erro ao buscar dados da Polymarket.');
+                return;
+            }
+
+            const activePositions = positionsData.filter(p => p.size > 0 && p.currentValue > 0);
+            
+            if (activePositions.length === 0) {
+                await this.sendMessage(chatId, '📭 *Você não tem nenhuma posição aberta no momento.*');
+                return;
+            }
+
+            let msg = `📌 *SUAS POSIÇÕES ABERTAS*\n\n`;
+            let totalExposure = 0;
+            let totalPnl = 0;
+
+            activePositions.sort((a, b) => b.currentValue - a.currentValue).forEach(pos => {
+                const entryPrice = pos.avgPrice || 0;
+                const curPrice = pos.currentValue / pos.size;
+                let pnlPercent = 0;
+                let pnlUSD = 0;
+                
+                if (entryPrice > 0) {
+                    pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
+                    pnlUSD = pos.currentValue - (pos.size * entryPrice);
+                }
+
+                totalExposure += pos.currentValue;
+                totalPnl += pnlUSD;
+
+                const pnlIcon = pnlUSD >= 0 ? '🟢' : '🔴';
+                msg += `*${(pos.title || 'Mercado').slice(0, 35)}...*\n`;
+                msg += `↳ ${pos.outcome || 'Token'} | ${pos.size.toFixed(1)} tokens\n`;
+                msg += `↳ Entrada: ${(entryPrice * 100).toFixed(1)}¢ | Atual: ${(curPrice * 100).toFixed(1)}¢\n`;
+                msg += `↳ Valor: $${pos.currentValue.toFixed(2)} | P&L: ${pnlIcon} ${pnlPercent > 0 ? '+' : ''}${pnlPercent.toFixed(1)}%\n\n`;
+            });
+
+            msg += `━━━━━━━━━━━━━━\n`;
+            msg += `💰 *Exposição Total:* $${totalExposure.toFixed(2)}\n`;
+            msg += `📈 *P&L Aberto:* ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`;
+
+            await this.sendMessage(chatId, msg);
+        } catch (error) {
+            console.error('Error fetching positions for telegram /positions:', error);
+            await this.sendMessage(chatId, '❌ Ocorreu um erro ao buscar suas posições.');
         }
     }
 

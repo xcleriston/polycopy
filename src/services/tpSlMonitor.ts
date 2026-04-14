@@ -3,6 +3,7 @@ import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
+import telegram from '../utils/telegram.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 
 const MONITOR_INTERVAL = 15000; // 15 seconds
@@ -118,8 +119,7 @@ const executeEmergencySell = async (user: any, position: any, reason: string) =>
 
         if (resp.success === true) {
             Logger.orderResult(true, `[${user.chatId}] Closed ${sellAmount} tokens due to ${reason}`);
-            // Note: Since this is independent of a specific copy trade, we just log it.
-            // A more advanced system would capture this in UserActivity.
+            telegram.tpSlTriggered(user.chatId, `Fechado ${sellAmount.toFixed(2)} tokens.\nMotivo: ${reason}\nMercado: ${position.title || position.asset}`);
         } else {
             Logger.error(`[${user.chatId}] Failed to sell via TP/SL trigger: ${JSON.stringify(resp)}`);
         }
