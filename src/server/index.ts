@@ -6,6 +6,8 @@ import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
+import getMyBalance from '../utils/getMyBalance.js';
+import fetchData from '../utils/fetchData.js';
 
 const app = express();
 app.use(express.json());
@@ -2293,7 +2295,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
         // Map per-user status to the trade object
         const trades = tradesData.map((t: any) => ({
             ...t,
-            followerStatus: t.followerStatuses?.[userId]?.status || 'SUCESSO'
+            followerStatus: (userId && t.followerStatuses?.[userId]?.status) || 'SUCESSO'
         }));
         
         res.json(trades);
