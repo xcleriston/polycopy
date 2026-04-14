@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
 import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
@@ -1050,7 +1051,7 @@ const signupHtml = `<!DOCTYPE html>
   </script>
 </body> </html>`;
 
-const dashboardHtml = `<!DOCTYPE html>
+const adminDashboardHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1538,8 +1539,313 @@ app.get('/signup', (req: Request, res: Response) => {
     res.type('html').send(signupHtml);
 });
 
+const userDashboardHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prediz Copy Web Bot</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+/* ... Reusing same variables and basic layout ... */
+:root {
+  --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
+  --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
+  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; }
+aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.logo span { color: var(--accent); }
+.nav { flex: 1; padding: 20px 0; }
+.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px; max-width: 600px; margin: 0 auto; }
+.step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
+.step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
+.step.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+.form-group { margin-bottom: 24px; }
+label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; }
+input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 14px; border-radius: 12px; font-family: var(--font-main); }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; }
+.btn:hover { background: #2563eb; transform: translateY(-2px); }
+.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 20px; border-radius: 12px; font-family: var(--font-mono); text-align: center; margin: 20px 0; }
+#message-banner { position: fixed; top: 20px; right: 20px; padding: 15px 30px; border-radius: 10px; font-weight: 600; display: none; z-index: 9999; }
+.success-banner { background: #10b981; color: #fff; }
+</style>
+</head>
+<body>
+  <aside>
+    <div class="logo">PREDIZ<span>COPY</span></div>
+    <div class="nav">
+      <div class="nav-item active"><span>🤖</span> Meu Web Bot</div>
+      <div class="nav-item" onclick="logout()"><span>🚪</span> Sair</div>
+    </div>
+  </aside>
+  <main>
+    <div id="setup-wizard" class="wizard-card">
+        <h2 id="wizard-title" style="margin-bottom: 10px">🤖 Bem-vindo ao Prediz Copy</h2>
+        <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px">Complete os passos abaixo para ativar seu Robô de Cópia.</p>
+        
+        <div class="step-indicator">
+            <div id="s1" class="step active">1</div>
+            <div id="s2" class="step">2</div>
+            <div id="s3" class="step">3</div>
+        </div>
+
+        <div id="step-content">
+            <!-- Dynamic Content -->
+        </div>
+    </div>
+    
+    <div id="bot-dashboard" style="display:none">
+        <header style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 40px">
+            <h1>Painel do Web Bot</h1>
+            <button onclick="toggleBotMain()" id="bot-master-btn" class="btn" style="width:auto; padding: 10px 25px">ATIVAR BOT</button>
+        </header>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px">
+            <div class="wizard-card" style="margin:0; width:100%">
+                 <h3 style="margin-bottom: 15px">Sua Carteira Operacional</h3>
+                 <div id="user-wallet-addr" class="wallet-box" style="font-size: 0.8rem">---</div>
+                 <p style="font-size: 0.8rem; color: var(--text-dim)">Deposite <strong>USDC</strong> e <strong>POL</strong> neste endereço na rede Polygon.</p>
+            </div>
+            <div class="wizard-card" style="margin:0; width:100%">
+                 <h3 style="margin-bottom: 15px">Configuração de Trader</h3>
+                 <div class="form-group">
+                    <label>Endereço do Trader no Polymarket</label>
+                    <input type="text" id="bot-trader" placeholder="0x...">
+                 </div>
+                 <button class="btn" onclick="updateBotConfig()" style="padding:12px">Salvar Trader</button>
+            </div>
+        </div>
+
+        <h3>Minhas Atividades Recentes</h3>
+        <div class="card" style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin-top: 15px; overflow: hidden">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">DATA</th>
+                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">MERCADO</th>
+                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">LADO</th>
+                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">VALOR</th>
+                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="user-trade-body"></tbody>
+            </table>
+        </div>
+    </div>
+  </main>
+
+  <div id="message-banner"></div>
+
+  <script>
+    let currentUser = null;
+
+    async function loadUser() {
+        const res = await fetch('/api/user/me');
+        const data = await res.json();
+        currentUser = data;
+        renderDashboard();
+    }
+
+    function renderDashboard() {
+        if (!currentUser.wallet || !currentUser.wallet.address) {
+            renderStep1();
+        } else if (!currentUser.config || !currentUser.config.traderAddress) {
+            renderStep2();
+        } else {
+            document.getElementById('setup-wizard').style.display = 'none';
+            document.getElementById('bot-dashboard').style.display = 'block';
+            document.getElementById('user-wallet-addr').textContent = currentUser.wallet.address;
+            document.getElementById('bot-trader').value = currentUser.config.traderAddress;
+            
+            const badge = document.getElementById('bot-status-badge');
+            if (currentUser.config.enabled) {
+                badge.textContent = 'EXECUTANDO';
+                badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                badge.style.color = 'var(--success)';
+            } else {
+                badge.textContent = 'PAUSADO';
+                badge.style.background = 'rgba(239, 68, 68, 0.2)';
+                badge.style.color = 'var(--danger)';
+            }
+        }
+    }
+
+    function renderStep1() {
+        document.getElementById('s1').className = 'step active';
+        document.getElementById('wizard-title').textContent = 'Step 1: Criar sua Identidade';
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom: 20px">Vamos gerar uma carteira exclusiva para suas operações no Polygon.</p>
+            <button class="btn" onclick="generateWallet()">Gerar Minha Carteira</button>
+        \`;
+    }
+
+    async function generateWallet() {
+        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+        if (res.ok) {
+            showBanner('Carteira Gerada!', 'success');
+            loadUser();
+        }
+    }
+
+    function renderStep2() {
+        document.getElementById('s1').className = 'step done';
+        document.getElementById('s2').className = 'step active';
+        document.getElementById('wizard-title').textContent = 'Step 2: Configurar Trader';
+        document.getElementById('step-content').innerHTML = \`
+            <div class="form-group">
+                <label>Endereço do Trader a Copiar (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x...">
+            </div>
+            <button class="btn" onclick="saveInitialConfig()">Finalizar e Ativar Bot</button>
+        \`;
+    }
+
+    async function saveInitialConfig() {
+        const traderAddress = document.getElementById('setup-trader').value;
+        const res = await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ traderAddress, enabled: true })
+        });
+        if (res.ok) {
+            showBanner('Bot Ativado com Sucesso!', 'success');
+            loadUser();
+        }
+    }
+
+    async function toggleBotMain() {
+        const nextState = !currentUser.config.enabled;
+        const res = await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: nextState })
+        });
+        if (res.ok) {
+            showBanner(nextState ? 'Bot Ativado' : 'Bot Pausado', 'success');
+            loadUser();
+        }
+    }
+
+    async function refresh() {
+        try {
+            const [me, trades] = await Promise.all([
+                fetch('/api/user/me').then(r => r.json()),
+                fetch('/api/user/trades').then(r => r.json())
+            ]);
+            currentUser = me;
+            renderDashboard();
+            
+            if (trades && trades.length > 0) {
+                document.getElementById('user-trade-body').innerHTML = trades.map(t => \`
+                    <tr>
+                        <td style="font-size: 0.75rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
+                        <td style="font-weight: 600">\${t.title || t.slug}</td>
+                        <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
+                        <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
+                        <td><span class="badge badge-ready">EXECUTADO</span></td>
+                    </tr>
+                \`).join('');
+            }
+        } catch (e) { console.error('Refresh error:', e); }
+    }
+
+    async function updateBotConfig() {
+        const traderAddress = document.getElementById('bot-trader').value;
+        const res = await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ traderAddress })
+        });
+        if (res.ok) showBanner('Configuração Atualizada', 'success');
+    }
+
+    function showBanner(msg, type) {
+        const b = document.getElementById('message-banner');
+        b.textContent = msg.toUpperCase();
+        b.className = 'success-banner'; // Simplify
+        b.style.display = 'block';
+        setTimeout(() => b.style.display = 'none', 3000);
+    }
+
+    async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
+    loadUser();
+  </script>
+</body> </html>`;
+
+// --- Web API Extensions for User Dashboard ---
+app.get('/api/user/me', (req: AuthRequest, res) => {
+    res.json(req.user ? {
+        username: req.user.username,
+        role: req.user.role,
+        wallet: (req as any).fullUser?.wallet, // We'll enrich this in the middleware or fetch here
+        config: (req as any).fullUser?.config
+    } : { error: 'Not logged in' });
+});
+
+app.post('/api/user/generate-wallet', async (req: AuthRequest, res) => {
+    const user = await User.findById(req.user?.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.wallet?.address) return res.status(400).json({ error: 'Wallet already exists' });
+
+    const newWallet = ethers.Wallet.createRandom();
+    user.wallet = {
+        address: newWallet.address,
+        privateKey: newWallet.privateKey
+    };
+    user.step = 'setup';
+    await user.save();
+    res.json({ success: true, address: newWallet.address });
+});
+
+app.post('/api/user/update-config', async (req: AuthRequest, res) => {
+    const user = await User.findById(req.user?.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { traderAddress, enabled, strategy, copySize } = req.body;
+    if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
+    
+    if (traderAddress !== undefined) user.config.traderAddress = traderAddress;
+    if (enabled !== undefined) user.config.enabled = enabled;
+    if (strategy !== undefined) user.config.strategy = strategy;
+    if (copySize !== undefined) user.config.copySize = copySize;
+    
+    user.step = 'ready';
+    await user.save();
+    res.json({ success: true });
+});
+
+// Enrichen AuthRequest with full User data for /api/user/me
+app.use('/api/user/', async (req: any, _res, next) => {
+    if (req.user?.id) {
+        req.fullUser = await User.findById(req.user.id).lean();
+    }
+    next();
+});
+
+app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const { Activity } = await import('../models/userHistory.js');
+        const userId = req.user?.id;
+        const trades = await Activity.find({ processedBy: userId }).sort({ timestamp: -1 }).limit(10).lean();
+        res.json(trades);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch your trades' });
+    }
+});
+
 app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
-    res.type('html').send(dashboardHtml);
+    if (req.user?.role === 'admin') {
+        res.type('html').send(adminDashboardHtml);
+    } else {
+        res.type('html').send(userDashboardHtml);
+    }
 });
 
 export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
