@@ -1916,6 +1916,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     function renderDashboard() {
         if (!currentUser) return;
+        
+        // Sync wallet address globally as soon as data is available
+        const walletAddr = document.getElementById('user-wallet-addr');
+        if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
+
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
         const isReady = currentUser.step === 'ready';
@@ -2290,7 +2295,8 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
             address: newWallet.address,
             privateKey: newWallet.privateKey
         };
-        user.step = 'setup';
+        // Only set to setup if not already ready (to allow seamless swaps)
+        if (user.step !== 'ready') user.step = 'setup';
         await user.save();
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
         res.json({ success: true, address: newWallet.address });
@@ -2325,7 +2331,8 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
             address: wallet.address,
             privateKey: wallet.privateKey
         };
-        user.step = 'setup';
+        // Keep ready state if swapping wallet
+        if (user.step !== 'ready') user.step = 'setup';
         await user.save();
         console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
         res.json({ success: true, address: wallet.address });
