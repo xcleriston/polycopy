@@ -1551,7 +1551,6 @@ const userDashboardHtml = `<!DOCTYPE html>
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
-/* ... Reusing same variables and basic layout ... */
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
   --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
@@ -1560,136 +1559,288 @@ const userDashboardHtml = `<!DOCTYPE html>
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; }
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
 .logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
 .nav { flex: 1; padding: 20px 0; }
 .nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
 main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px; max-width: 600px; margin: 0 auto; }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 40px; max-width: 600px; margin: 40px auto; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
 .step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
 .step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
 .step.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
 .step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
-.form-group { margin-bottom: 24px; }
-label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; }
-input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 14px; border-radius: 12px; font-family: var(--font-main); }
-.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; }
-.btn:hover { background: #2563eb; transform: translateY(-2px); }
-.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 20px; border-radius: 12px; font-family: var(--font-mono); text-align: center; margin: 20px 0; }
-#message-banner { position: fixed; top: 20px; right: 20px; padding: 15px 30px; border-radius: 10px; font-weight: 600; display: none; z-index: 9999; }
-.success-banner { background: #10b981; color: #fff; }
+.form-group { margin-bottom: 20px; }
+label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 0.95rem; }
+input:focus { border-color: var(--accent); outline: none; }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn:hover { background: #2563eb; transform: translateY(-1px); }
+.btn-sm { padding: 8px 16px; width: auto; font-size: 0.85rem; }
+.btn-outline { background: transparent; border: 1px solid var(--border); }
+.btn-outline:hover { background: rgba(255,255,255,0.05); }
+.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 16px; border-radius: 10px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); margin: 15px 0; word-break: break-all; }
+#message-banner { position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px; font-weight: 600; display: none; z-index: 10000; animation: slideIn 0.3s ease-out; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+.badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+.status-active { color: var(--success); }
+.status-paused { color: var(--warning); }
+.switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.switch-container input { width: 18px; height: 18px; cursor: pointer; }
 </style>
 </head>
 <body>
   <aside>
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
-      <div class="nav-item active"><span>🤖</span> Meu Web Bot</div>
-      <div class="nav-item" onclick="logout()"><span>🚪</span> Sair</div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
+      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚪</span> Sair</div>
     </div>
   </aside>
   <main>
-    <div id="setup-wizard" class="wizard-card">
-        <h2 id="wizard-title" style="margin-bottom: 10px">🤖 Bem-vindo ao Prediz Copy</h2>
-        <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px">Complete os passos abaixo para ativar seu Robô de Cópia.</p>
-        
+    <div id="setup-wizard" class="wizard-card" style="display:none">
+        <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
+        <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
         <div class="step-indicator">
             <div id="s1" class="step active">1</div>
             <div id="s2" class="step">2</div>
             <div id="s3" class="step">3</div>
         </div>
+        <div id="step-content"></div>
+    </div>
 
-        <div id="step-content">
-            <!-- Dynamic Content -->
+    <div id="tab-bot" class="tab-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px">
+            <div>
+                <h1 style="font-size: 1.8rem">Dashboard <span>Bot</span></h1>
+                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operações em tempo real.</p>
+            </div>
+            <div id="bot-status-container" style="display: flex; align-items: center; gap: 20px">
+                <div style="text-align: right">
+                    <div style="font-size: 0.7rem; color: var(--text-dim); font-weight: 700">STATUS ATUAL</div>
+                    <div id="bot-status-text" class="status-active" style="font-weight: 800; font-size: 1.1rem">ATIVO</div>
+                </div>
+                <button id="bot-master-btn" class="btn btn-sm" onclick="toggleBotMain()" style="width: 140px">DESATIVAR</button>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px">
+            <div class="card">
+                <label>Carteira de Operação</label>
+                <div id="user-wallet-addr" class="wallet-box">---</div>
+                <div style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4">Envie <strong>USDC</strong> (Polygon) para este endereço para começar a copiar.</div>
+            </div>
+            <div class="card">
+                <label>Trader Monitorado</label>
+                <div style="display: flex; align-items: center; gap: 12px; margin: 15px 0">
+                    <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">👤</div>
+                    <div>
+                        <div id="trader-name" style="font-weight: 700; color: #fff">Nenhum</div>
+                        <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="switchTab('config')">Alterar Trader</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 20px; font-size: 1.1rem">Atividades Recentes</h3>
+            <div style="overflow-x: auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>DATA/HORA</th>
+                            <th>MERCADO</th>
+                            <th>LADO</th>
+                            <th>VALOR</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-trade-body"></tbody>
+                </table>
+            </div>
         </div>
     </div>
-    
-    <div id="bot-dashboard" style="display:none">
-        <header style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 40px">
-            <h1>Painel do Web Bot</h1>
-            <button onclick="toggleBotMain()" id="bot-master-btn" class="btn" style="width:auto; padding: 10px 25px">ATIVAR BOT</button>
-        </header>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px">
-            <div class="wizard-card" style="margin:0; width:100%">
-                 <h3 style="margin-bottom: 15px">Sua Carteira Operacional</h3>
-                 <div id="user-wallet-addr" class="wallet-box" style="font-size: 0.8rem">---</div>
-                 <p style="font-size: 0.8rem; color: var(--text-dim)">Deposite <strong>USDC</strong> e <strong>POL</strong> neste endereço na rede Polygon.</p>
-            </div>
-            <div class="wizard-card" style="margin:0; width:100%">
-                 <h3 style="margin-bottom: 15px">Configuração de Trader</h3>
-                 <div class="form-group">
-                    <label>Endereço do Trader no Polymarket</label>
+
+    <div id="tab-config" class="tab-view" style="display: none">
+        <h1 style="margin-bottom: 10px">Configurações <span>Avançadas</span></h1>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parâmetros de risco e execução do seu bot.</p>
+
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
+            <div class="card">
+                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
+                <div class="form-group">
+                    <label>Iniciais do Trader / Wallet</label>
                     <input type="text" id="bot-trader" placeholder="0x...">
-                 </div>
-                 <button class="btn" onclick="updateBotConfig()" style="padding:12px">Salvar Trader</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                    <div class="form-group">
+                        <label>Estratégia</label>
+                        <select id="bot-strategy">
+                            <option value="PERCENTAGE">Porcentagem (%)</option>
+                            <option value="FIXED">Valor Fixo ($)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor / %</label>
+                        <input type="number" id="bot-size" step="0.1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Ordem</label>
+                    <select id="bot-orderType">
+                        <option value="MARKET">Market (Execução Rápida)</option>
+                        <option value="LIMIT">Limit (Preço Específico)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Slippage Máximo (%)</label>
+                    <input type="number" id="bot-slippage" step="0.01">
+                </div>
+            </div>
+
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
+                <div>
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Preço Mínimo</label>
+                            <input type="number" id="bot-minPrice" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Preço Máximo</label>
+                            <input type="number" id="bot-maxPrice" step="0.01">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Trade Min ($)</label>
+                            <input type="number" id="bot-minTrade" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Trade Max ($)</label>
+                            <input type="number" id="bot-maxTrade" step="1">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; display: grid; gap: 12px">
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
             </div>
         </div>
-
-        <h3>Minhas Atividades Recentes</h3>
-        <div class="card" style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin-top: 15px; overflow: hidden">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">DATA</th>
-                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">MERCADO</th>
-                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">LADO</th>
-                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">VALOR</th>
-                        <th style="color: var(--text-dim); padding: 15px; text-align: left; font-size: 0.7rem">STATUS</th>
-                    </tr>
-                </thead>
-                <tbody id="user-trade-body"></tbody>
-            </table>
-        </div>
     </div>
-    <div id="message-banner"></div>
+  </main>
+
+  <div id="message-banner"></div>
+
 <script>
     let currentUser = null;
+    let currentTab = 'bot';
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
+        document.getElementById('tab-' + tab).style.display = 'block';
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        document.getElementById('nav-' + tab).classList.add('active');
+    }
 
     async function loadUser() {
         try {
             const res = await fetch('/api/user/me');
-            if (!res.ok) throw new Error('Não autorizado');
+            if (!res.ok) throw new Error();
             currentUser = await res.json();
             renderDashboard();
         } catch (e) { window.location.href = '/login'; }
     }
+
     function renderDashboard() {
         if (!currentUser) return;
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
-        document.getElementById('setup-wizard').style.display = (hasWallet && hasTrader) ? 'none' : 'block';
-        document.getElementById('bot-dashboard').style.display = (hasWallet && hasTrader) ? 'block' : 'none';
-        if (!hasWallet) renderStep1();
-        else if (!hasTrader) renderStep2();
-        else renderMainDashboard();
+
+        if (!hasWallet || !hasTrader) {
+            document.getElementById('setup-wizard').style.display = 'block';
+            document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
+            if (!hasWallet) renderStep1(); else renderStep2();
+        } else {
+            document.getElementById('setup-wizard').style.display = 'none';
+            switchTab(currentTab);
+            renderMainDashboard();
+        }
     }
+
     function renderStep1() {
         document.getElementById('s1').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira Web';
-        document.getElementById('step-content').innerHTML = \`<button class="btn" onclick="generateWallet(this)">Gerar Minha Carteira</button>\`;
+        document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
+            <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">OU IMPORTAR</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <div class="form-group">
+                <input type="password" id="import-pk" placeholder="Chave Privada (0x...)">
+            </div>
+            <button class="btn btn-outline" onclick="importWallet(this)">Importar Chave Privada</button>
+        \`;
     }
+
     async function generateWallet(btn) {
-        btn.disabled = true;
+        btn.disabled = true; btn.textContent = 'Gerando...';
         const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
         if (res.ok) loadUser();
     }
+
+    async function importWallet(btn) {
+        const pk = document.getElementById('import-pk').value;
+        if (!pk) return showBanner('Informe a Chave Privada', 'warning');
+        btn.disabled = true; btn.textContent = 'Validando...';
+        const res = await fetch('/api/user/import-wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ privateKey: pk })
+        });
+        if (res.ok) loadUser();
+        else { showBanner('Chave Privada Inválida', 'danger'); btn.disabled = false; btn.textContent = 'Importar Chave Privada'; }
+    }
+
     function renderStep2() {
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 2: Configurar Trader';
+        document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
             <div class="form-group">
-                <label>Endereço do Trader (0x...)</label>
-                <input type="text" id="setup-trader" value="\${currentUser.config?.traderAddress || ''}">
+                <label>Endereço da Carteira (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="finishSetup(this)">Salvar e Iniciar Bot</button>
+            <button class="btn" onclick="finishSetup(this)">Concluir Configuração</button>
         \`;
     }
+
     async function finishSetup(btn) {
         const addr = document.getElementById('setup-trader').value;
+        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
+        btn.disabled = true;
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1697,23 +1848,58 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
         });
         loadUser();
     }
+
     function renderMainDashboard() {
+        const c = currentUser.config || {};
         document.getElementById('user-wallet-addr').textContent = currentUser.wallet?.address || '---';
-        document.getElementById('bot-trader').value = currentUser.config?.traderAddress || '';
+        document.getElementById('trader-addr-display').textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+        
+        // Status UI
+        const statusText = document.getElementById('bot-status-text');
+        const masterBtn = document.getElementById('bot-master-btn');
+        statusText.textContent = c.enabled ? 'ATIVO' : 'PAUSADO';
+        statusText.className = c.enabled ? 'status-active' : 'status-paused';
+        masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR AGORA';
+        masterBtn.style.background = c.enabled ? 'var(--danger)' : 'var(--success)';
+
+        // Config Fill
+        document.getElementById('bot-trader').value = c.traderAddress || '';
+        document.getElementById('bot-strategy').value = c.strategy || 'PERCENTAGE';
+        document.getElementById('bot-size').value = c.copySize || 10;
+        document.getElementById('bot-orderType').value = c.orderType || 'MARKET';
+        document.getElementById('bot-slippage').value = c.slippage || 0.05;
+        document.getElementById('bot-minPrice').value = c.minPrice || 0;
+        document.getElementById('bot-maxPrice').value = c.maxPrice || 1.0;
+        document.getElementById('bot-minTrade').value = c.minTradeSize || 0;
+        document.getElementById('bot-maxTrade').value = c.maxTradeSize || 1000;
+        document.getElementById('bot-reverse').checked = !!c.reverseCopy;
+        document.getElementById('bot-copyBuy').checked = c.copyBuy !== false;
+        document.getElementById('bot-copySell').checked = c.copySell !== false;
+
         refreshTrades();
     }
+
     async function refreshTrades() {
         const res = await fetch('/api/user/trades');
         const trades = await res.json();
+        const traderMap = {}; // Cache for trader names if needed
+
         document.getElementById('user-trade-body').innerHTML = (trades || []).map(t => \`
             <tr>
                 <td style="font-size: 0.75rem">\${new Date(t.timestamp).toLocaleString()}</td>
-                <td>\${t.title || t.slug}</td>
-                <td>\${t.side}</td>
-                <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
+                <td style="font-weight: 600">\${t.title || t.slug}</td>
+                <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
+                <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
+                <td><span class="badge" style="background: rgba(16, 185, 129, 0.1); color: var(--success)">SUCESSO</span></td>
             </tr>
-        \`).join('');
+        \`).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhum trade capturado ainda.</td></tr>';
+        
+        // Update Trader Info based on latest trade
+        if (trades && trades.length > 0 && trades[0].pseudonym) {
+            document.getElementById('trader-name').textContent = trades[0].pseudonym || trades[0].name || 'Desconhecido';
+        }
     }
+
     async function toggleBotMain() {
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -1722,21 +1908,38 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
         });
         loadUser();
     }
+
     async function updateBotConfig() {
-        const traderAddress = document.getElementById('bot-trader').value;
-        await fetch('/api/user/update-config', {
+        const config = {
+            traderAddress: document.getElementById('bot-trader').value,
+            strategy: document.getElementById('bot-strategy').value,
+            copySize: parseFloat(document.getElementById('bot-size').value),
+            orderType: document.getElementById('bot-orderType').value,
+            slippage: parseFloat(document.getElementById('bot-slippage').value),
+            minPrice: parseFloat(document.getElementById('bot-minPrice').value),
+            maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
+            minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
+            maxTradeSize: parseFloat(document.getElementById('bot-maxTrade').value),
+            reverseCopy: document.getElementById('bot-reverse').checked,
+            copyBuy: document.getElementById('bot-copyBuy').checked,
+            copySell: document.getElementById('bot-copySell').checked
+        };
+        const res = await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ traderAddress })
+            body: JSON.stringify(config)
         });
-        showBanner('Configuração Atualizada');
+        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
     }
-    function showBanner(msg) {
+
+    function showBanner(msg, type = 'success') {
         const b = document.getElementById('message-banner');
         b.textContent = msg.toUpperCase();
+        b.style.background = type === 'success' ? 'var(--success)' : (type === 'warning' ? 'var(--warning)' : 'var(--danger)');
         b.style.display = 'block';
         setTimeout(() => b.style.display = 'none', 4000);
     }
+
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
     loadUser();
   </script>
@@ -1766,17 +1969,55 @@ app.post('/api/user/generate-wallet', async (req: AuthRequest, res) => {
     res.json({ success: true, address: newWallet.address });
 });
 
-app.post('/api/user/update-config', async (req: AuthRequest, res) => {
+app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const { privateKey } = req.body;
+        if (!privateKey) return res.status(400).json({ error: 'Private key required' });
+        const wallet = new ethers.Wallet(privateKey);
+        const user = await User.findById(req.user?.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        
+        user.wallet = {
+            address: wallet.address,
+            privateKey: wallet.privateKey
+        };
+        user.step = 'setup';
+        await user.save();
+        res.json({ success: true, address: wallet.address });
+    } catch (e) {
+        res.status(400).json({ error: 'Invalid private key' });
+    }
+});
+
+app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, res) => {
     const user = await User.findById(req.user?.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { traderAddress, enabled, strategy, copySize } = req.body;
+    const { 
+        traderAddress, enabled, strategy, copySize,
+        reverseCopy, orderType, slippage, tpPercent, slPercent,
+        minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell
+    } = req.body;
+    
     if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     
     if (traderAddress !== undefined) user.config.traderAddress = traderAddress;
     if (enabled !== undefined) user.config.enabled = enabled;
     if (strategy !== undefined) user.config.strategy = strategy;
     if (copySize !== undefined) user.config.copySize = copySize;
+    
+    // Advanced fields
+    if (reverseCopy !== undefined) user.config.reverseCopy = reverseCopy;
+    if (orderType !== undefined) user.config.orderType = orderType;
+    if (slippage !== undefined) user.config.slippage = slippage;
+    if (tpPercent !== undefined) user.config.tpPercent = tpPercent;
+    if (slPercent !== undefined) user.config.slPercent = slPercent;
+    if (minPrice !== undefined) user.config.minPrice = minPrice;
+    if (maxPrice !== undefined) user.config.maxPrice = maxPrice;
+    if (minTradeSize !== undefined) user.config.minTradeSize = minTradeSize;
+    if (maxTradeSize !== undefined) user.config.maxTradeSize = maxTradeSize;
+    if (copyBuy !== undefined) user.config.copyBuy = copyBuy;
+    if (copySell !== undefined) user.config.copySell = copySell;
     
     user.step = 'ready';
     await user.save();

@@ -8,7 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { OrderType, Side } from '@polymarket/clob-client';
-import { getUserActivityModel } from '../models/userHistory.js';
 import Logger from './logger.js';
 import { calculateOrderSize, CopyStrategy } from '../config/copyStrategy.js';
 const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
@@ -38,14 +37,48 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
     const lower = message.toLowerCase();
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
-const postOrder = (clobClient, condition, my_position, user_position, trade, my_balance, followerId, // Changed from userAddress (trader) to followerId (bot user)
-userConfig) => __awaiter(void 0, void 0, void 0, function* () {
-    const traderAddress = trade.traderAddress.toLowerCase();
-    const UserActivity = getUserActivityModel(traderAddress);
+const postOrder = (clobClient, condition, my_position, user_position, trade, my_balance, followerId, userConfig) => __awaiter(void 0, void 0, void 0, function* () {
     // Create a complete strategy config using defaults + user overrides
     const config = Object.assign({ strategy: userConfig.strategy || CopyStrategy.PERCENTAGE, copySize: userConfig.copySize || 10.0, maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100'), minOrderSizeUSD: 1.0, tradeMultiplier: 1.0 }, userConfig);
+    // 1. Pre-execution Filters
+    const tradePrice = trade.price;
+    const tradeSizeUSD = trade.usdcSize;
+    // Side filter
+    if (condition === 'buy' && config.copyBuy === false) {
+        Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
+        return;
+    }
+    if (condition === 'sell' && config.copySell === false) {
+        Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
+        return;
+    }
+    // Price filter
+    if (config.minPrice > 0 && tradePrice < config.minPrice) {
+        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
+        return;
+    }
+    if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
+        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
+        return;
+    }
+    // Trade size filter
+    if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
+        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
+        return;
+    }
+    if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
+        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+        return;
+    }
+    // 2. Reverse Copy Logic
+    let effectiveCondition = condition;
+    if (config.reverseCopy === true) {
+        effectiveCondition = condition === 'buy' ? 'sell' : 'buy';
+        Logger.info(`[${followerId}] 🔄 REVERSE COPY: Flipping ${condition.toUpperCase()} to ${effectiveCondition.toUpperCase()}`);
+    }
+    const slippage = config.slippage || SLIPPAGE_TOLERANCE;
     const retryLimit = parseInt(process.env.RETRY_LIMIT || '3');
-    if (condition === 'buy') {
+    if (effectiveCondition === 'buy') {
         Logger.info(`[${followerId}] Executing BUY strategy...`);
         // Get current position size 
         const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
@@ -67,8 +100,8 @@ userConfig) => __awaiter(void 0, void 0, void 0, function* () {
             const minPriceAsk = orderBook.asks.reduce((min, ask) => {
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
-            if (parseFloat(minPriceAsk.price) - SLIPPAGE_TOLERANCE > trade.price) {
-                Logger.warning(`[${followerId}] Price slippage too high - skipping trade`);
+            if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
+                Logger.warning(`[${followerId}] Price slippage too high ($${minPriceAsk.price} vs target $${trade.price}) - skipping trade`);
                 break;
             }
             if (remaining < MIN_ORDER_SIZE_USD)
@@ -102,7 +135,7 @@ userConfig) => __awaiter(void 0, void 0, void 0, function* () {
         // Since we share the same activity record, we can't save myBoughtSize there easily for multiple followers
         // TODO: Consider a separate Execution model for better tracking
     }
-    else if (condition === 'sell') {
+    else if (effectiveCondition === 'sell') {
         Logger.info(`[${followerId}] Executing SELL strategy...`);
         if (!my_position) {
             Logger.warning(`[${followerId}] No position to sell`);
