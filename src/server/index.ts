@@ -1879,10 +1879,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     async function loadUser() {
         try {
             const res = await fetch('/api/user/me');
+            if (res.status === 401) { window.location.href = '/login'; return; }
             if (!res.ok) throw new Error();
             currentUser = await res.json();
             renderDashboard();
-        } catch (e) { window.location.href = '/login'; }
+        } catch (e) { console.error('LoadUser error:', e); }
     }
 
     function renderDashboard() {
@@ -2105,7 +2106,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <td style="font-weight: 600">\${t.title || t.slug}</td>
                 <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
                 <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
-                <td><span class="badge" title="\${t.followerStatuses?.[currentUser.chatId || currentUser._id]?.details || ''}" style="background: \${bg}; color: \${color}">\${status}</span></td>
+                <td><span class="badge" title="\${t.followerStatuses?.[currentUser?.id || currentUser?.chatId || 'none']?.details || ''}" style="background: \${bg}; color: \${color}">\${status}</span></td>
             </tr>
             \`;
         }).join('') || '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhum trade capturado ainda.</td></tr>';
@@ -2178,6 +2179,8 @@ app.use('/api/user/', async (req: any, _res, next) => {
 app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
     const user = (req as any).fullUser;
     res.json(user ? {
+        id: user._id,
+        chatId: user.chatId,
         username: user.username || user.chatId,
         role: user.role,
         wallet: user.wallet,
