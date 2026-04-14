@@ -7,11 +7,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { ENV } from '../config/env.js';
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
-import { createClobClient } from '../utils/createClobClient.js';
+import createClobClient from '../utils/createClobClient.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 const MONITOR_INTERVAL = 15000; // 15 seconds
 export const startTpSlMonitor = () => {
@@ -84,7 +83,7 @@ const processUserRisk = (user) => __awaiter(void 0, void 0, void 0, function* ()
 });
 const executeEmergencySell = (user, position, reason) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const clobClient = yield createClobClient(user.wallet.privateKey, ENV.CHAIN_ID);
+        const clobClient = yield createClobClient(user.wallet.privateKey);
         // Find best bid to ensure execution
         const orderBook = yield clobClient.getOrderBook(position.asset);
         if (!orderBook.bids || orderBook.bids.length === 0) {

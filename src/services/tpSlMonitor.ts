@@ -2,7 +2,7 @@ import { ENV } from '../config/env.js';
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
-import { createClobClient } from '../utils/createClobClient.js';
+import createClobClient from '../utils/createClobClient.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 
 const MONITOR_INTERVAL = 15000; // 15 seconds
@@ -85,7 +85,7 @@ const processUserRisk = async (user: any) => {
 
 const executeEmergencySell = async (user: any, position: any, reason: string) => {
     try {
-        const clobClient = await createClobClient(user.wallet.privateKey, ENV.CHAIN_ID);
+        const clobClient = await createClobClient(user.wallet.privateKey);
         
         // Find best bid to ensure execution
         const orderBook = await clobClient.getOrderBook(position.asset);
