@@ -1666,6 +1666,7 @@ aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--
 .nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+.nav-item.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
 main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
 .wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
@@ -2030,11 +2031,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     let currentTab = 'bot';
 
     function switchTab(tab) {
+        if (currentUser && currentUser.step !== 'ready' && tab !== 'bot') return;
         currentTab = tab;
         document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
-        document.getElementById('tab-' + tab).style.display = 'block';
+        const target = document.getElementById('tab-' + tab);
+        if (target) target.style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        document.getElementById('nav-' + tab).classList.add('active');
+        const navTarget = document.getElementById('nav-' + tab);
+        if (navTarget) navTarget.classList.add('active');
     }
 
     function copyToClipboard(text, btn) {
@@ -2074,12 +2078,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         if (!hasWallet || (!hasTrader && !isArbitrageMode) || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(i => {
+                if (i.id !== 'nav-bot') i.classList.add('disabled');
+            });
             
             if (!hasWallet) renderStep1();
             else if (!hasTrader && !isArbitrageMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
             renderMainDashboard();
         }
