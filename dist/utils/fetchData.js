@@ -11,11 +11,16 @@ import axios from 'axios';
 import { ENV } from '../config/env.js';
 import { retry } from './retry.js';
 import Logger from './logger.js';
+const directAxios = axios.create({
+    httpsAgent: undefined,
+    httpAgent: undefined,
+    proxy: false
+});
 const fetchData = (url) => __awaiter(void 0, void 0, void 0, function* () {
     const retries = ENV.NETWORK_RETRY_LIMIT;
     const timeout = ENV.REQUEST_TIMEOUT_MS;
     return yield retry(() => __awaiter(void 0, void 0, void 0, function* () {
-        const response = yield axios.get(url, {
+        const response = yield directAxios.get(url, {
             timeout,
             headers: {
                 'User-Agent': 'polycopy/2.0 (Node.js)',
