@@ -15,7 +15,14 @@ export const setupProxy = () => {
         try {
             Logger.info(`[PROXY] Configuring global proxy: ${proxyUrl.split('@')[1] || proxyUrl}`);
             
-            const agent = new HttpsProxyAgent(proxyUrl);
+            let agent;
+            if (proxyUrl.startsWith('socks')) {
+                const { SocksProxyAgent } = await import('socks-proxy-agent');
+                agent = new SocksProxyAgent(proxyUrl);
+            } else {
+                const { HttpsProxyAgent } = await import('https-proxy-agent');
+                agent = new HttpsProxyAgent(proxyUrl);
+            }
             
             // Apply to global axios defaults
             axios.defaults.httpsAgent = agent;
@@ -25,7 +32,7 @@ export const setupProxy = () => {
             process.env.HTTPS_PROXY = proxyUrl;
             process.env.HTTP_PROXY = proxyUrl;
             
-            Logger.info('[PROXY] Global axios proxy configured successfully.');
+            Logger.info(`[PROXY] Global axios proxy configured successfully (${proxyUrl.startsWith('socks') ? 'SOCKS' : 'HTTP'}).`);
         } catch (error) {
             Logger.error(`[PROXY] Failed to configure proxy: ${error}`);
         }
