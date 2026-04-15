@@ -16,6 +16,13 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+// --- Security Headers (Fix for Production Outage) ---
+app.use((req, res, next) => {
+    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https:;");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+});
+
 let botStartTime = Date.now();
 
 // --- Swagger API Docs ---
@@ -1345,31 +1352,27 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       </h2>
       <input type="hidden" id="edit-chatId">
       
-      <!-- Seção: Conta -->
-      <div style="margin-bottom: 24px; padding: 15px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px">
-        <h3 style="margin-bottom: 16px; font-size: 0.9rem; color: var(--accent); display: flex; align-items: center; gap: 8px">
-          <span>👤</span> Dados da Conta
-        </h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px">
-          <div class="form-group">
-            <label>Nome / Usuário</label>
-            <input type="text" id="edit-username" placeholder="Nome">
-          </div>
-          <div class="form-group">
-            <label>E-mail</label>
-            <input type="email" id="edit-email" placeholder="email@exemplo.com">
-          </div>
-          <div class="form-group">
-            <label>Nova Senha</label>
-            <input type="password" id="edit-password" placeholder="••••••••">
-          </div>
-        </div>
-        <small style="color: var(--text-dim); font-size: 0.7rem">Deixe a senha em branco para não alterar.</small>
-      </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
-        <!-- Coluna 1: Básico -->
+        <!-- Coluna 1: Básico & Conta -->
         <div>
+          <div style="margin-bottom: 20px; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px">
+            <h3 style="margin-bottom: 12px; font-size: 0.85rem; color: var(--accent); display: flex; align-items: center; gap: 8px">
+              👤 Conta do Usuário
+            </h3>
+            <div class="form-group">
+                <label>Nome / Usuário</label>
+                <input type="text" id="edit-username" placeholder="Nome">
+            </div>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="edit-email" placeholder="email@exemplo.com">
+            </div>
+            <div class="form-group" style="margin-bottom: 0">
+                <label>Nova Senha</label>
+                <input type="password" id="edit-password" placeholder="•••••••• (deixe vazio)">
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Endereço do Trader Monitorado</label>
             <input type="text" id="edit-trader" placeholder="0x...">
