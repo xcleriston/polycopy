@@ -18,6 +18,7 @@ app.use(cookieParser());
 
 // --- Security Headers (Fix for Production Outage) ---
 app.use((req, res, next) => {
+    res.removeHeader("Content-Security-Policy");
     res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https:;");
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
@@ -1599,7 +1600,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         copySell: document.getElementById('edit-copySell').checked
       };
       
-      const payload: any = { config };
+      const payload = { config };
       if (username) payload.username = username;
       if (email) payload.email = email;
       if (password) payload.password = password;
