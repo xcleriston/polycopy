@@ -29,9 +29,10 @@ export const setupProxy = async () => {
             axios.defaults.httpsAgent = agent;
             axios.defaults.httpAgent = agent;
             
-            // Also set environment variables that many libraries respect
-            process.env.HTTPS_PROXY = proxyUrl;
-            process.env.HTTP_PROXY = proxyUrl;
+            // Apply to global axios defaults
+            // This will affect the @polymarket/clob-client but NOT direct fetches
+            axios.defaults.httpsAgent = agent;
+            axios.defaults.httpAgent = agent;
             
             Logger.info(`[PROXY] Global axios proxy configured successfully (${proxyUrl.startsWith('socks') ? 'SOCKS' : 'HTTP'}).`);
         } catch (error) {
