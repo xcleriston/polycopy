@@ -161,9 +161,13 @@ app.get('/api/users', authorizeAdmin, async (_req, res) => {
     }
 });
 
-app.get('/api/users/:chatId', authorizeAdmin, async (req, res) => {
+app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
     try {
-        const user = await User.findOne({ chatId: req.params.chatId }).lean();
+        const id = req.params.id;
+        const user = id.length === 24 
+            ? await User.findById(id).lean()
+            : await User.findOne({ chatId: id }).lean();
+            
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
     } catch (error) {
@@ -171,8 +175,9 @@ app.get('/api/users/:chatId', authorizeAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/users/:chatId/config', async (req, res) => {
+app.post('/api/users/:id/config', async (req, res) => {
     try {
+        const id = req.params.id;
         const { config, step } = req.body;
         const update: any = {};
         if (config) {
@@ -182,40 +187,45 @@ app.post('/api/users/:chatId/config', async (req, res) => {
         }
         if (step) update.step = step;
 
-        const user = await User.findOneAndUpdate(
-            { chatId: req.params.chatId },
-            { $set: update },
-            { new: true }
-        );
+        const user = id.length === 24
+            ? await User.findByIdAndUpdate(id, { $set: update }, { new: true })
+            : await User.findOneAndUpdate({ chatId: id }, { $set: update }, { new: true });
+            
         res.json({ success: true, user });
     } catch (error) {
         res.status(500).json({ error: 'Failed to update user' });
     }
 });
 
-app.post('/api/users/:chatId/reset', async (req, res) => {
+app.post('/api/users/:id/reset', async (req, res) => {
     try {
-        const user = await User.findOneAndUpdate(
-            { chatId: req.params.chatId },
-            { 
-                $set: { 
-                    step: 'welcome',
-                    wallet: undefined,
-                    'config.traderAddress': '',
-                    'config.enabled': false
-                } 
-            },
-            { new: true }
-        );
+        const id = req.params.id;
+        const update = { 
+            $set: { 
+                step: 'welcome',
+                wallet: undefined,
+                'config.traderAddress': '',
+                'config.enabled': false
+            } 
+        };
+        const user = id.length === 24
+            ? await User.findByIdAndUpdate(id, update, { new: true })
+            : await User.findOneAndUpdate({ chatId: id }, update, { new: true });
+            
         res.json({ success: true, message: 'User reset successfully', user });
     } catch (error) {
         res.status(500).json({ error: 'Failed to reset user' });
     }
 });
 
-app.delete('/api/users/:chatId', async (req, res) => {
+app.delete('/api/users/:id', async (req, res) => {
     try {
-        await User.deleteOne({ chatId: req.params.chatId });
+        const id = req.params.id;
+        if (id.length === 24) {
+            await User.findByIdAndDelete(id);
+        } else {
+            await User.deleteOne({ chatId: id });
+        }
         res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete user' });
@@ -1470,15 +1480,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <td><span class="badge \${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">\${u.step.toUpperCase()}</span></td>
             <td>
               <label class="switch">
-                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u.chatId}', this.checked)">
+                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u._id}', this.checked)">
                 <span class="slider"></span>
               </label>
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">⚙️</button>
-                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
-                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u._id}')">⚙️</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u._id}')">🔄</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u._id}')">🗑️</button>
               </div>
             </td>
           </tr>
@@ -1501,8 +1511,8 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       } catch (e) { console.error('Refresh failed:', e); }
     }
 
-    async function toggleUser(chatId, enabled) {
-      await fetch(\`/api/users/\${chatId}/config\`, {
+    async function toggleUser(id, enabled) {
+      await fetch(\`/api/users/\${id}/config\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: { enabled } })
@@ -1511,13 +1521,13 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       refresh();
     }
 
-    async function editUser(chatId) {
+    async function editUser(id) {
       try {
-        const res = await fetch(\`/api/users/\${chatId}\`);
+        const res = await fetch(\`/api/users/\${id}\`);
         const user = await res.json();
         const c = user.config || {};
         
-        document.getElementById('edit-chatId').value = chatId;
+        document.getElementById('edit-chatId').value = id;
         document.getElementById('edit-trader').value = c.traderAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
@@ -1537,7 +1547,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     }
 
     async function commitUserEdit() {
-      const chatId = document.getElementById('edit-chatId').value;
+      const id = document.getElementById('edit-chatId').value;
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
         strategy: document.getElementById('edit-strategy').value,
@@ -1554,7 +1564,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         copySell: document.getElementById('edit-copySell').checked
       };
       
-      const res = await fetch(\`/api/users/\${chatId}/config\`, {
+      const res = await fetch(\`/api/users/\${id}/config\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config })
@@ -1569,16 +1579,16 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       }
     }
 
-    async function resetUser(chatId) {
+    async function resetUser(id) {
       if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
-      await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+      await fetch(\`/api/users/\${id}/reset\`, { method: 'POST' });
       showBanner('Usuário resetado com sucesso', 'warning');
       refresh();
     }
 
-    async function deleteUser(chatId) {
+    async function deleteUser(id) {
       if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
-      await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+      await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
       showBanner('Membro excluído do SaaS', 'danger');
       refresh();
     }
@@ -2200,7 +2210,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function enterAfkMode(btn) {
-        if (!confirm('Deseja iniciar em Modo Arbitrage? O bot n\u00E3o copiar\u00E1 traders, mas entrar\u00E1 em opera\u00E7\u00F5es baseado em seus limiares de Hedge e Momentum.')) return;
         btn.disabled = true; btn.textContent = 'Configurando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
