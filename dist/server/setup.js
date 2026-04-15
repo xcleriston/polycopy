@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+import fetchData from '../utils/fetchData.js';
 export function createWallet() {
     return __awaiter(this, void 0, void 0, function* () {
         const wallet = ethers.Wallet.createRandom();
@@ -22,21 +23,41 @@ export function createWallet() {
 export function findPolymarketProxy(eoaAddress) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            const endpoints = [
+                `https://data-api.polymarket.com/profiles/${eoaAddress}`,
+                `https://data-api.polymarket.com/activity?user=${eoaAddress}`,
+                `https://data-api.polymarket.com/positions?user=${eoaAddress}`
+            ];
+            for (const url of endpoints) {
+                try {
+                    const res = yield fetchData(url);
+                    // Handle profile object
+                    if (res && res.proxyWallet) {
+                        console.log(`[PROXY] Detected via ${url}: ${res.proxyWallet}`);
+                        return res.proxyWallet;
+                    }
+                    // Handle activity/positions array
+                    if (Array.isArray(res) && res.length > 0 && res[0].proxyWallet) {
+                        console.log(`[PROXY] Detected via ${url}: ${res[0].proxyWallet}`);
+                        return res[0].proxyWallet;
+                    }
+                }
+                catch (e) {
+                    // Best effort
+                }
+            }
+            // Method 2: Fallback to event scanning
             const RPC_URL = process.env.RPC_URL || 'https://poly.api.pocket.network';
             const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-            // Polymarket Proxy Factory on Polygon
             const POLYMARKET_PROXY_FACTORY = '0xab45c5a4b0c941a2f231c04c3f49182e1a254052';
             const proxyFactoryAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
             const polymarketProxyFactory = new ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);
             const latestBlock = yield provider.getBlockNumber();
-            const fromBlock = Math.max(0, latestBlock - 10000000);
+            const fromBlock = Math.max(0, latestBlock - 5000); // Only scan recent blocks for RPC stability
             const events = yield polymarketProxyFactory.queryFilter(polymarketProxyFactory.filters.ProxyCreation(null, null), fromBlock, latestBlock);
             for (const event of events) {
-                // Check if this proxy belongs to our EOA (simplified check)
-                // In real implementation, you'd need to check ownership
-                if (event.args && event.args.proxy) {
+                if (event.args && event.args.proxy)
                     return event.args.proxy;
-                }
             }
             return null;
         }
@@ -50,7 +71,7 @@ export function generateDepositLinks(walletAddress) {
     return {
         usdc: `https://wallet.polygon.technology/polygon/bridge/deposit?to=${walletAddress}`,
         pol: `https://www.coingecko.com/en/coins/polygon?utm_source=polycopy`,
-        quickswap: `https://quickswap.exchange/#/swap?inputCurrency=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174&outputCurrency=0x458Efe634a885F2A2A57B106063e822A060f9dcF&recipient=${walletAddress}`
+        quickswap: `https://quickswap.exchange/#/swap?inputCurrency=0x3c499c542cef5e3811e1192ce70d8cc03d5c3359&outputCurrency=0x458Efe634a885F2A2A57B106063e822A060f9dcF&recipient=${walletAddress}`
     };
 }
 export function updateEnvFile(config) {

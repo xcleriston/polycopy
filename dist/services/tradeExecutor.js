@@ -29,7 +29,7 @@ const getClobClientForUser = (user) => __awaiter(void 0, void 0, void 0, functio
     if (clobClientCache.has(cacheKey)) {
         return clobClientCache.get(cacheKey);
     }
-    const client = yield createClobClient(user.wallet.privateKey, user.wallet.address);
+    const client = yield createClobClient(user.wallet.privateKey, user.wallet.proxyAddress || user.wallet.address);
     clobClientCache.set(cacheKey, client);
     return client;
 });
@@ -43,12 +43,13 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
     return yield Activity.find({ bot: false, type: 'TRADE' }).lean();
 });
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const traderAddress = trade.traderAddress.toLowerCase();
-    // Find all users following this trader
+    // Find all users following this trader in COPY mode
     const followers = yield User.find({
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
-        'config.enabled': true
+        'config.enabled': true,
+        'config.mode': 'COPY'
     });
     if (followers.length === 0) {
         // No active followers, mark trade as done to stop polling
@@ -94,7 +95,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 const user_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
                 const my_position = my_positions.find((position) => position.conditionId === trade.conditionId);
                 const user_position = user_positions.find((position) => position.conditionId === trade.conditionId);
-                const my_balance = yield getMyBalance(proxyWallet);
+                const my_balance = yield getMyBalance(((_b = follower.wallet) === null || _b === void 0 ? void 0 : _b.address) || '', (_c = follower.wallet) === null || _c === void 0 ? void 0 : _c.proxyAddress);
                 const user_balance = user_positions.reduce((total, pos) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
@@ -116,7 +117,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
         const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId || f._id.toString()));
         if (stillMissing.length === 0) {
             yield Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
-            Logger.info(`✅ Trade ${(_b = trade.transactionHash) === null || _b === void 0 ? void 0 : _b.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+            Logger.info(`✅ Trade ${(_d = trade.transactionHash) === null || _d === void 0 ? void 0 : _d.slice(0, 8)} fully processed for all ${followers.length} followers.`);
             // Notify web followers via Push
             yield broadcastTrade(traderAddress, trade);
         }

@@ -10,16 +10,25 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import express from 'express';
 import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
-import { setupNewUser } from './setup.js';
+import { setupNewUser, findPolymarketProxy } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup } from './auth.js';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
+import setupProxy from '../utils/setupProxy.js';
+// Global proxy will be initialized inside startServer
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
+// --- Security Headers (Fix for Production Outage) ---
+app.use((req, res, next) => {
+    res.removeHeader("Content-Security-Policy");
+    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https:;");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+});
 let botStartTime = Date.now();
 // --- Swagger API Docs ---
 const swaggerDoc = {
@@ -152,9 +161,12 @@ app.get('/api/users', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, v
         res.status(500).json({ error: 'Failed to fetch users' });
     }
 }));
-app.get('/api/users/:chatId', authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/api/users/:id', authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const user = yield User.findOne({ chatId: req.params.chatId }).lean();
+        const id = req.params.id;
+        const user = id.length === 24
+            ? yield User.findById(id).lean()
+            : yield User.findOne({ chatId: id }).lean();
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         res.json(user);
@@ -163,43 +175,62 @@ app.get('/api/users/:chatId', authorizeAdmin, (req, res) => __awaiter(void 0, vo
         res.status(500).json({ error: 'Failed to fetch user' });
     }
 }));
-app.post('/api/users/:chatId/config', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { config, step } = req.body;
+        const id = req.params.id;
+        const { config, step, username, email, password } = req.body;
         const update = {};
-        if (config) {
-            Object.keys(config).forEach(key => {
-                update[`config.${key}`] = config[key];
-            });
-        }
+        if (config)
+            update.config = config;
         if (step)
             update.step = step;
-        const user = yield User.findOneAndUpdate({ chatId: req.params.chatId }, { $set: update }, { new: true });
+        if (username !== undefined)
+            update.username = username;
+        if (email !== undefined)
+            update.email = email;
+        if (password && password.trim() !== '') {
+            update.password = yield bcrypt.hash(password, 10);
+        }
+        const user = id.length === 24
+            ? yield User.findByIdAndUpdate(id, update, { new: true })
+            : yield User.findOneAndUpdate({ chatId: id }, update, { new: true });
+        if (!user)
+            return res.status(404).json({ error: 'User not found' });
         res.json({ success: true, user });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to update user' });
     }
 }));
-app.post('/api/users/:chatId/reset', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const user = yield User.findOneAndUpdate({ chatId: req.params.chatId }, {
+        const id = req.params.id;
+        const update = {
             $set: {
                 step: 'welcome',
                 wallet: undefined,
                 'config.traderAddress': '',
                 'config.enabled': false
             }
-        }, { new: true });
+        };
+        const user = id.length === 24
+            ? yield User.findByIdAndUpdate(id, update, { new: true })
+            : yield User.findOneAndUpdate({ chatId: id }, update, { new: true });
         res.json({ success: true, message: 'User reset successfully', user });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to reset user' });
     }
 }));
-app.delete('/api/users/:chatId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.delete('/api/users/:id', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield User.deleteOne({ chatId: req.params.chatId });
+        const id = req.params.id;
+        if (id.length === 24) {
+            yield User.findByIdAndDelete(id);
+        }
+        else {
+            yield User.deleteOne({ chatId: id });
+        }
         res.json({ success: true, message: 'User deleted successfully' });
     }
     catch (error) {
@@ -770,7 +801,7 @@ async function refresh() {
             </label>
           </td>
           <td>
-            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">🔧</button>
+            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">⚙️</button>
             <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">🔄</button>
             <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">🗑️</button>
           </td>
@@ -1109,8 +1140,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-warning:hover { color: #000; background: var(--warning); border-color: var(--warning); }
 
 /* Modal */
-.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); }
-.modal-content { background: var(--sidebar); margin: 10% auto; padding: 32px; border: 1px solid var(--border); width: 500px; border-radius: 24px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); overflow-y: auto; }
+.modal-content { background: var(--sidebar); margin: 40px auto; padding: 32px; border: 1px solid var(--border); width: 700px; max-width: 95%; border-radius: 24px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
 .form-group { margin-bottom: 20px; }
 label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500; }
 input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 10px; font-family: var(--font-main); transition: 0.3s; }
@@ -1294,18 +1325,40 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
   <!-- Modal Edit User -->
   <div id="modal-edit" class="modal">
-    <div class="modal-content" style="width: 700px; margin: 5% auto">
+    <div class="modal-content">
       <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
         <span>⚙️</span> Configurar Membro SaaS
       </h2>
       <input type="hidden" id="edit-chatId">
       
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
-        <!-- Coluna 1: Básico -->
+        <!-- Coluna 1: Básico & Conta -->
         <div>
+          <div style="margin-bottom: 20px; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px">
+            <h3 style="margin-bottom: 12px; font-size: 0.85rem; color: var(--accent); display: flex; align-items: center; gap: 8px">
+              👤 Conta do Usuário
+            </h3>
+            <div class="form-group">
+                <label>Nome / Usuário</label>
+                <input type="text" id="edit-username" placeholder="Nome">
+            </div>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="edit-email" placeholder="email@exemplo.com">
+            </div>
+            <div class="form-group" style="margin-bottom: 0">
+                <label>Nova Senha</label>
+                <input type="password" id="edit-password" placeholder="•••••••• (deixe vazio)">
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Endereço do Trader Monitorado</label>
             <input type="text" id="edit-trader" placeholder="0x...">
+          </div>
+          <div class="form-group">
+            <label>Endereço Proxy (Polymarket)</label>
+            <input type="text" id="edit-proxyAddress" placeholder="0x...">
           </div>
           <div class="form-group">
             <label>Estratégia de Cópia</label>
@@ -1325,9 +1378,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
               <option value="LIMIT">Limit (Preço Alvo)</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Slippage Máximo (%)</label>
-            <input type="number" id="edit-slippage" step="0.01">
+          <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+            <div>
+              <label>Slippage Compra (%)</label>
+              <input type="number" id="edit-slippageBuy" step="0.01">
+            </div>
+            <div>
+              <label>Slippage Venda (%)</label>
+              <input type="number" id="edit-slippageSell" step="0.01">
+            </div>
           </div>
         </div>
 
@@ -1431,15 +1490,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <td><span class="badge \${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">\${u.step.toUpperCase()}</span></td>
             <td>
               <label class="switch">
-                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u.chatId}', this.checked)">
+                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u._id}', this.checked)">
                 <span class="slider"></span>
               </label>
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">🔧</button>
-                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
-                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u._id}')">⚙️</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u._id}')">🔄</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u._id}')">🗑️</button>
               </div>
             </td>
           </tr>
@@ -1462,8 +1521,8 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       } catch (e) { console.error('Refresh failed:', e); }
     }
 
-    async function toggleUser(chatId, enabled) {
-      await fetch(\`/api/users/\${chatId}/config\`, {
+    async function toggleUser(id, enabled) {
+      await fetch(\`/api/users/\${id}/config\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: { enabled } })
@@ -1472,18 +1531,24 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       refresh();
     }
 
-    async function editUser(chatId) {
+    async function editUser(id) {
       try {
-        const res = await fetch(\`/api/users/\${chatId}\`);
-        const user = await res.json();
-        const c = user.config || {};
+        const res = await fetch(\`/api/users/\${id}\`);
+        const u = await res.json();
+        const c = u.config || {};
         
-        document.getElementById('edit-chatId').value = chatId;
+        document.getElementById('edit-chatId').value = u._id || u.chatId;
+        document.getElementById('edit-username').value = u.username || '';
+        document.getElementById('edit-email').value = u.email || '';
+        document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
+        
         document.getElementById('edit-trader').value = c.traderAddress || '';
+        document.getElementById('edit-proxyAddress').value = u.wallet?.proxyAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
         document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
-        document.getElementById('edit-slippage').value = c.slippage || 0.05;
+        document.getElementById('edit-slippageBuy').value = c.slippageBuy || 0.05;
+        document.getElementById('edit-slippageSell').value = c.slippageSell || 0.05;
         document.getElementById('edit-minPrice').value = c.minPrice || 0;
         document.getElementById('edit-maxPrice').value = c.maxPrice || 1.0;
         document.getElementById('edit-minTrade').value = c.minTradeSize || 0;
@@ -1497,13 +1562,19 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     }
 
     async function commitUserEdit() {
-      const chatId = document.getElementById('edit-chatId').value;
+      const id = document.getElementById('edit-chatId').value;
+      const username = document.getElementById('edit-username').value.trim();
+      const email = document.getElementById('edit-email').value.trim();
+      const password = document.getElementById('edit-password').value.trim();
+
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
+        proxyAddress: document.getElementById('edit-proxyAddress').value,
         strategy: document.getElementById('edit-strategy').value,
         copySize: parseFloat(document.getElementById('edit-size').value),
         orderType: document.getElementById('edit-orderType').value,
-        slippage: parseFloat(document.getElementById('edit-slippage').value),
+        slippageBuy: parseFloat(document.getElementById('edit-slippageBuy').value),
+        slippageSell: parseFloat(document.getElementById('edit-slippageSell').value),
         minPrice: parseFloat(document.getElementById('edit-minPrice').value),
         maxPrice: parseFloat(document.getElementById('edit-maxPrice').value),
         minTradeSize: parseFloat(document.getElementById('edit-minTrade').value),
@@ -1513,10 +1584,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         copySell: document.getElementById('edit-copySell').checked
       };
       
-      const res = await fetch(\`/api/users/\${chatId}/config\`, {
+      const payload = { config };
+      if (username) payload.username = username;
+      if (email) payload.email = email;
+      if (password) payload.password = password;
+
+      const res = await fetch(\`/api/users/\${id}/config\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config })
+        body: JSON.stringify(payload)
       });
       
       if (res.ok) {
@@ -1528,18 +1604,35 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       }
     }
 
-    async function resetUser(chatId) {
+     async function resetUser(id) {
       if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
-      await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
-      showBanner('Usuário resetado com sucesso', 'warning');
-      refresh();
+      try {
+        const res = await fetch(\`/api/users/\${id}/reset\`, { method: 'POST' });
+        if (res.ok) {
+          showBanner('Usuário resetado com sucesso', 'warning');
+          refresh();
+        } else {
+          showBanner('Erro ao resetar usuário', 'danger');
+        }
+      } catch (e) {
+        showBanner('Erro de conexão ao resetar', 'danger');
+      }
     }
 
-    async function deleteUser(chatId) {
+    async function deleteUser(id) {
       if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
-      await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
-      showBanner('Membro excluído do SaaS', 'danger');
-      refresh();
+      try {
+        const res = await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
+        if (res.ok) {
+          showBanner('Membro excluído do SaaS', 'danger');
+          refresh();
+        } else {
+          const data = await res.json();
+          showBanner(data.error || 'Erro ao excluir usuário', 'danger');
+        }
+      } catch (e) {
+        showBanner('Erro de conexão ao excluir', 'danger');
+      }
     }
 
     async function loadGlobalConfig() {
@@ -1624,6 +1717,7 @@ aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--
 .nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+.nav-item.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
 main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
 .wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
@@ -1658,9 +1752,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
       <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
-      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📌</span> Posições Abertas</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📍</span> Posições Abertas</div>
       <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
-      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚪</span> Sair</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚫</span> Sair</div>
     </div>
   </aside>
   <main>
@@ -1739,7 +1833,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <th>VALOR TRADER</th>
                             <th>ENTRADA</th>
                             <th>ATUAL</th>
-                            <th>P&amp;L TRADER</th>
+                            <th>P&L TRADER</th>
                             <th title="Quanto você colocou nessa operação">MINHA ENTRADA</th>
                             <th title="Seu lucro/prejuízo atual em USD">MEU LUCRO</th>
                             <th>STATUS</th>
@@ -1766,7 +1860,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <th>ATUAL</th>
                             <th>QTD TOKENS</th>
                             <th>VALOR (USD)</th>
-                            <th>P&amp;L (%)</th>
+                            <th>P&L (%)</th>
                         </tr>
                     </thead>
                     <tbody id="user-positions-body">
@@ -1782,100 +1876,77 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parâmetros de risco e execução do seu bot.</p>
 
         <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
-            <div class="card">
-                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
-                <div class="form-group">
-                    <label>Iniciais do Trader / Wallet</label>
-                    <input type="text" id="bot-trader" placeholder="0x...">
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+            <!-- COLUNA ESQUERDA: ESTRATÉGIA E EXECUÇÃO -->
+            <div style="display: flex; flex-direction: column; gap: 24px">
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
                     <div class="form-group">
-                        <label>Estratégia</label>
-                        <select id="bot-strategy">
-                            <option value="PERCENTAGE">Porcentagem (%)</option>
-                            <option value="FIXED">Valor Fixo ($)</option>
+                        <label>Modo de Operação</label>
+                        <select id="bot-mode">
+                            <option value="COPY">COPY: Cópia Automática</option>
+                            <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Valor / %</label>
-                        <input type="number" id="bot-size" step="0.1">
+                        <label>Endereço do Trader Monitorado</label>
+                        <input type="text" id="bot-trader" placeholder="0x...">
+                    </div>
+                    <div class="form-group">
+                        <label>Sua Carteira Proxy (Polymarket)</label>
+                        <div style="display:flex; gap:8px">
+                            <input type="text" id="bot-proxyAddress" placeholder="0x..." style="flex:1">
+                            <button class="btn btn-sm btn-outline" onclick="syncProxy()" style="width:auto; white-space:nowrap">Sincronizar</button>
+                        </div>
+                        <small style="color:var(--text-dim)">O bot detecta automaticamente, mas você pode ajustar se o saldo aparecer como $0.00. <a href="https://polymarket.com/settings" target="_blank" style="color:var(--accent)">Ver na Polymarket</a></small>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Estratégia</label>
+                            <select id="bot-strategy">
+                                <option value="PERCENTAGE">Porcentagem (%)</option>
+                                <option value="FIXED">Valor Fixo ($)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Valor / %</label>
+                            <input type="number" id="bot-size" step="0.1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Ordem</label>
+                        <select id="bot-orderType">
+                            <option value="MARKET">Market (Execução Rápida)</option>
+                            <option value="LIMIT">Limit (Preço Específico)</option>
+                        </select>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Slippage Compra (%)</label>
+                            <input type="number" id="bot-slippageBuy" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Slippage Venda (%)</label>
+                            <input type="number" id="bot-slippageSell" step="0.01">
+                        </div>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Tipo de Ordem</label>
-                    <select id="bot-orderType">
-                        <option value="MARKET">Market (Execução Rápida)</option>
-                        <option value="LIMIT">Limit (Preço Específico)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Slippage Máximo (%)</label>
-                    <input type="number" id="bot-slippage" step="0.01">
-                </div>
-            </div>
 
-            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
-                <div>
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
-                            <label>Preço Mínimo</label>
-                            <input type="number" id="bot-minPrice" step="0.01">
+                            <label>Trigger Delta ($)</label>
+                            <input type="number" id="bot-triggerDelta" step="0.001">
+                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
                         </div>
                         <div class="form-group">
-                            <label>Preço Máximo</label>
-                            <input type="number" id="bot-maxPrice" step="0.01">
+                            <label>Hedge Ceiling / Teto Max ($)</label>
+                            <input type="number" id="bot-hedgeCeiling" step="0.01">
+                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
                         </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
-                        <div class="form-group">
-                            <label style="color:var(--success)">Auto Take-Profit (%)</label>
-                            <input type="number" id="bot-tpPercent" step="1" placeholder="Ex: 50">
-                            <small style="color:var(--text-dim)">Venda automática ao atingir este lucro (0 = desativado)</small>
-                        </div>
-                        <div class="form-group">
-                            <label style="color:var(--danger)">Auto Stop-Loss (%)</label>
-                            <input type="number" id="bot-slPercent" step="1" placeholder="Ex: -20">
-                            <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuízo (0 = desativado)</small>
-                        </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
-                        <div class="form-group">
-                            <label>Trade Min ($)</label>
-                            <input type="number" id="bot-minTrade" step="1">
-                        </div>
-                        <div class="form-group">
-                            <label>Trade Max ($)</label>
-                            <input type="number" id="bot-maxTrade" step="1">
-                        </div>
-                    </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
-                        <div class="form-group">
-                            <label>Max Por Mercado ($ USD)</label>
-                            <input type="number" id="bot-maxPerMarket" step="1">
-                        </div>
-                        <div class="form-group">
-                            <label>Max Por Token Yes/No ($ USD)</label>
-                            <input type="number" id="bot-maxPerToken" step="1">
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
-                        <div class="form-group">
-                            <label>Limite Geral de Gasto (Total USD)</label>
-                            <input type="number" id="bot-totalSpendLimit" step="1">
-                            <small style="color:var(--text-dim)">Pausa automaticamente após alcançar este gasto.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Volume Máximo em Aberto ($)</label>
-                            <input type="number" id="bot-maxExposure" step="1">
-                            <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 20px; display: grid; gap: 12px">
+                    <div style="margin-top: 24px; display: grid; gap: 12px">
                         <label class="switch-container">
                             <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
                         </label>
@@ -1890,11 +1961,73 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </label>
                     </div>
                 </div>
-                <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
+            </div>
+
+            <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
+            <div style="display: flex; flex-direction: column; gap: 24px">
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Preço Mínimo</label>
+                            <input type="number" id="bot-minPrice" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Preço Máximo</label>
+                            <input type="number" id="bot-maxPrice" step="0.01">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
+                        <div class="form-group">
+                            <label style="color:var(--success)">Auto Take-Profit (%)</label>
+                            <input type="number" id="bot-tpPercent" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label style="color:var(--danger)">Auto Stop-Loss (%)</label>
+                            <input type="number" id="bot-slPercent" step="1">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label style="color:var(--danger)">🛑 Balance SL ($) - Kill Switch</label>
+                        <input type="number" id="bot-balanceSl" step="1">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
+                        <div class="form-group">
+                            <label>Trade Min ($)</label>
+                            <input type="number" id="bot-minTrade" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Trade Max ($)</label>
+                            <input type="number" id="bot-maxTrade" step="1">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
+                        <div class="form-group">
+                            <label>Max Por Mercado ($)</label>
+                            <input type="number" id="bot-maxPerMarket" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Por Token ($)</label>
+                            <input type="number" id="bot-maxPerToken" step="1">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
+                        <div class="form-group">
+                            <label>Limite Geral de Gasto ($)</label>
+                            <input type="number" id="bot-totalSpendLimit" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Volume Máximo em Aberto ($)</label>
+                            <input type="number" id="bot-maxExposure" step="1">
+                        </div>
+                    </div>
+                    <button class="btn" style="margin-top: 40px; width: 100%" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
+                </div>
             </div>
         </div>
 
-        <div class="card" style="margin-top: 24px">
+            <!-- Keep these inside tab-config -->
+            <div class="card" style="margin-top: 24px">
             <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Filtros Avançados & Anti-Scam (Fase 5)</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div class="form-group">
@@ -1922,7 +2055,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         <div class="card" style="margin-top: 24px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
-                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💳</span> Gestão da Carteira</h3>
+                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💰</span> Gestão da Carteira</h3>
                 <div style="text-align: right">
                     <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px">CARTEIRA OPERACIONAL</div>
                     <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
@@ -1957,11 +2090,26 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     let currentTab = 'bot';
 
     function switchTab(tab) {
+        if (currentUser && currentUser.step !== 'ready' && tab !== 'bot') return;
         currentTab = tab;
         document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
-        document.getElementById('tab-' + tab).style.display = 'block';
+        const target = document.getElementById('tab-' + tab);
+        if (target) target.style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        document.getElementById('nav-' + tab).classList.add('active');
+        const navTarget = document.getElementById('nav-' + tab);
+        if (navTarget) navTarget.classList.add('active');
+    }
+
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.textContent;
+            btn.textContent = 'COPIADO!';
+            btn.style.color = 'var(--success)';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.color = 'var(--accent)';
+            }, 2000);
+        });
     }
 
     async function loadUser() {
@@ -1983,17 +2131,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        const isArbitrageMode = currentUser.config?.mode === 'ARBITRAGE';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || !hasTrader || !isReady) {
+        if (!hasWallet || (!hasTrader && !isArbitrageMode) || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(i => {
+                if (i.id !== 'nav-bot') i.classList.add('disabled');
+            });
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader) renderStep2();
+            else if (!hasTrader && !isArbitrageMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
             renderMainDashboard();
         }
@@ -2004,7 +2157,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para voc\u00EA. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
@@ -2020,8 +2173,45 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function generateWallet(btn) {
         btn.disabled = true; btn.textContent = 'Gerando...';
-        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
-        if (res.ok) loadUser();
+        try {
+            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                document.getElementById('step-content').innerHTML = \`
+                    <div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:24px; border-radius:16px; margin-bottom:24px; animation:fadeIn 0.3s ease">
+                        <h4 style="color:var(--success); margin-bottom:16px">\u2705 Carteira Gerada com Sucesso!</h4>
+                        <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, voc\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
+                        
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:16px; position:relative">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">CHAVE PRIVADA</div>
+                            <div style="color:var(--accent); word-break:break-all" id="generated-pk">\${data.privateKey}</div>
+                            <button onclick="copyToClipboard('\${data.privateKey}', this)" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:700">COPIAR</button>
+                        </div>
+
+                        <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:16px; border-radius:12px; margin-bottom:20px">
+                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Pr\u00F3ximos Passos na Polymarket:</h5>
+                            <ol style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.4; margin-bottom:12px">
+                                <li>Importe sua <b>Chave Privada</b> no MetaMask.</li>
+                                <li>Conecte na Polymarket para ativar sua <b>Carteira Proxy</b>.</li>
+                                <li>O bot detectar\u00E1 seu saldo automaticamente via Proxy.</li>
+                            </ol>
+                            <button onclick="window.open('https://polymarket.com/settings', '_blank')" style="margin-bottom:8px; width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">VERIFICAR NA POLYMARKET</button>
+                            <small style="font-size:0.65rem; color:var(--text-dim); display:block; text-align:center">Se o bot n\u00E3o detectar seu saldo, v\u00E1 em Configura\u00E7\u00F5es e cole o endere\u00E7o da Polymarket.</small>
+                        </div>
+
+                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
+                        
+                        <button class="btn" onclick="loadUser()">J\u00C1 SALVEI EM LOCAL SEGURO, PROSSEGUIR</button>
+                    </div>
+                \`;
+            } else {
+                showBanner(data.error || 'Erro ao gerar carteira', 'danger');
+                btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            }
+        } catch (e) {
+            showBanner('Erro de conex\u00E3o', 'danger');
+            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+        }
     }
 
     async function importWallet(btn) {
@@ -2063,18 +2253,35 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endere\u00E7o do trader que deseja copiar. O bot monitorar\u00E1 cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endereço da Carteira (Polymarket)</label>
+                <label>Endere\u00E7o da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+            <button class="btn" onclick="nextToStep3(this)">Pr\u00F3ximo Passo: Estrat\u00E9gia</button>
+            <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">OU</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar rob\u00F4 de Hedge Aut\u00F4nomo com Perna dupla (BTC).</p>
         \`;
+    }
+
+    async function enterAfkMode(btn) {
+        btn.disabled = true; btn.textContent = 'Configurando...';
+        await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'ARBITRAGE', finalize: true })
+        });
+        loadUser();
     }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endere\u00E7o Inv\u00E1lido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2089,33 +2296,33 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
+        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estrat\u00E9gia';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como voc\u00EA deseja copiar os trades? Defina o valor inicial da opera\u00E7\u00E3o.</p>
             
             <div class="form-group">
-                <label>Estratégia</label>
+                <label>Estrat\u00E9gia</label>
                 <select id="setup-strategy">
-                    <option value="PERCENTAGE">Cópia Proporcional (%)</option>
+                    <option value="PERCENTAGE">C\u00F3pia Proporcional (%)</option>
                     <option value="FIXED">Valor Fixo (USD)</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>Tamanho da Cópia (Valor ou %)</label>
+                <label>Tamanho da C\u00F3pia (Valor ou %)</label>
                 <input type="number" id="setup-size" value="10" step="0.1">
                 <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
             </div>
 
             <div class="form-group">
-                <label>Volume Máximo em Aberto (Total USD)</label>
+                <label>Volume M\u00E1ximo em Aberto (Total USD)</label>
                 <input type="number" id="setup-maxExposure" value="500" step="1">
-                <small style="color:var(--text-dim)">O bot parará de negociar se seu volume total em posições passar disso.</small>
+                <small style="color:var(--text-dim)">O bot parar\u00E1 de negociar se seu volume total em posi\u00E7\u00F5es passar disso.</small>
             </div>
 
             <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
-                    💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                    \uD83D\uDCA1 Voc\u00EA poder\u00E1 alterar essas e outras configura\u00E7\u00F5es avan\u00E7adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
                 </p>
             </div>
 
@@ -2128,9 +2335,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         const size = parseFloat(document.getElementById('setup-size').value);
         const maxExposure = parseFloat(document.getElementById('setup-maxExposure').value);
         
-        if (isNaN(size) || size <= 0) return showBanner('Valor Inválido', 'warning');
+        if (isNaN(size) || size <= 0) return showBanner('Valor Inv\u00E1lido', 'warning');
         
-        btn.disabled = true; btn.textContent = 'Iniciando Operação...';
+        btn.disabled = true; btn.textContent = 'Iniciando Opera\u00E7\u00E3o...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2146,7 +2353,17 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
             
             const addrDisplay = document.getElementById('trader-addr-display');
-            if (addrDisplay) addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+            const isArbitrage = c.mode === 'ARBITRAGE';
+            
+            if (addrDisplay) {
+                if (isArbitrage) {
+                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
+                    addrDisplay.style.color = 'var(--warning)';
+                } else {
+                    addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+                    addrDisplay.style.color = 'var(--accent)';
+                }
+            }
             
             // Status UI
             const statusText = document.getElementById('bot-status-text');
@@ -2167,7 +2384,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
             setVal('bot-orderType', c.orderType || 'MARKET');
-            setVal('bot-slippage', c.slippage || 0.05);
+            setVal('bot-slippageBuy', c.slippageBuy || 0.05);
+            setVal('bot-slippageSell', c.slippageSell || 0.05);
             setVal('bot-tpPercent', c.tpPercent || 0);
             setVal('bot-slPercent', c.slPercent || 0);
             setVal('bot-minPrice', c.minPrice || 0);
@@ -2181,6 +2399,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-lastMinuteModeSec', c.lastMinuteModeSec || 0);
             setVal('bot-maxMarketCount', c.maxMarketCount || 0);
             setVal('bot-minMarketLiquidity', c.minMarketLiquidity || 0);
+            setVal('bot-balanceSl', c.balanceSl || 0);
+            setVal('bot-triggerDelta', c.triggerDelta || 0.005);
+            setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
+            setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
+            setVal('bot-mode', c.mode || 'COPY');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2210,7 +2433,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
+        if (!pk) return showBanner('Chave Privada Necess\u00E1ria', 'warning');
         btn.disabled = true; btn.textContent = 'Importando...';
         const res = await fetch('/api/user/import-wallet', {
             method: 'POST',
@@ -2224,13 +2447,48 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function generateWalletSettings(btn) {
-        if (!confirm('Isso criará uma nova carteira e substituirá a atual. Deseja continuar?')) return;
+        if (!confirm('Deseja gerar uma NOVA carteira? A atual ser\u00E1 substit\u00EDda no sistema.')) return;
         btn.disabled = true; btn.textContent = 'Gerando...';
-        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
-        const data = await res.json();
-        btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
-        if (res.ok) { showBanner('Nova Carteira Gerada!', 'success'); loadUser(); }
-        else { showBanner(data.error || 'Falha ao gerar', 'danger'); }
+        try {
+            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const data = await res.json();
+            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            if (res.ok && data.success) {
+                document.getElementById('tab-config').innerHTML = \`
+                    <div style="max-width:600px; margin:0 auto; background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:32px; border-radius:16px; animation:fadeIn 0.3s ease">
+                        <h3 style="color:var(--success); margin-bottom:20px">\u2705 Nova Carteira Criada!</h3>
+                        <p style="color:var(--text-dim); margin-bottom:20px">Sua carteira anterior foi substitu\u00EDda. Salve os dados abaixo imediatamente.</p>
+                        
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:20px">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">ENDERE\u00C7O</div>
+                            <div style="word-break:break-all">\${data.address}</div>
+                        </div>
+
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:24px; position:relative">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">CHAVE PRIVADA (CONSERVAR!)</div>
+                            <div style="color:var(--accent); word-break:break-all">\${data.privateKey}</div>
+                            <button onclick="copyToClipboard('\${data.privateKey}', this)" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:700">COPIAR</button>
+                        </div>
+
+                        <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:20px; border-radius:12px; margin-bottom:24px">
+                             <h4 style="color:#3b82f6; margin-bottom:12px; font-size:0.9rem">\uD83D\uDD17 Instru\u00E7\u00F5es de V\u00EDnculo:</h4>
+                             <ul style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.6">
+                                <li>Importe esta <b>Chave Privada</b> no seu MetaMask.</li>
+                                <li>Conecte sua MetaMask no site da Polymarket.</li>
+                             </ul>
+                             <button onclick="window.open('https://polymarket.com', '_blank')" style="margin-top:12px; width:100%; padding:12px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700">ABRIR POLYMARKET</button>
+                        </div>
+
+                        <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
+                    </div>
+                \`;
+            } else {
+                showBanner(data.error || 'Falha ao gerar', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conex\u00E3o', 'danger');
+            btn.disabled = false;
+        }
     }
 
     async function refreshStats() {
@@ -2266,35 +2524,35 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
                 // Status styling
                 const statusStyles = {
-                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '✅' },
-                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '⚡' },
-                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '💸' },
-                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '📊' },
-                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '⚠️' },
-                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '📏' },
-                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🚫' },
-                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💲' },
-                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🧩' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' },
+                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '\u2705' },
+                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '\u26A1' },
+                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCB8' },
+                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCCA' },
+                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\u26A0\uFE0F' },
+                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCCF' },
+                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDEAB' },
+                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
+                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\u274C' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\uD83D\uDD34' }
                 };
-                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '🔵' };
+                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '\uD83D\uDD35' };
 
                 // P&L styling
-                let pnlHtml = '<span style="color:var(--text-dim)">—</span>';
+                let pnlHtml = '<span style="color:var(--text-dim)">\\u2014</span>';
                 if (t.pnlPercent !== null && t.pnlPercent !== undefined) {
                     const pnlColor = t.pnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
-                    const pnlIcon = t.pnlPercent >= 0 ? '↑' : '↓';
+                    const pnlIcon = t.pnlPercent >= 0 ? '\\u2197\\uFE0F' : '\\u2198\\uFE0F';
                     pnlHtml = \`<span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${t.pnlLabel}</span>\`;
                 }
 
                 // Entry price
-                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}¢\` : '—';
-                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}¢\` : '—';
+                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}\\u00A2\` : '\\u2014';
+                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}\\u00A2\` : '\\u2014';
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
@@ -2308,13 +2566,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                     <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
                     <td>\${marketLink}</td>
-                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'▲ COMPRA':'▼ VENDA'}</span></td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'\uD83D\uDCC8 COMPRA':'\uD83D\uDCC9 VENDA'}</span></td>
                     <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
                     <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
@@ -2346,9 +2604,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             copySize: parseFloat(document.getElementById('bot-size').value),
             maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
             orderType: document.getElementById('bot-orderType').value,
-            slippage: parseFloat(document.getElementById('bot-slippage').value),
+            slippageBuy: parseFloat(document.getElementById('bot-slippageBuy').value),
+            slippageSell: parseFloat(document.getElementById('bot-slippageSell').value),
             tpPercent: parseFloat(document.getElementById('bot-tpPercent').value),
             slPercent: parseFloat(document.getElementById('bot-slPercent').value),
+            balanceSl: parseFloat(document.getElementById('bot-balanceSl').value),
             minPrice: parseFloat(document.getElementById('bot-minPrice').value),
             maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
             minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
@@ -2363,14 +2623,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             sniperModeSec: parseInt(document.getElementById('bot-sniperModeSec').value) || 0,
             lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value) || 0,
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
-            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0
+            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
+            mode: document.getElementById('bot-mode').value,
+            triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
+            proxyAddress: document.getElementById('bot-proxyAddress').value
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
-        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+        if (res.ok) { showBanner('ConfiguraÃ§Ãµes Salvas', 'success'); loadUser(); }
     }
 
     function showBanner(msg, type = 'success') {
@@ -2382,6 +2646,28 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
+
+    async function syncProxy() {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = 'Buscando...';
+        try {
+            const res = await fetch('/api/user/me');
+            const data = await res.json();
+            if (data.wallet?.address) {
+                // We ask the backend to re-run detection effectively
+                // But for now we just show what's currently stored or try to fetch
+                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
+                loadUser(); 
+            }
+        } catch (e) {
+            showBanner('Erro ao sincronizar', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Sincronizar';
+        }
+    }
+
     
     // Auto refresh stats e trades em tempo real
     setInterval(refreshStats, 30000);
@@ -2397,22 +2683,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posiÃ§Ã£o ativa encontrada no momento.</td></tr>\`;
                 return;
             }
 
             tbody.innerHTML = positions.map(p => {
                 const pnl = p.pnlPercent !== undefined ? p.pnlPercent : 0;
                 const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
-                const pnlIcon = pnl >= 0 ? '↑' : '↓';
+                const pnlIcon = pnl >= 0 ? 'â†‘' : 'â†“';
                 
                 const mktLink = \`<a href="https://polymarket.com/event/\${p.slug || ''}" target="_blank" style="color:var(--accent); font-size:0.85rem">\${(p.title || 'Mercado Desconhecido').slice(0, 45)}...</a>\`;
 
                 return \`<tr>
                     <td>\${mktLink}</td>
                     <td><span style="font-weight:700">\${p.assetName || p.asset.slice(0,6)}</span></td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}¢</td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}Â¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}Â¢</td>
                     <td style="font-weight:700">\${p.size.toFixed(2)}</td>
                     <td style="font-weight:700; color:#fff">$\${p.currentValue.toFixed(2)}</td>
                     <td><span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${(pnl>=0?'+':'')}\${pnl.toFixed(2)}%</span></td>
@@ -2451,19 +2737,21 @@ app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de alterar a carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
         }
         const newWallet = ethers.Wallet.createRandom();
+        const proxyAddress = yield findPolymarketProxy(newWallet.address);
         user.wallet = {
             address: newWallet.address,
-            privateKey: newWallet.privateKey
+            privateKey: newWallet.privateKey,
+            proxyAddress: proxyAddress || newWallet.address
         };
         // Only set to setup if not already ready (to allow seamless swaps)
         if (user.step !== 'ready')
             user.step = 'setup';
         yield user.save();
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
-        res.json({ success: true, address: newWallet.address });
+        res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
     }
     catch (e) {
         console.error('[WALLET] Generation error:', e);
@@ -2481,18 +2769,20 @@ app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(v
         if (!privateKey.startsWith('0x'))
             privateKey = '0x' + privateKey;
         if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada inválida (formato incorreto)' });
+            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
         }
         const wallet = new ethers.Wallet(privateKey);
         const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
+        const proxyAddress = yield findPolymarketProxy(wallet.address);
         user.wallet = {
             address: wallet.address,
-            privateKey: wallet.privateKey
+            privateKey: wallet.privateKey,
+            proxyAddress: proxyAddress || wallet.address
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready')
@@ -2503,7 +2793,7 @@ app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(v
     }
     catch (e) {
         console.error('[WALLET] Import error:', e);
-        res.status(400).json({ error: 'Chave Privada Inválida ou Malformada' });
+        res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
     }
 }));
 app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -2511,7 +2801,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippage, tpPercent, slPercent, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -2522,13 +2812,26 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.strategy = strategy;
     if (copySize !== undefined)
         user.config.copySize = copySize;
+    if (proxyAddress !== undefined) {
+        if (!user.wallet)
+            user.wallet = { address: '', privateKey: '' };
+        user.wallet.proxyAddress = proxyAddress;
+    }
     // Advanced fields
     if (reverseCopy !== undefined)
         user.config.reverseCopy = reverseCopy;
     if (orderType !== undefined)
         user.config.orderType = orderType;
-    if (slippage !== undefined)
-        user.config.slippage = slippage;
+    if (slippageBuy !== undefined)
+        user.config.slippageBuy = slippageBuy;
+    if (slippageSell !== undefined)
+        user.config.slippageSell = slippageSell;
+    if (balanceSl !== undefined)
+        user.config.balanceSl = balanceSl;
+    if (triggerDelta !== undefined)
+        user.config.triggerDelta = triggerDelta;
+    if (hedgeCeiling !== undefined)
+        user.config.hedgeCeiling = hedgeCeiling;
     if (tpPercent !== undefined)
         user.config.tpPercent = tpPercent;
     if (slPercent !== undefined)
@@ -2563,6 +2866,8 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined)
         user.config.minMarketLiquidity = minMarketLiquidity;
+    if (mode !== undefined)
+        user.config.mode = mode;
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
@@ -2575,7 +2880,8 @@ app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0
         if (!user || !user.wallet || !user.wallet.address) {
             return res.status(400).json({ error: 'Carteira não configurada' });
         }
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
+        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
         if (!Array.isArray(positionsData)) {
             return res.json([]);
         }
@@ -2605,7 +2911,7 @@ app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0
     }
     catch (e) {
         console.error('Error fetching positions:', e);
-        res.status(500).json({ error: 'Erro ao buscar posições' });
+        res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
     }
 }));
 app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -2706,15 +3012,16 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
     }
 }));
 app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c, _d, _e;
     try {
         const user = req.fullUser;
         if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
             return res.json({ balance: 0, exposure: 0 });
-        const balance = yield getMyBalance(user.wallet.address);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
+        const proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
+        const balance = yield getMyBalance(((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.address) || '', (_e = user.wallet) === null || _e === void 0 ? void 0 : _e.proxyAddress);
+        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
         // Fetch positions to calculate exposure
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
         res.json({ balance, exposure });
     }
@@ -2735,12 +3042,30 @@ app.get('/', authenticateToken, (req, res) => {
     }
 });
 export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
+    var _a;
+    // Initialize global proxy if configured
+    yield setupProxy();
     yield bootstrapAdmin();
+    // ONE-TIME FIX: User identified proxy wallet mismatch
+    try {
+        const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
+        if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
+            console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
+            if (!userToFix.wallet)
+                userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
+            userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
+            yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
+            console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
+        }
+    }
+    catch (e) {
+        console.error('[FIX] Manual proxy fix failed:', e);
+    }
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
-        console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
-        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
-        console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
+        console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);
+        console.log(`ðŸ“– Swagger: http://0.0.0.0:${port}/docs`);
+        console.log(`ðŸ”Œ API:     http://0.0.0.0:${port}/api/health\n`);
     });
 });
 export default app;

@@ -13,8 +13,7 @@ import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
 import setupProxy from '../utils/setupProxy.js';
 
-// Initialize global proxy if configured
-setupProxy();
+// Global proxy will be initialized inside startServer
 
 const app = express();
 app.use(express.json());
@@ -3064,6 +3063,9 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
 });
 
 export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
+    // Initialize global proxy if configured
+    await setupProxy();
+    
     await bootstrapAdmin();
     
     // ONE-TIME FIX: User identified proxy wallet mismatch

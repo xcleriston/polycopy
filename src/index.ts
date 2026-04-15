@@ -12,8 +12,7 @@ import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 import setupProxy from './utils/setupProxy.js';
 
-// Initialize global proxy if configured
-setupProxy();
+// Function handles proxy initialization inside main
 
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');
@@ -89,6 +88,9 @@ export const main = async () => {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         
         await connectDB();
+        
+        // Initialize global proxy if configured
+        await setupProxy();
         
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {
