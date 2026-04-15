@@ -12,6 +12,7 @@ export interface IUser extends Document {
         privateKey: string;
     };
     config: {
+        mode?: 'COPY' | 'AFK';
         traderAddress: string;
         strategy: string;
         copySize: number;
@@ -60,6 +61,7 @@ const UserSchema: Schema = new Schema({
         privateKey: { type: String },
     },
     config: {
+        mode: { type: String, enum: ['COPY', 'AFK'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },

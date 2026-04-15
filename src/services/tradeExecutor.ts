@@ -49,10 +49,11 @@ const readUnprocessedTrades = async (): Promise<IUserActivity[]> => {
 const doTrading = async (trade: any) => {
     const traderAddress = trade.traderAddress.toLowerCase();
     
-    // Find all users following this trader
+    // Find all users following this trader in COPY mode
     const followers = await User.find({ 
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
-        'config.enabled': true 
+        'config.enabled': true,
+        'config.mode': 'COPY'
     });
 
     if (followers.length === 0) {

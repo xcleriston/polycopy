@@ -373,6 +373,7 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
         const statusMessage = `*📊 STATUS DO SEU BOT*
 
 📍 *Carteira:* ${user.wallet?.address || 'Não configurada'}
+🛰️ *Modo:* ${user.config?.mode || 'COPY'}
 🎯 *Trader:* ${user.config?.traderAddress || 'Não configurado'}
 ⚙️ *Estratégia:* ${user.config?.strategy || 'Não configurada'}
 📝 *Step:* ${user.step || 'Não iniciado'}

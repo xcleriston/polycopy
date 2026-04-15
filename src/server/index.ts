@@ -5,6 +5,19 @@ import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 import bcrypt from 'bcryptjs';
+import Logger from '../utils/logger.js';
+import telegram from '../utils/telegram.js';
+
+// Global error handling to prevent process crash from WebSocket / library errors
+process.on('uncaughtException', (err) => {
+    Logger.error('🔥 UNCAUGHT EXCEPTION: ' + err.message);
+    console.error(err.stack);
+    // Note: Don't exit(1) to keep the dashboard/bot running despite malformed frames
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    Logger.error(`🌪️ UNHANDLED REJECTION at: \${promise} reason: \${reason}`);
+});
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
@@ -42,7 +55,7 @@ const bootstrapAdmin = async () => {
         const hashedPassword = await bcrypt.hash(adminPass, 10);
 
         if (!user) {
-            console.log(`🚀 [BOOTSTRAP] Criando Administrador: ${adminUser}`);
+            console.log(`ðŸš€ [BOOTSTRAP] Criando Administrador: ${adminUser}`);
             user = new User({
                 username: adminUser,
                 email: adminEmail,
@@ -52,13 +65,13 @@ const bootstrapAdmin = async () => {
             });
             await user.save();
         } else {
-            console.log(`⚡ [BOOTSTRAP] Validando permissões de administrador: ${adminUser}`);
+            console.log(`âš¡ [BOOTSTRAP] Validando permissÃµes de administrador: ${adminUser}`);
             user.role = 'admin';
-            user.password = hashedPassword; // Forçar sincronia com env
+            user.password = hashedPassword; // ForÃ§ar sincronia com env
             await user.save();
         }
     } catch (error) {
-        console.error('❌ [BOOTSTRAP] Erro crítico:', error);
+        console.error('âŒ [BOOTSTRAP] Erro crÃ­tico:', error);
     }
 };
 
@@ -406,7 +419,7 @@ app.get('/setup', (_req, res) => {
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PolyCopy - Novo Usuário</title>
+<title>PolyCopy - Novo UsuÃ¡rio</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
@@ -439,7 +452,7 @@ button:disabled{background:#484f58;cursor:not-allowed}
 <input type="text" id="traderAddress" placeholder="0x..." value="0x2005d16a84ceefa912d4e380cd32e7ff827875ea">
 </div>
 <div class="form-group">
-<label>Estratégia:</label>
+<label>EstratÃ©gia:</label>
 <select id="strategy">
 <option value="PERCENTAGE">Porcentagem (10%)</option>
 <option value="FIXED">Valor Fixo ($50)</option>
@@ -489,7 +502,7 @@ async function generateWallet() {
             walletData = data;
             document.getElementById('walletResult').innerHTML = 
                 '<div class="wallet-info">' +
-                '<strong>Endereço:</strong> ' + data.address + '<br>' +
+                '<strong>EndereÃ§o:</strong> ' + data.address + '<br>' +
                 '<strong>Chave Privada:</strong> ' + data.privateKey + '<br><br>' +
                 '<span style="color: var(--red);">SALVE ESTA CHAVE PRIVADA EM LOCAL SEGURO!</span>' +
                 '</div>';
@@ -538,12 +551,12 @@ async function completeSetup() {
                 '<h4>Bot Configurado com Sucesso!</h4>' +
                 '<p><strong>Carteira:</strong> ' + result.wallet.address + '</p>' +
                 '<p><strong>Trader:</strong> ' + result.config.traderAddress + '</p>' +
-                '<p><strong>Estratégia:</strong> ' + result.config.strategy + '</p>' +
+                '<p><strong>EstratÃ©gia:</strong> ' + result.config.strategy + '</p>' +
                 '<p><strong>Modo:</strong> Preview (Seguro)</p>' +
                 '<div class="links">' +
                 '<strong>Links para Funding:</strong><br>' +
                 '<a href="' + result.depositLinks.usdc + '" target="_blank">Bridge USDC para Polygon</a><br>' +
-                '<a href="' + result.depositLinks.pol + '" target="_blank">Comprar POL (gás)</a><br>' +
+                '<a href="' + result.depositLinks.pol + '" target="_blank">Comprar POL (gÃ¡s)</a><br>' +
                 '<a href="/" target="_blank">Acessar Dashboard</a>' +
                 '</div>' +
                 '</div>';
@@ -649,19 +662,19 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
 
   <div class="stats-grid">
     <div class="stat-card animate">
-      <div class="stat-label">Total de Usuários</div>
+      <div class="stat-label">Total de UsuÃ¡rios</div>
       <div id="st-users" class="stat-value">0</div>
-      <div class="stat-sub"><span>↑</span> Registrados</div>
+      <div class="stat-sub"><span>â†‘</span> Registrados</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.1s">
-      <div class="stat-label">Usuários Ativos</div>
+      <div class="stat-label">UsuÃ¡rios Ativos</div>
       <div id="st-active" class="stat-value">0</div>
-      <div class="stat-sub"><span>◉</span> Trading agora</div>
+      <div class="stat-sub"><span>â—‰</span> Trading agora</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.2s">
       <div class="stat-label">Traders Monitorados</div>
       <div id="st-traders" class="stat-value">0</div>
-      <div class="stat-sub"><span>◉</span> Unique traders</div>
+      <div class="stat-sub"><span>â—‰</span> Unique traders</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.3s">
       <div class="stat-label">Modo do Sistema</div>
@@ -671,24 +684,24 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
   </div>
 
   <div class="section-header">
-    <h2>Gerenciar Usuários</h2>
+    <h2>Gerenciar UsuÃ¡rios</h2>
   </div>
 
   <div class="card animate" style="animation-delay: 0.4s">
     <table id="user-table">
       <thead>
         <tr>
-          <th>Usuário (Telegram)</th>
+          <th>UsuÃ¡rio (Telegram)</th>
           <th>Carteira (Bot)</th>
           <th>Trader Seguido</th>
-          <th>Estratégia</th>
+          <th>EstratÃ©gia</th>
           <th>Status</th>
           <th>Ativo?</th>
-          <th>Ações</th>
+          <th>AÃ§Ãµes</th>
         </tr>
       </thead>
       <tbody id="user-body">
-        <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">Carregando usuários...</td></tr>
+        <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">Carregando usuÃ¡rios...</td></tr>
       </tbody>
     </table>
   </div>
@@ -700,7 +713,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
     <table id="trade-table">
       <thead>
         <tr>
-          <th>Horário</th>
+          <th>HorÃ¡rio</th>
           <th>Follower</th>
           <th>Trader</th>
           <th>Lado</th>
@@ -717,14 +730,14 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
 <!-- Modal Edit User -->
 <div id="edit-modal" class="modal">
   <div class="modal-content">
-    <h2 style="margin-bottom: 24px;">Editar Configuração de Usuário</h2>
+    <h2 style="margin-bottom: 24px;">Editar ConfiguraÃ§Ã£o de UsuÃ¡rio</h2>
     <input type="hidden" id="edit-chatid">
     <div class="form-group">
       <label>Trader Monitorado</label>
       <input type="text" id="edit-trader">
     </div>
     <div class="form-group">
-      <label>Estratégia</label>
+      <label>EstratÃ©gia</label>
       <select id="edit-strategy">
         <option value="PERCENTAGE">Porcentagem (%)</option>
         <option value="FIXED">Valor Fixo ($)</option>
@@ -737,7 +750,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
     </div>
     <div class="modal-footer">
       <button class="action-btn" onclick="closeModal()">Cancelar</button>
-      <button class="save-btn" onclick="saveUserConfig()">Salvar Alterações</button>
+      <button class="save-btn" onclick="saveUserConfig()">Salvar AlteraÃ§Ãµes</button>
     </div>
   </div>
 </div>
@@ -769,7 +782,7 @@ async function refresh() {
     } else {
       modeEl.textContent = 'REAL TRADES';
       modeEl.style.color = 'var(--accent)';
-      modeSubEl.textContent = 'Execução real ativa';
+      modeSubEl.textContent = 'ExecuÃ§Ã£o real ativa';
       modeSubEl.style.color = 'var(--danger)';
     }
 
@@ -796,9 +809,9 @@ async function refresh() {
             </label>
           </td>
           <td>
-            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">🔧</button>
-            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">🔄</button>
-            <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">ðŸ”§</button>
+            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">ðŸ”„</button>
+            <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">ðŸ—‘ï¸</button>
           </td>
         </tr>
       \`;
@@ -814,7 +827,7 @@ async function refresh() {
         <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
         <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
         <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${t.title || t.slug}</td>
-        <td>\${t.bot ? '<span style="color: var(--success)">✓ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
+        <td>\${t.bot ? '<span style="color: var(--success)">âœ“ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
       </tr>
     \`).join('');
 
@@ -833,13 +846,13 @@ async function toggleUser(chatId, enabled) {
 }
 
 async function resetUser(chatId) {
-  if (!confirm('Deseja resetar este usuário? A carteira será removida e ele voltará ao início.')) return;
+  if (!confirm('Deseja resetar este usuÃ¡rio? A carteira serÃ¡ removida e ele voltarÃ¡ ao inÃ­cio.')) return;
   await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
   refresh();
 }
 
 async function deleteUser(chatId) {
-  if (!confirm('Deseja excluir permanentemente este usuário?')) return;
+  if (!confirm('Deseja excluir permanentemente este usuÃ¡rio?')) return;
   await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
   refresh();
 }
@@ -977,7 +990,7 @@ const loginHtml = `<!DOCTYPE html>
     </form>
     <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
     <div class="footer">
-      Não tem acesso? <a href="/signup">Solicitar Credenciais</a>
+      NÃ£o tem acesso? <a href="/signup">Solicitar Credenciais</a>
     </div>
   </div>
   <script>
@@ -1037,7 +1050,7 @@ const signupHtml = `<!DOCTYPE html>
     </form>
     <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
     <div class="footer">
-      Já possui acesso? <a href="/login">Conectar</a>
+      JÃ¡ possui acesso? <a href="/login">Conectar</a>
     </div>
   </div>
   <script>
@@ -1163,16 +1176,16 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
       <div class="nav-item active" onclick="showSection('dashboard', this)">
-        <span>📊</span> Dashboard
+        <span>ðŸ“Š</span> Dashboard
       </div>
       <div class="nav-item" onclick="showSection('users', this)">
-        <span>👥</span> Gerenciar Usuários
+        <span>ðŸ‘¥</span> Gerenciar UsuÃ¡rios
       </div>
       <div class="nav-item" onclick="showSection('config', this)">
-        <span>⚙️</span> Configurações Globais
+        <span>âš™ï¸</span> ConfiguraÃ§Ãµes Globais
       </div>
       <div class="nav-item" onclick="showSection('logs', this)">
-        <span>📜</span> Logs de Trading
+        <span>ðŸ“œ</span> Logs de Trading
       </div>
     </div>
     <div style="padding: 30px; border-top: 1px solid var(--border)">
@@ -1198,24 +1211,24 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     <div id="section-dashboard" class="section active">
       <div class="grid">
         <div class="stat-card">
-          <div class="stat-label">Total de Usuários</div>
+          <div class="stat-label">Total de UsuÃ¡rios</div>
           <div id="st-total-users" class="stat-value">0</div>
           <div class="stat-sub" style="color: var(--success)">SaaS Members</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Usuários Ativos</div>
+          <div class="stat-label">UsuÃ¡rios Ativos</div>
           <div id="st-active-users" class="stat-value">0</div>
           <div class="stat-sub" style="color: var(--accent)">Bots Executando</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Modo do Sistema</div>
           <div id="st-sys-mode" class="stat-value" style="font-size: 1.5rem">PREVIEW</div>
-          <div id="st-sys-sub" class="stat-sub" style="color: var(--warning)">Seguro (Simulação)</div>
+          <div id="st-sys-sub" class="stat-sub" style="color: var(--warning)">Seguro (SimulaÃ§Ã£o)</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Uptime do Servidor</div>
           <div id="st-uptime" class="stat-value" style="font-size: 1.5rem">00:00:00</div>
-          <div class="stat-sub">Serviços Online</div>
+          <div class="stat-sub">ServiÃ§os Online</div>
         </div>
       </div>
 
@@ -1245,10 +1258,10 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <tr>
               <th>Identidade</th>
               <th>Carteira Operacional</th>
-              <th>Estratégia / Trader</th>
+              <th>EstratÃ©gia / Trader</th>
               <th>Status Bot</th>
               <th>Ativo?</th>
-              <th>Ações</th>
+              <th>AÃ§Ãµes</th>
             </tr>
           </thead>
           <tbody id="user-body"></tbody>
@@ -1260,9 +1273,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     <div id="section-config" class="section">
       <div class="config-grid">
         <div class="config-group">
-          <h3>Estratégia de Cópia Global</h3>
+          <h3>EstratÃ©gia de CÃ³pia Global</h3>
           <div class="form-group">
-            <label>Tipo de Cálculo</label>
+            <label>Tipo de CÃ¡lculo</label>
             <select id="copyStrategy">
               <option value="PERCENTAGE">Porcentagem (Proporcional)</option>
               <option value="FIXED">Valor Fixo (USD)</option>
@@ -1271,7 +1284,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px">
             <div class="form-group">
-              <label>Tamanho Padrão (%)</label>
+              <label>Tamanho PadrÃ£o (%)</label>
               <input type="number" id="copySize" step="0.1">
             </div>
             <div class="form-group">
@@ -1282,7 +1295,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         </div>
 
         <div class="config-group">
-          <h3>Infraestrutura (Variaveis Sensíveis)</h3>
+          <h3>Infraestrutura (Variaveis SensÃ­veis)</h3>
           <div class="form-group">
             <label>RPC URL (Polygon)</label>
             <input type="url" id="rpcUrl">
@@ -1293,13 +1306,13 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
           </div>
           <div class="form-group" style="display:flex; align-items:center; gap:12px; margin-top:10px">
             <input type="checkbox" id="previewMode" style="width:20px; height:20px; accent-color:var(--accent)">
-            <label style="margin-bottom:0">MODO_PREVIEW_GLOBAL (Simulação Segura)</label>
+            <label style="margin-bottom:0">MODO_PREVIEW_GLOBAL (SimulaÃ§Ã£o Segura)</label>
           </div>
         </div>
       </div>
       <div class="card" style="padding: 24px; margin-top: 30px; display: flex; gap: 15px">
-        <button onclick="saveGlobalConfig()" class="btn btn-accent" style="padding: 12px 30px">Aplicar Mudanças Globais</button>
-        <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para Padrões</button>
+        <button onclick="saveGlobalConfig()" class="btn btn-accent" style="padding: 12px 30px">Aplicar MudanÃ§as Globais</button>
+        <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para PadrÃµes</button>
       </div>
     </div>
 
@@ -1310,7 +1323,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
           <thead>
             <tr>
               <th>Data/Hora</th>
-              <th>ID da Transação</th>
+              <th>ID da TransaÃ§Ã£o</th>
               <th>Vetor</th>
               <th>Volume</th>
               <th>Status de Rede</th>
@@ -1326,60 +1339,60 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
   <div id="modal-edit" class="modal">
     <div class="modal-content" style="width: 700px; margin: 5% auto">
       <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
-        <span>⚙️</span> Configurar Membro SaaS
+        <span>âš™ï¸</span> Configurar Membro SaaS
       </h2>
       <input type="hidden" id="edit-chatId">
       
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
-        <!-- Coluna 1: Básico -->
+        <!-- Coluna 1: BÃ¡sico -->
         <div>
           <div class="form-group">
-            <label>Endereço do Trader Monitorado</label>
+            <label>EndereÃ§o do Trader Monitorado</label>
             <input type="text" id="edit-trader" placeholder="0x...">
           </div>
           <div class="form-group">
-            <label>Estratégia de Cópia</label>
+            <label>EstratÃ©gia de CÃ³pia</label>
             <select id="edit-strategy">
               <option value="PERCENTAGE">Percentage (%)</option>
               <option value="FIXED">Fixed (USD)</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Tamanho da Cópia (Valor/%)</label>
+            <label>Tamanho da CÃ³pia (Valor/%)</label>
             <input type="number" id="edit-size" step="0.1">
           </div>
           <div class="form-group">
             <label>Tipo de Ordem</label>
             <select id="edit-orderType">
-              <option value="MARKET">Market (Instantânea)</option>
-              <option value="LIMIT">Limit (Preço Alvo)</option>
+              <option value="MARKET">Market (InstantÃ¢nea)</option>
+              <option value="LIMIT">Limit (PreÃ§o Alvo)</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Slippage Máximo (%)</label>
+            <label>Slippage MÃ¡ximo (%)</label>
             <input type="number" id="edit-slippage" step="0.01">
           </div>
         </div>
 
-        <!-- Coluna 2: Avançado -->
+        <!-- Coluna 2: AvanÃ§ado -->
         <div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
             <div class="form-group">
-              <label>Preço Mínimo ($)</label>
+              <label>PreÃ§o MÃ­nimo ($)</label>
               <input type="number" id="edit-minPrice" step="0.01">
             </div>
             <div class="form-group">
-              <label>Preço Máximo ($)</label>
+              <label>PreÃ§o MÃ¡ximo ($)</label>
               <input type="number" id="edit-maxPrice" step="0.01">
             </div>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
             <div class="form-group">
-              <label>Trade Mínimo ($)</label>
+              <label>Trade MÃ­nimo ($)</label>
               <input type="number" id="edit-minTrade" step="1">
             </div>
             <div class="form-group">
-              <label>Trade Máximo ($)</label>
+              <label>Trade MÃ¡ximo ($)</label>
               <input type="number" id="edit-maxTrade" step="1">
             </div>
           </div>
@@ -1403,7 +1416,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       <div class="modal-footer">
         <button onclick="closeModal()" class="btn">Cancelar</button>
-        <button onclick="commitUserEdit()" class="btn btn-accent" style="padding-left: 30px; padding-right: 30px">Aplicar Configurações</button>
+        <button onclick="commitUserEdit()" class="btn btn-accent" style="padding-left: 30px; padding-right: 30px">Aplicar ConfiguraÃ§Ãµes</button>
       </div>
     </div>
   </div>
@@ -1437,12 +1450,12 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         if (status.previewMode) {
           modeEl.textContent = 'PREVIEW';
           modeEl.style.color = 'var(--text)';
-          modeSubEl.textContent = 'Simulação Segura Ativa';
+          modeSubEl.textContent = 'SimulaÃ§Ã£o Segura Ativa';
           modeSubEl.style.color = 'var(--warning)';
         } else {
           modeEl.textContent = 'PRODUCTION';
           modeEl.style.color = 'var(--success)';
-          modeSubEl.textContent = 'Operação Real em Chain';
+          modeSubEl.textContent = 'OperaÃ§Ã£o Real em Chain';
           modeSubEl.style.color = 'var(--success)';
         }
 
@@ -1467,9 +1480,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">🔧</button>
-                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
-                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">ðŸ”§</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">ðŸ”„</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">ðŸ—‘ï¸</button>
               </div>
             </td>
           </tr>
@@ -1523,7 +1536,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         document.getElementById('edit-copySell').checked = c.copySell !== false;
         
         document.getElementById('modal-edit').style.display = 'block';
-      } catch (e) { showBanner('Erro ao carregar usuário', 'danger'); }
+      } catch (e) { showBanner('Erro ao carregar usuÃ¡rio', 'danger'); }
     }
 
     async function commitUserEdit() {
@@ -1550,25 +1563,25 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       });
       
       if (res.ok) {
-        showBanner('Configurações do Membro Atualizadas', 'success');
+        showBanner('ConfiguraÃ§Ãµes do Membro Atualizadas', 'success');
         closeModal();
         refresh();
       } else {
-        showBanner('Falha ao atualizar configurações', 'danger');
+        showBanner('Falha ao atualizar configuraÃ§Ãµes', 'danger');
       }
     }
 
     async function resetUser(chatId) {
-      if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
+      if (!confirm('CONFIRMAR RESET? Isso limparÃ¡ a carteira e o fluxo do usuÃ¡rio.')) return;
       await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
-      showBanner('Usuário resetado com sucesso', 'warning');
+      showBanner('UsuÃ¡rio resetado com sucesso', 'warning');
       refresh();
     }
 
     async function deleteUser(chatId) {
-      if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
+      if (!confirm('CONFIRMAR EXCLUSÃƒO PERMANENTE?')) return;
       await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
-      showBanner('Membro excluído do SaaS', 'danger');
+      showBanner('Membro excluÃ­do do SaaS', 'danger');
       refresh();
     }
 
@@ -1597,7 +1610,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
-      if (res.ok) showBanner('Configurações Globais Aplicadas', 'success');
+      if (res.ok) showBanner('ConfiguraÃ§Ãµes Globais Aplicadas', 'success');
     }
 
     function formatUptime(s) {
@@ -1688,16 +1701,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
   <aside>
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
-      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
-      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📌</span> Posições Abertas</div>
-      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
-      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚪</span> Sair</div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>ðŸ¤–</span> Meu RobÃ´</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>ðŸ“Œ</span> PosiÃ§Ãµes Abertas</div>
+      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>âš™ï¸</span> ConfiguraÃ§Ãµes</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>ðŸšª</span> Sair</div>
     </div>
   </aside>
   <main>
     <div id="setup-wizard" class="wizard-card" style="display:none">
-        <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
-        <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
+        <h2 id="wizard-title" style="margin-bottom: 8px">ðŸ¤– ConfiguraÃ§Ã£o Inicial</h2>
+        <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cÃ³pia automÃ¡tica.</p>
         <div class="step-indicator">
             <div id="s1" class="step active">1</div>
             <div id="s2" class="step">2</div>
@@ -1710,7 +1723,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px">
             <div>
                 <h1 style="font-size: 1.8rem">Dashboard <span>Bot</span></h1>
-                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operações em tempo real.</p>
+                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operaÃ§Ãµes em tempo real.</p>
             </div>
             <div id="bot-status-container" style="display: flex; align-items: center; gap: 20px">
                 <div style="text-align: right">
@@ -1723,21 +1736,21 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px">
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">💰</div>
+                <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">ðŸ’°</div>
                 <div>
-                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Saldo Disponível</div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Saldo DisponÃ­vel</div>
                     <div id="stat-balance" style="font-weight: 700; font-size: 1.1rem; color: #fff">$0.00</div>
                 </div>
             </div>
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">📊</div>
+                <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">ðŸ“Š</div>
                 <div>
-                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em Posições</div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em PosiÃ§Ãµes</div>
                     <div id="stat-exposure" style="font-weight: 700; font-size: 1.1rem; color: var(--success)">$0.00</div>
                 </div>
             </div>
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">🎯</div>
+                <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">ðŸŽ¯</div>
                 <div>
                     <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Trader Monitorado</div>
                     <div id="stat-trader" style="font-weight: 700; font-size: 0.9rem; color: #fff">Desconhecido</div>
@@ -1748,13 +1761,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px">
             <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 20px">
                 <div style="display: flex; align-items: center; gap: 15px">
-                    <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">👤</div>
+                    <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">ðŸ‘¤</div>
                     <div>
                         <div id="trader-name" style="font-weight: 700; color: #fff">Nenhum</div>
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
+                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">ConfiguraÃ§Ãµes do Bot</button>
             </div>
         </div>
 
@@ -1771,8 +1784,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <th>ENTRADA</th>
                             <th>ATUAL</th>
                             <th>P&amp;L TRADER</th>
-                            <th title="Quanto você colocou nessa operação">MINHA ENTRADA</th>
-                            <th title="Seu lucro/prejuízo atual em USD">MEU LUCRO</th>
+                            <th title="Quanto vocÃª colocou nessa operaÃ§Ã£o">MINHA ENTRADA</th>
+                            <th title="Seu lucro/prejuÃ­zo atual em USD">MEU LUCRO</th>
                             <th>STATUS</th>
                         </tr>
                     </thead>
@@ -1783,8 +1796,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
 
     <div id="tab-positions" class="tab-view" style="display: none">
-        <h1 style="margin-bottom: 10px">Suas Posições <span>Abertas</span></h1>
-        <p style="color: var(--text-dim); margin-bottom: 30px">Visualize seus tokens ativos e como andam em tempo real. O TP/SL usará essas informações.</p>
+        <h1 style="margin-bottom: 10px">Suas PosiÃ§Ãµes <span>Abertas</span></h1>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Visualize seus tokens ativos e como andam em tempo real. O TP/SL usarÃ¡ essas informaÃ§Ãµes.</p>
         
         <div class="card">
             <div style="overflow-x: auto">
@@ -1801,7 +1814,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </tr>
                     </thead>
                     <tbody id="user-positions-body">
-                        <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posições...</td></tr>
+                        <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posiÃ§Ãµes...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1809,19 +1822,26 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
 
     <div id="tab-config" class="tab-view" style="display: none">
-        <h1 style="margin-bottom: 10px">Configurações <span>Avançadas</span></h1>
-        <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parâmetros de risco e execução do seu bot.</p>
+        <h1 style="margin-bottom: 10px">ConfiguraÃ§Ãµes <span>AvanÃ§adas</span></h1>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parÃ¢metros de risco e execuÃ§Ã£o do seu bot.</p>
 
         <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
             <div class="card">
-                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
+                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>ðŸŽ¯</span> Trader & EstratÃ©gia</h3>
                 <div class="form-group">
-                    <label>Iniciais do Trader / Wallet</label>
+                    <label>Modo de OperaÃ§Ã£o</label>
+                    <select id="bot-mode">
+                        <option value="COPY">COPY: CÃ³pia AutomÃ¡tica</option>
+                        <option value="AFK">AFK: Apenas Alertas e TP/SL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>EndereÃ§o do Trader Monitorado</label>
                     <input type="text" id="bot-trader" placeholder="0x...">
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                     <div class="form-group">
-                        <label>Estratégia</label>
+                        <label>EstratÃ©gia</label>
                         <select id="bot-strategy">
                             <option value="PERCENTAGE">Porcentagem (%)</option>
                             <option value="FIXED">Valor Fixo ($)</option>
@@ -1835,26 +1855,26 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <div class="form-group">
                     <label>Tipo de Ordem</label>
                     <select id="bot-orderType">
-                        <option value="MARKET">Market (Execução Rápida)</option>
-                        <option value="LIMIT">Limit (Preço Específico)</option>
+                        <option value="MARKET">Market (ExecuÃ§Ã£o RÃ¡pida)</option>
+                        <option value="LIMIT">Limit (PreÃ§o EspecÃ­fico)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Slippage Máximo (%)</label>
+                    <label>Slippage MÃ¡ximo (%)</label>
                     <input type="number" id="bot-slippage" step="0.01">
                 </div>
             </div>
 
             <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
                 <div>
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>ðŸ›¡ï¸</span> Filtros de Risco</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
-                            <label>Preço Mínimo</label>
+                            <label>PreÃ§o MÃ­nimo</label>
                             <input type="number" id="bot-minPrice" step="0.01">
                         </div>
                         <div class="form-group">
-                            <label>Preço Máximo</label>
+                            <label>PreÃ§o MÃ¡ximo</label>
                             <input type="number" id="bot-maxPrice" step="0.01">
                         </div>
                     </div>
@@ -1862,12 +1882,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <div class="form-group">
                             <label style="color:var(--success)">Auto Take-Profit (%)</label>
                             <input type="number" id="bot-tpPercent" step="1" placeholder="Ex: 50">
-                            <small style="color:var(--text-dim)">Venda automática ao atingir este lucro (0 = desativado)</small>
+                            <small style="color:var(--text-dim)">Venda automÃ¡tica ao atingir este lucro (0 = desativado)</small>
                         </div>
                         <div class="form-group">
                             <label style="color:var(--danger)">Auto Stop-Loss (%)</label>
                             <input type="number" id="bot-slPercent" step="1" placeholder="Ex: -20">
-                            <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuízo (0 = desativado)</small>
+                            <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuÃ­zo (0 = desativado)</small>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
@@ -1897,18 +1917,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <div class="form-group">
                             <label>Limite Geral de Gasto (Total USD)</label>
                             <input type="number" id="bot-totalSpendLimit" step="1">
-                            <small style="color:var(--text-dim)">Pausa automaticamente após alcançar este gasto.</small>
+                            <small style="color:var(--text-dim)">Pausa automaticamente apÃ³s alcanÃ§ar este gasto.</small>
                         </div>
                         <div class="form-group">
-                            <label>Volume Máximo em Aberto ($)</label>
+                            <label>Volume MÃ¡ximo em Aberto ($)</label>
                             <input type="number" id="bot-maxExposure" step="1">
-                            <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
+                            <small style="color:var(--text-dim)">Pausa novas compras se posiÃ§Ãµes abertas excederem este valor.</small>
                         </div>
                     </div>
 
                     <div style="margin-top: 20px; display: grid; gap: 12px">
                         <label class="switch-container">
-                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar MÃ­nimo ($1) se cÃ¡lculo for menor</span>
                         </label>
                         <label class="switch-container">
                             <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
@@ -1921,30 +1941,30 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </label>
                     </div>
                 </div>
-                <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
+                <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÃ‡Ã•ES</button>
             </div>
         </div>
 
         <div class="card" style="margin-top: 24px">
-            <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Filtros Avançados & Anti-Scam (Fase 5)</h3>
+            <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>âš¡</span> Filtros AvanÃ§ados & Anti-Scam (Fase 5)</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div class="form-group">
                     <label>Sniper Mode (Segundos) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Desativado)</span></label>
                     <input type="number" id="bot-sniperModeSec" step="1" placeholder="Ex: 60">
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades feitos nos primeiros X segs. do mercado.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">SÃ³ copia trades feitos nos primeiros X segs. do mercado.</small>
                 </div>
                 <div class="form-group">
                     <label>Last-Minute Mode (Segundos) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Desativado)</span></label>
                     <input type="number" id="bot-lastMinuteModeSec" step="1" placeholder="Ex: 60">
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades se o mercado fechar em menos de X segs.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">SÃ³ copia trades se o mercado fechar em menos de X segs.</small>
                 </div>
                 <div class="form-group">
-                    <label>Máximo de Mercados Simultâneos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
+                    <label>MÃ¡ximo de Mercados SimultÃ¢neos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
                     <input type="number" id="bot-maxMarketCount" step="1" placeholder="Ex: 10">
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso você já esteja em posições de muitos mercados.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso vocÃª jÃ¡ esteja em posiÃ§Ãµes de muitos mercados.</small>
                 </div>
                 <div class="form-group">
-                    <label>Liquidez Mínima do Mercado ($USD) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Zero)</span></label>
+                    <label>Liquidez MÃ­nima do Mercado ($USD) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Zero)</span></label>
                     <input type="number" id="bot-minMarketLiquidity" step="1" placeholder="Ex: 10000">
                     <small style="color:var(--text-dim); display:block; margin-top:4px">Filtro Anti-Scam. Rejeita mercados "rasos" e arriscados.</small>
                 </div>
@@ -1953,14 +1973,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         <div class="card" style="margin-top: 24px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
-                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💳</span> Gestão da Carteira</h3>
+                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>ðŸ’³</span> GestÃ£o da Carteira</h3>
                 <div style="text-align: right">
                     <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px">CARTEIRA OPERACIONAL</div>
                     <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
                 </div>
             </div>
             <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
-                ⚠️ <strong>Robô em Operação:</strong> Você precisa desativar o robô no dashboard principal para alterar a carteira.
+                âš ï¸ <strong>RobÃ´ em OperaÃ§Ã£o:</strong> VocÃª precisa desativar o robÃ´ no dashboard principal para alterar a carteira.
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
@@ -1972,9 +1992,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
                 </div>
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereÃ§o exclusivo:</p>
                     <button id="btn-generate-settings" class="btn btn-sm" onclick="generateWalletSettings(this)">Gerar Nova Carteira</button>
-                    <small style="display:block; margin-top:10px; color:var(--text-dim)">Atenção: A carteira antiga será substituída no sistema.</small>
+                    <small style="display:block; margin-top:10px; color:var(--text-dim)">AtenÃ§Ã£o: A carteira antiga serÃ¡ substituÃ­da no sistema.</small>
                 </div>
             </div>
         </div>
@@ -2014,14 +2034,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        const isAfkMode = currentUser.config?.mode === 'AFK';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || !hasTrader || !isReady) {
+        if (!hasWallet || (!hasTrader && !isAfkMode) || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader) renderStep2();
+            else if (!hasTrader && !isAfkMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
@@ -2035,7 +2056,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para vocÃª. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
@@ -2082,7 +2103,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             }
         } catch (e) {
             console.error('Import error:', e);
-            showBanner('Erro de conexão com o servidor', 'danger');
+            showBanner('Erro de conexÃ£o com o servidor', 'danger');
             btn.disabled = false;
             btn.textContent = originalText;
         }
@@ -2094,18 +2115,36 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereÃ§o do trader que deseja copiar. O bot monitorarÃ¡ cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endereço da Carteira (Polymarket)</label>
+                <label>EndereÃ§o da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+            <button class="btn" onclick="nextToStep3(this)">PrÃ³ximo Passo: EstratÃ©gia</button>
+            <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">OU</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar em Modo AFK</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">No modo AFK vocÃª usa apenas alertas e TP/SL, sem copiar traders.</p>
+
+    async function enterAfkMode(btn) {
+        if (!confirm('Deseja entrar no Modo AFK? VocÃª nÃ£o copiarÃ¡ trades automaticamente, mas terÃ¡ acesso aos alertas e gestÃ£o de risco (TP/SL).')) return;
+        btn.disabled = true; btn.textContent = 'Configurando...';
+        await fetch('/api/user/update-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'AFK', finalize: true })
+        });
+        loadUser();
+    }
         \`;
     }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('EndereÃ§o InvÃ¡lido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2120,33 +2159,33 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
+        document.getElementById('wizard-title').textContent = 'Passo 3: Sua EstratÃ©gia';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como vocÃª deseja copiar os trades? Defina o valor inicial da operaÃ§Ã£o.</p>
             
             <div class="form-group">
-                <label>Estratégia</label>
+                <label>EstratÃ©gia</label>
                 <select id="setup-strategy">
-                    <option value="PERCENTAGE">Cópia Proporcional (%)</option>
+                    <option value="PERCENTAGE">CÃ³pia Proporcional (%)</option>
                     <option value="FIXED">Valor Fixo (USD)</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>Tamanho da Cópia (Valor ou %)</label>
+                <label>Tamanho da CÃ³pia (Valor ou %)</label>
                 <input type="number" id="setup-size" value="10" step="0.1">
                 <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
             </div>
 
             <div class="form-group">
-                <label>Volume Máximo em Aberto (Total USD)</label>
+                <label>Volume MÃ¡ximo em Aberto (Total USD)</label>
                 <input type="number" id="setup-maxExposure" value="500" step="1">
-                <small style="color:var(--text-dim)">O bot parará de negociar se seu volume total em posições passar disso.</small>
+                <small style="color:var(--text-dim)">O bot pararÃ¡ de negociar se seu volume total em posiÃ§Ãµes passar disso.</small>
             </div>
 
             <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
-                    💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                    ðŸ’¡ VocÃª poderÃ¡ alterar essas e outras configuraÃ§Ãµes avanÃ§adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
                 </p>
             </div>
 
@@ -2159,9 +2198,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         const size = parseFloat(document.getElementById('setup-size').value);
         const maxExposure = parseFloat(document.getElementById('setup-maxExposure').value);
         
-        if (isNaN(size) || size <= 0) return showBanner('Valor Inválido', 'warning');
+        if (isNaN(size) || size <= 0) return showBanner('Valor InvÃ¡lido', 'warning');
         
-        btn.disabled = true; btn.textContent = 'Iniciando Operação...';
+        btn.disabled = true; btn.textContent = 'Iniciando OperaÃ§Ã£o...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2177,7 +2216,17 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
             
             const addrDisplay = document.getElementById('trader-addr-display');
-            if (addrDisplay) addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+            const isAfk = c.mode === 'AFK';
+            
+            if (addrDisplay) {
+                if (isAfk) {
+                    addrDisplay.textContent = 'MODO AFK ATIVO';
+                    addrDisplay.style.color = 'var(--warning)';
+                } else {
+                    addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+                    addrDisplay.style.color = 'var(--accent)';
+                }
+            }
             
             // Status UI
             const statusText = document.getElementById('bot-status-text');
@@ -2212,6 +2261,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-lastMinuteModeSec', c.lastMinuteModeSec || 0);
             setVal('bot-maxMarketCount', c.maxMarketCount || 0);
             setVal('bot-minMarketLiquidity', c.minMarketLiquidity || 0);
+            setVal('bot-mode', c.mode || 'COPY');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2241,7 +2291,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
+        if (!pk) return showBanner('Chave Privada NecessÃ¡ria', 'warning');
         btn.disabled = true; btn.textContent = 'Importando...';
         const res = await fetch('/api/user/import-wallet', {
             method: 'POST',
@@ -2255,7 +2305,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function generateWalletSettings(btn) {
-        if (!confirm('Isso criará uma nova carteira e substituirá a atual. Deseja continuar?')) return;
+        if (!confirm('Isso criarÃ¡ uma nova carteira e substituirÃ¡ a atual. Deseja continuar?')) return;
         btn.disabled = true; btn.textContent = 'Gerando...';
         const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
         const data = await res.json();
@@ -2288,7 +2338,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">ðŸ” Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2297,35 +2347,35 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
                 // Status styling
                 const statusStyles = {
-                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '✅' },
-                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '⚡' },
-                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '💸' },
-                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '📊' },
-                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '⚠️' },
-                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '📏' },
-                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🚫' },
-                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💲' },
-                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🧩' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' },
+                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: 'âœ…' },
+                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: 'âš¡' },
+                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: 'ðŸ’¸' },
+                    'PULADO (EXPOSIÃ‡ÃƒO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: 'ðŸ“Š' },
+                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'âš ï¸' },
+                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ“' },
+                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸš«' },
+                    'PULADO (PREÃ‡O)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ’²' },
+                    'PULADO (ESTRATÃ‰GIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ§©' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: 'âŒ' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: 'ðŸ”´' },
                 };
-                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '🔵' };
+                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: 'ðŸ”µ' };
 
                 // P&L styling
-                let pnlHtml = '<span style="color:var(--text-dim)">—</span>';
+                let pnlHtml = '<span style="color:var(--text-dim)">â€”</span>';
                 if (t.pnlPercent !== null && t.pnlPercent !== undefined) {
                     const pnlColor = t.pnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
-                    const pnlIcon = t.pnlPercent >= 0 ? '↑' : '↓';
+                    const pnlIcon = t.pnlPercent >= 0 ? 'â†‘' : 'â†“';
                     pnlHtml = \`<span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${t.pnlLabel}</span>\`;
                 }
 
                 // Entry price
-                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}¢\` : '—';
-                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}¢\` : '—';
+                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}Â¢\` : 'â€”';
+                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}Â¢\` : 'â€”';
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
@@ -2339,13 +2389,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                     <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
                     <td>\${marketLink}</td>
-                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'▲ COMPRA':'▼ VENDA'}</span></td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'â–² COMPRA':'â–¼ VENDA'}</span></td>
                     <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">â€”</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">â€”</span>'}</td>
                     <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
@@ -2394,14 +2444,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             sniperModeSec: parseInt(document.getElementById('bot-sniperModeSec').value) || 0,
             lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value) || 0,
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
-            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0
+            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
+            mode: document.getElementById('bot-mode').value
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
-        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+        if (res.ok) { showBanner('ConfiguraÃ§Ãµes Salvas', 'success'); loadUser(); }
     }
 
     function showBanner(msg, type = 'success') {
@@ -2428,22 +2479,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posiÃ§Ã£o ativa encontrada no momento.</td></tr>\`;
                 return;
             }
 
             tbody.innerHTML = positions.map(p => {
                 const pnl = p.pnlPercent !== undefined ? p.pnlPercent : 0;
                 const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
-                const pnlIcon = pnl >= 0 ? '↑' : '↓';
+                const pnlIcon = pnl >= 0 ? 'â†‘' : 'â†“';
                 
                 const mktLink = \`<a href="https://polymarket.com/event/\${p.slug || ''}" target="_blank" style="color:var(--accent); font-size:0.85rem">\${(p.title || 'Mercado Desconhecido').slice(0, 45)}...</a>\`;
 
                 return \`<tr>
                     <td>\${mktLink}</td>
                     <td><span style="font-weight:700">\${p.assetName || p.asset.slice(0,6)}</span></td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}¢</td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}Â¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}Â¢</td>
                     <td style="font-weight:700">\${p.size.toFixed(2)}</td>
                     <td style="font-weight:700; color:#fff">$\${p.currentValue.toFixed(2)}</td>
                     <td><span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${(pnl>=0?'+':'')}\${pnl.toFixed(2)}%</span></td>
@@ -2483,7 +2534,7 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         if (!user) return res.status(404).json({ error: 'User not found' });
         
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de alterar a carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
         }
 
         const newWallet = ethers.Wallet.createRandom();
@@ -2512,7 +2563,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
         
         if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada inválida (formato incorreto)' });
+            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
         }
 
         const wallet = new ethers.Wallet(privateKey);
@@ -2520,7 +2571,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         if (!user) return res.status(404).json({ error: 'User not found' });
         
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
 
         user.wallet = {
@@ -2534,7 +2585,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         res.json({ success: true, address: wallet.address });
     } catch (e) {
         console.error('[WALLET] Import error:', e);
-        res.status(400).json({ error: 'Chave Privada Inválida ou Malformada' });
+        res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
     }
 });
 
@@ -2542,12 +2593,13 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     const user = await User.findById(req.user?.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { 
+    const {
         traderAddress, enabled, strategy, copySize,
         reverseCopy, orderType, slippage, tpPercent, slPercent,
         minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell,
         maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit,
-        sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity
+        sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity,
+        mode
     } = req.body;
     
     if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
@@ -2578,6 +2630,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (lastMinuteModeSec !== undefined) user.config.lastMinuteModeSec = lastMinuteModeSec;
     if (maxMarketCount !== undefined) user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined) user.config.minMarketLiquidity = minMarketLiquidity;
+    if (mode !== undefined) user.config.mode = mode;
     
     if (req.body.finalize === true) {
         user.step = 'ready';
@@ -2590,7 +2643,7 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
     try {
         const user = (req as any).fullUser;
         if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira não configurada' });
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
         }
 
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
@@ -2627,7 +2680,7 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
         res.json(activePositions);
     } catch (e) {
         console.error('Error fetching positions:', e);
-        res.status(500).json({ error: 'Erro ao buscar posições' });
+        res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
     }
 });
 
@@ -2766,9 +2819,9 @@ export const startServer = async (port: number = parseInt(process.env.PORT || '3
     await bootstrapAdmin();
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
-        console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
-        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
-        console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
+        console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);
+        console.log(`ðŸ“– Swagger: http://0.0.0.0:${port}/docs`);
+        console.log(`ðŸ”Œ API:     http://0.0.0.0:${port}/api/health\n`);
     });
 };
 
