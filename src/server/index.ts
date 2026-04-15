@@ -1162,8 +1162,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-warning:hover { color: #000; background: var(--warning); border-color: var(--warning); }
 
 /* Modal */
-.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); }
-.modal-content { background: var(--sidebar); margin: 10% auto; padding: 32px; border: 1px solid var(--border); width: 500px; border-radius: 24px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); overflow-y: auto; }
+.modal-content { background: var(--sidebar); margin: 40px auto; padding: 32px; border: 1px solid var(--border); width: 700px; max-width: 95%; border-radius: 24px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
 .form-group { margin-bottom: 20px; }
 label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500; }
 input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 10px; font-family: var(--font-main); transition: 0.3s; }
@@ -1347,7 +1347,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
   <!-- Modal Edit User -->
   <div id="modal-edit" class="modal">
-    <div class="modal-content" style="width: 700px; margin: 5% auto">
+    <div class="modal-content">
       <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
         <span>⚙️</span> Configurar Membro SaaS
       </h2>
