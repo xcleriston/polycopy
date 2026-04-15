@@ -2125,7 +2125,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             }
         } catch (e) {
             console.error('Import error:', e);
-            showBanner('Erro de conexÃ£o com o servidor', 'danger');
+            showBanner('Erro de conexão com o servidor', 'danger');
             btn.disabled = false;
             btn.textContent = originalText;
         }
@@ -2136,13 +2136,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereÃ§o do trader que deseja copiar. O bot monitorarÃ¡ cada aposta dele no Polymarket.</p>
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>EndereÃ§o da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
+                <label>Endereço da Carteira (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">PrÃ³ximo Passo: EstratÃ©gia</button>
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
             <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
                 <span style="font-size:0.7rem; font-weight:700">OU</span>
@@ -2150,6 +2150,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
             <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
             <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar robô de Hedge Autônomo com Perna dupla (BTC).</p>
+        `;
+    }
 
     async function enterAfkMode(btn) {
         if (!confirm('Deseja iniciar em Modo Arbitrage? O bot não copiará traders, mas entrará em operações baseado em seus limiares de Hedge e Momentum.')) return;
@@ -2161,12 +2163,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         });
         loadUser();
     }
-        \`;
-    }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('EndereÃ§o InvÃ¡lido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endere\u00E7o Inv\u00E1lido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2181,38 +2181,38 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 3: Sua EstratÃ©gia';
-        document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como vocÃª deseja copiar os trades? Defina o valor inicial da operaÃ§Ã£o.</p>
+        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estrat\u00E9gia';
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como voc\u00EA deseja copiar os trades? Defina o valor inicial da opera\u00E7\u00E3o.</p>
             
             <div class="form-group">
-                <label>EstratÃ©gia</label>
+                <label>Estrat\u00E9gia</label>
                 <select id="setup-strategy">
-                    <option value="PERCENTAGE">CÃ³pia Proporcional (%)</option>
+                    <option value="PERCENTAGE">C\u00F3pia Proporcional (%)</option>
                     <option value="FIXED">Valor Fixo (USD)</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>Tamanho da CÃ³pia (Valor ou %)</label>
+                <label>Tamanho da C\u00F3pia (Valor ou %)</label>
                 <input type="number" id="setup-size" value="10" step="0.1">
                 <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
             </div>
 
             <div class="form-group">
-                <label>Volume MÃ¡ximo em Aberto (Total USD)</label>
+                <label>Volume M\u00E1ximo em Aberto (Total USD)</label>
                 <input type="number" id="setup-maxExposure" value="500" step="1">
-                <small style="color:var(--text-dim)">O bot pararÃ¡ de negociar se seu volume total em posiÃ§Ãµes passar disso.</small>
+                <small style="color:var(--text-dim)">O bot parar\u00E1 de negociar se seu volume total em posi\u00E7\u00F5es passar disso.</small>
             </div>
 
             <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
-                    ðŸ’¡ VocÃª poderÃ¡ alterar essas e outras configuraÃ§Ãµes avanÃ§adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                    \uD83D\uDCA1 Voc\u00EA poder\u00E1 alterar essas e outras configura\u00E7\u00F5es avan\u00E7adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
                 </p>
             </div>
 
             <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
-        \`;
+        `;
     }
 
     async function finalizeSetup(btn) {
@@ -2220,9 +2220,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         const size = parseFloat(document.getElementById('setup-size').value);
         const maxExposure = parseFloat(document.getElementById('setup-maxExposure').value);
         
-        if (isNaN(size) || size <= 0) return showBanner('Valor InvÃ¡lido', 'warning');
+        if (isNaN(size) || size <= 0) return showBanner('Valor Inv\u00E1lido', 'warning');
         
-        btn.disabled = true; btn.textContent = 'Iniciando OperaÃ§Ã£o...';
+        btn.disabled = true; btn.textContent = 'Iniciando Opera\u00E7\u00E3o...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2238,11 +2238,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
             
             const addrDisplay = document.getElementById('trader-addr-display');
-            const isAfk = c.mode === 'AFK';
+            const isArbitrage = c.mode === 'ARBITRAGE';
             
             if (addrDisplay) {
-                if (isAfk) {
-                    addrDisplay.textContent = 'MODO AFK ATIVO';
+                if (isArbitrage) {
+                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
                     addrDisplay.style.color = 'var(--warning)';
                 } else {
                     addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
