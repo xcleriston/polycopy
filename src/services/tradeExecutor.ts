@@ -26,7 +26,7 @@ const getClobClientForUser = async (user: IUser): Promise<ClobClient | null> => 
     if (clobClientCache.has(cacheKey)) {
         return clobClientCache.get(cacheKey)!;
     }
-    const client = await createClobClient(user.wallet.privateKey, user.wallet.address);
+    const client = await createClobClient(user.wallet.privateKey, user.wallet.proxyAddress || user.wallet.address);
     clobClientCache.set(cacheKey, client);
     return client;
 };
@@ -118,7 +118,7 @@ const doTrading = async (trade: any) => {
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
 
-                const my_balance = await getMyBalance(proxyWallet);
+                const my_balance = await getMyBalance(follower.wallet?.address || '', follower.wallet?.proxyAddress);
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);
                 }, 0);

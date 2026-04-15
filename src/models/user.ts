@@ -10,6 +10,7 @@ export interface IUser extends Document {
     wallet?: {
         address: string;
         privateKey: string;
+        proxyAddress?: string;
     };
     config: {
         mode?: 'COPY' | 'ARBITRAGE';
@@ -64,6 +65,7 @@ const UserSchema: Schema = new Schema({
     wallet: {
         address: { type: String, index: true },
         privateKey: { type: String },
+        proxyAddress: { type: String },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE'], default: 'COPY' },

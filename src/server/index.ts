@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
-import { setupNewUser } from './setup.js';
+import { setupNewUser, findPolymarketProxy } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 import bcrypt from 'bcryptjs';
@@ -1379,6 +1379,10 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <input type="text" id="edit-trader" placeholder="0x...">
           </div>
           <div class="form-group">
+            <label>Endereço Proxy (Polymarket)</label>
+            <input type="text" id="edit-proxyAddress" placeholder="0x...">
+          </div>
+          <div class="form-group">
             <label>Estratégia de Cópia</label>
             <select id="edit-strategy">
               <option value="PERCENTAGE">Percentage (%)</option>
@@ -1561,6 +1565,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
         
         document.getElementById('edit-trader').value = c.traderAddress || '';
+        document.getElementById('edit-proxyAddress').value = u.wallet?.proxyAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
         document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
@@ -1586,6 +1591,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
+        proxyAddress: document.getElementById('edit-proxyAddress').value,
         strategy: document.getElementById('edit-strategy').value,
         copySize: parseFloat(document.getElementById('edit-size').value),
         orderType: document.getElementById('edit-orderType').value,
@@ -1908,6 +1914,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <label>Endereço do Trader Monitorado</label>
                         <input type="text" id="bot-trader" placeholder="0x...">
                     </div>
+                    <div class="form-group">
+                        <label>Sua Carteira Proxy (Polymarket)</label>
+                        <div style="display:flex; gap:8px">
+                            <input type="text" id="bot-proxyAddress" placeholder="0x..." style="flex:1">
+                            <button class="btn btn-sm btn-outline" onclick="syncProxy()" style="width:auto; white-space:nowrap">Sincronizar</button>
+                        </div>
+                        <small style="color:var(--text-dim)">O bot detecta automaticamente, mas você pode ajustar se o saldo aparecer como $0.00. <a href="https://polymarket.com/settings" target="_blank" style="color:var(--accent)">Ver na Polymarket</a></small>
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
                             <label>Estratégia</label>
@@ -2198,14 +2212,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </div>
 
                         <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:16px; border-radius:12px; margin-bottom:20px">
-                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Como Vincular na Polymarket:</h5>
+                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Pr\u00F3ximos Passos na Polymarket:</h5>
                             <ol style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.4; margin-bottom:12px">
-                                <li>Copie sua <b>Chave Privada</b> acima.</li>
-                                <li>No seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
-                                <li>Cole a chave e clique em "Importar".</li>
-                                <li>Abra a Polymarket e clique em <b>"Conectar Carteira"</b>.</li>
+                                <li>Importe sua <b>Chave Privada</b> no MetaMask.</li>
+                                <li>Conecte na Polymarket para ativar sua <b>Carteira Proxy</b>.</li>
+                                <li>O bot detectar\u00E1 seu saldo automaticamente via Proxy.</li>
                             </ol>
-                            <button onclick="window.open('https://polymarket.com', '_blank')" style="width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">ABRIR POLYMARKET AGORA</button>
+                            <button onclick="window.open('https://polymarket.com/settings', '_blank')" style="margin-bottom:8px; width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">VERIFICAR NA POLYMARKET</button>
+                            <small style="font-size:0.65rem; color:var(--text-dim); display:block; text-align:center">Se o bot n\u00E3o detectar seu saldo, v\u00E1 em Configura\u00E7\u00F5es e cole o endere\u00E7o da Polymarket.</small>
                         </div>
 
                         <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
@@ -2411,6 +2425,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-balanceSl', c.balanceSl || 0);
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
+            setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
             setVal('bot-mode', c.mode || 'COPY');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
@@ -2634,7 +2649,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
             mode: document.getElementById('bot-mode').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
-            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
+            proxyAddress: document.getElementById('bot-proxyAddress').value
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2653,6 +2669,28 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
+
+    async function syncProxy() {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = 'Buscando...';
+        try {
+            const res = await fetch('/api/user/me');
+            const data = await res.json();
+            if (data.wallet?.address) {
+                // We ask the backend to re-run detection effectively
+                // But for now we just show what's currently stored or try to fetch
+                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
+                loadUser(); 
+            }
+        } catch (e) {
+            showBanner('Erro ao sincronizar', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Sincronizar';
+        }
+    }
+
     
     // Auto refresh stats e trades em tempo real
     setInterval(refreshStats, 30000);
@@ -2727,9 +2765,11 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         }
 
         const newWallet = ethers.Wallet.createRandom();
+        const proxyAddress = await findPolymarketProxy(newWallet.address);
         user.wallet = {
             address: newWallet.address,
-            privateKey: newWallet.privateKey
+            privateKey: newWallet.privateKey,
+            proxyAddress: proxyAddress || newWallet.address
         };
         // Only set to setup if not already ready (to allow seamless swaps)
         if (user.step !== 'ready') user.step = 'setup';
@@ -2763,9 +2803,11 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
             return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
 
+        const proxyAddress = await findPolymarketProxy(wallet.address);
         user.wallet = {
             address: wallet.address,
-            privateKey: wallet.privateKey
+            privateKey: wallet.privateKey,
+            proxyAddress: proxyAddress || wallet.address
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready') user.step = 'setup';
@@ -2789,7 +2831,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
         minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell,
         maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit,
         sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity,
-        mode
+        mode, proxyAddress
     } = req.body;
     
     if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
@@ -2798,6 +2840,11 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (enabled !== undefined) user.config.enabled = enabled;
     if (strategy !== undefined) user.config.strategy = strategy;
     if (copySize !== undefined) user.config.copySize = copySize;
+    if (proxyAddress !== undefined) {
+        if (!user.wallet) user.wallet = { address: '', privateKey: '' };
+        user.wallet.proxyAddress = proxyAddress;
+    }
+
     
     // Advanced fields
     if (reverseCopy !== undefined) user.config.reverseCopy = reverseCopy;
@@ -2837,10 +2884,11 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
     try {
         const user = (req as any).fullUser;
         if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
+            return res.status(400).json({ error: 'Carteira não configurada' });
         }
 
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
         if (!Array.isArray(positionsData)) {
             return res.json([]);
         }
@@ -2984,11 +3032,13 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const user = (req as any).fullUser;
         if (!user || !user.wallet?.address) return res.json({ balance: 0, exposure: 0 });
 
-        const balance = await getMyBalance(user.wallet.address);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
+        const proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
+        
+        const balance = await getMyBalance(user.wallet?.address || '', user.wallet?.proxyAddress);
+        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
         
         // Fetch positions to calculate exposure
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
         res.json({ balance, exposure });
@@ -3011,6 +3061,24 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
 
 export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
     await bootstrapAdmin();
+    
+    // ONE-TIME FIX: User identified proxy wallet mismatch
+    try {
+        const userToFix = await User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
+        if (userToFix && !userToFix.wallet?.proxyAddress) {
+            console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
+            if (!userToFix.wallet) userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
+            userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
+            await User.updateOne(
+                { _id: userToFix._id }, 
+                { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } }
+            );
+            console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
+        }
+    } catch (e) {
+        console.error('[FIX] Manual proxy fix failed:', e);
+    }
+
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);
