@@ -1824,82 +1824,88 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parâmetros de risco e execução do seu bot.</p>
 
         <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
-            <div class="card">
-                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
-                <div class="form-group">
-                    <label>Modo de Operação</label>
-                    <select id="bot-mode">
-                        <option value="COPY">COPY: Cópia Automática</option>
-                        <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Endereço do Trader Monitorado</label>
-                    <input type="text" id="bot-trader" placeholder="0x...">
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+            <!-- COLUNA ESQUERDA: ESTRATÉGIA E EXECUÇÃO -->
+            <div style="display: flex; flex-direction: column; gap: 24px">
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estratégia</h3>
                     <div class="form-group">
-                        <label>Estratégia</label>
-                        <select id="bot-strategy">
-                            <option value="PERCENTAGE">Porcentagem (%)</option>
-                            <option value="FIXED">Valor Fixo ($)</option>
+                        <label>Modo de Operação</label>
+                        <select id="bot-mode">
+                            <option value="COPY">COPY: Cópia Automática</option>
+                            <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Valor / %</label>
-                        <input type="number" id="bot-size" step="0.1">
+                        <label>Endereço do Trader Monitorado</label>
+                        <input type="text" id="bot-trader" placeholder="0x...">
                     </div>
-                </div>
-                <div class="form-group">
-                    <label>Tipo de Ordem</label>
-                    <select id="bot-orderType">
-                        <option value="MARKET">Market (Execução Rápida)</option>
-                        <option value="LIMIT">Limit (Preço Específico)</option>
-                    </select>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
-                    <div class="form-group">
-                        <label>Slippage Compra (%)</label>
-                        <input type="number" id="bot-slippageBuy" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>Slippage Venda (%)</label>
-                        <input type="number" id="bot-slippageSell" step="0.01">
-                    </div>
-                </div>
-                
-                <h3 style="margin-top: 30px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
-                    <div class="form-group">
-                        <label>Trigger Delta ($)</label>
-                        <input type="number" id="bot-triggerDelta" step="0.001">
-                        <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Estratégia</label>
+                            <select id="bot-strategy">
+                                <option value="PERCENTAGE">Porcentagem (%)</option>
+                                <option value="FIXED">Valor Fixo ($)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Valor / %</label>
+                            <input type="number" id="bot-size" step="0.1">
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Hedge Ceiling / Teto Max ($)</label>
-                        <input type="number" id="bot-hedgeCeiling" step="0.01">
-                        <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
+                        <label>Tipo de Ordem</label>
+                        <select id="bot-orderType">
+                            <option value="MARKET">Market (Execução Rápida)</option>
+                            <option value="LIMIT">Limit (Preço Específico)</option>
+                        </select>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Slippage Compra (%)</label>
+                            <input type="number" id="bot-slippageBuy" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Slippage Venda (%)</label>
+                            <input type="number" id="bot-slippageSell" step="0.01">
+                        </div>
                     </div>
                 </div>
 
-                <div style="margin-top: 20px; display: grid; gap: 12px">
-                    <label class="switch-container">
-                        <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
-                    </label>
-                    <label class="switch-container">
-                        <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
-                    </label>
-                    <label class="switch-container">
-                        <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
-                    </label>
-                    <label class="switch-container">
-                        <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
-                    </label>
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Trigger Delta ($)</label>
+                            <input type="number" id="bot-triggerDelta" step="0.001">
+                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Hedge Ceiling / Teto Max ($)</label>
+                            <input type="number" id="bot-hedgeCeiling" step="0.01">
+                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 24px; display: grid; gap: 12px">
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
-                <div>
+            <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
+            <div style="display: flex; flex-direction: column; gap: 24px">
+                <div class="card">
                     <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
@@ -1914,21 +1920,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
                         <div class="form-group">
                             <label style="color:var(--success)">Auto Take-Profit (%)</label>
-                            <input type="number" id="bot-tpPercent" step="1" placeholder="Ex: 50">
-                            <small style="color:var(--text-dim)">Venda automática ao atingir este lucro (0 = desativado)</small>
+                            <input type="number" id="bot-tpPercent" step="1">
                         </div>
                         <div class="form-group">
                             <label style="color:var(--danger)">Auto Stop-Loss (%)</label>
-                            <input type="number" id="bot-slPercent" step="1" placeholder="Ex: -20">
-                            <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuízo (0 = desativado)</small>
+                            <input type="number" id="bot-slPercent" step="1">
                         </div>
                     </div>
                     <div class="form-group" style="margin-top: 16px">
-                        <label style="color:var(--danger); display:flex; align-items:center; gap:5px">🛑 Balance SL ($) - Kill Switch</label>
+                        <label style="color:var(--danger)">🛑 Balance SL ($) - Kill Switch</label>
                         <input type="number" id="bot-balanceSl" step="1">
-                        <small style="color:var(--text-dim)">Para o robô e vende se saldo total cair abaixo deste valor.</small>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
                         <div class="form-group">
                             <label>Trade Min ($)</label>
                             <input type="number" id="bot-minTrade" step="1">
@@ -1938,33 +1941,30 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <input type="number" id="bot-maxTrade" step="1">
                         </div>
                     </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
                         <div class="form-group">
-                            <label>Max Por Mercado ($ USD)</label>
+                            <label>Max Por Mercado ($)</label>
                             <input type="number" id="bot-maxPerMarket" step="1">
                         </div>
                         <div class="form-group">
-                            <label>Max Por Token Yes/No ($ USD)</label>
+                            <label>Max Por Token ($)</label>
                             <input type="number" id="bot-maxPerToken" step="1">
                         </div>
                     </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
                         <div class="form-group">
-                            <label>Limite Geral de Gasto (Total USD)</label>
+                            <label>Limite Geral de Gasto ($)</label>
                             <input type="number" id="bot-totalSpendLimit" step="1">
-                            <small style="color:var(--text-dim)">Pausa automaticamente após alcançar este gasto.</small>
                         </div>
                         <div class="form-group">
                             <label>Volume Máximo em Aberto ($)</label>
                             <input type="number" id="bot-maxExposure" step="1">
-                            <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
+                        </div>
                     </div>
-                    <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
+                    <button class="btn" style="margin-top: 40px; width: 100%" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
                 </div>
             </div>
+        </div>
 
             <!-- Keep these inside tab-config -->
             <div class="card" style="margin-top: 24px">
