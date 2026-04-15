@@ -2351,20 +2351,20 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 };
 
                 // P&L styling
-                let pnlHtml = '<span style="color:var(--text-dim)">—</span>';
+                let pnlHtml = '<span style="color:var(--text-dim)">\\u2014</span>';
                 if (t.pnlPercent !== null && t.pnlPercent !== undefined) {
                     const pnlColor = t.pnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
-                    const pnlIcon = t.pnlPercent >= 0 ? '↗️' : '↘️';
+                    const pnlIcon = t.pnlPercent >= 0 ? '\\u2197\\uFE0F' : '\\u2198\\uFE0F';
                     pnlHtml = `<span style="color:${pnlColor}; font-weight:700">${pnlIcon} ${t.pnlLabel}</span>`;
                 }
 
                 // Entry price
-                const entryPrice = t.price ? `${(parseFloat(t.price)*100).toFixed(1)}¢` : '—';
-                const curPrice = t.curPrice !== null ? `${(t.curPrice*100).toFixed(1)}¢` : '—';
+                const entryPrice = t.price ? `${(parseFloat(t.price)*100).toFixed(1)}\\u00A2` : '\\u2014';
+                const curPrice = t.curPrice !== null ? `${(t.curPrice*100).toFixed(1)}\\u00A2` : '\\u2014';
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? `<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>`
+                    ? `<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">\\u26A1ON-CHAIN</span>`
                     : '';
 
                 // Market link
@@ -2378,13 +2378,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                     <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
                     <td>${marketLink}</td>
-                    <td><span style="color:${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
+                    <td><span style="color:${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">${t.side==='BUY'?'\\uD83D\\uDCC8 COMPRA':'\\uD83D\\uDCC9 VENDA'}</span></td>
                     <td style="font-weight:700; color:#fff">$${(t.usdcSize||0).toFixed(2)}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">${curPrice}</td>
                     <td>${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
-                    <td>${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td style="font-weight:700; color:#adf">${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\\u2014</span>'}</td>
+                    <td>${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\\u2014</span>'}</td>
                     <td><span class="badge"${tooltip} style="background:${style.bg}; color:${style.color}; cursor:default">${style.icon} ${status}</span></td>
                 </tr>`;
             }).join('');
