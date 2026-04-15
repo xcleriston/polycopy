@@ -175,7 +175,7 @@ app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/users/:id/config', async (req, res) => {
+app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
     try {
         const id = req.params.id;
         const { config, step } = req.body;
@@ -197,7 +197,7 @@ app.post('/api/users/:id/config', async (req, res) => {
     }
 });
 
-app.post('/api/users/:id/reset', async (req, res) => {
+app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
     try {
         const id = req.params.id;
         const update = { 
@@ -218,7 +218,7 @@ app.post('/api/users/:id/reset', async (req, res) => {
     }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
     try {
         const id = req.params.id;
         if (id.length === 24) {
@@ -1579,18 +1579,35 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       }
     }
 
-    async function resetUser(id) {
+     async function resetUser(id) {
       if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
-      await fetch(\`/api/users/\${id}/reset\`, { method: 'POST' });
-      showBanner('Usuário resetado com sucesso', 'warning');
-      refresh();
+      try {
+        const res = await fetch(\`/api/users/\${id}/reset\`, { method: 'POST' });
+        if (res.ok) {
+          showBanner('Usuário resetado com sucesso', 'warning');
+          refresh();
+        } else {
+          showBanner('Erro ao resetar usuário', 'danger');
+        }
+      } catch (e) {
+        showBanner('Erro de conexão ao resetar', 'danger');
+      }
     }
 
     async function deleteUser(id) {
       if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
-      await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
-      showBanner('Membro excluído do SaaS', 'danger');
-      refresh();
+      try {
+        const res = await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
+        if (res.ok) {
+          showBanner('Membro excluído do SaaS', 'danger');
+          refresh();
+        } else {
+          const data = await res.json();
+          showBanner(data.error || 'Erro ao excluir usuário', 'danger');
+        }
+      } catch (e) {
+        showBanner('Erro de conexão ao excluir', 'danger');
+      }
     }
 
     async function loadGlobalConfig() {
