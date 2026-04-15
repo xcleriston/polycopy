@@ -10,6 +10,10 @@ import { startServer } from './server/index.js';
 import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
+import setupProxy from './utils/setupProxy.js';
+
+// Initialize global proxy if configured
+setupProxy();
 
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');

@@ -11,6 +11,10 @@ import telegram from '../utils/telegram.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
+import setupProxy from '../utils/setupProxy.js';
+
+// Initialize global proxy if configured
+setupProxy();
 
 const app = express();
 app.use(express.json());

@@ -87,6 +87,7 @@
         "dotenv": "^16.4.7",
         "ethers": "^5.8.0",
         "express": "^5.2.1",
+        "https-proxy-agent": "^9.0.0",
         "jsonwebtoken": "^9.0.3",
         "moment": "^2.30.1",
         "mongoose": "^8.12.1",
