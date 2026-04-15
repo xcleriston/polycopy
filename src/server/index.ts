@@ -178,9 +178,8 @@ app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
 app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
     try {
         const id = req.params.id;
-        const { config, step } = req.body;
+        const { config, step, username, email, password } = req.body;
         const update: any = {};
-        if (config) {
         if (config) update.config = config;
         if (step) update.step = step;
         if (username !== undefined) update.username = username;
