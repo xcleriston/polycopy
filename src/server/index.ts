@@ -809,17 +809,17 @@ async function refresh() {
 
     // Update Trades
     const tradeBody = document.getElementById('trade-body');
-    tradeBody.innerHTML = trades.map(t => \`
+    tradeBody.innerHTML = trades.map(t => `
       <tr>
-        <td style="color: var(--text-dim); font-size: 0.8rem">\${new Date(t.timestamp).toLocaleTimeString()}</td>
-        <td>\${t.processedBy?.length > 0 ? t.processedBy.join(', ') : '---'}</td>
-        <td style="font-family: monospace; font-size: 0.8rem">\${t.traderAddress.slice(0,6)}...</td>
-        <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
-        <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
-        <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${t.title || t.slug}</td>
-        <td>\${t.bot ? '<span style="color: var(--success)">✓ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
+        <td style="color: var(--text-dim); font-size: 0.8rem">${new Date(t.timestamp).toLocaleTimeString()}</td>
+        <td>${t.processedBy?.length > 0 ? t.processedBy.join(', ') : '---'}</td>
+        <td style="font-family: monospace; font-size: 0.8rem">${t.traderAddress.slice(0,6)}...</td>
+        <td><span style="color: ${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">${t.side === 'BUY' ? '📈 BUY' : '📉 SELL'}</span></td>
+        <td>$${(t.usdcSize || 0).toFixed(2)}</td>
+        <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title || t.slug}</td>
+        <td>${t.bot ? '<span style="color: var(--success)">✓ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
       </tr>
-    \`).join('');
+    `).join('');
 
   } catch (e) {
     console.error('Refresh error:', e);
@@ -827,7 +827,7 @@ async function refresh() {
 }
 
 async function toggleUser(chatId, enabled) {
-  await fetch(\`/api/users/\${chatId}/config\`, {
+  await fetch(`/api/users/${chatId}/config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ config: { enabled } })
@@ -837,13 +837,13 @@ async function toggleUser(chatId, enabled) {
 
 async function resetUser(chatId) {
   if (!confirm('Deseja resetar este usuário? A carteira será removida e ele voltará ao início.')) return;
-  await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+  await fetch(`/api/users/${chatId}/reset`, { method: 'POST' });
   refresh();
 }
 
 async function deleteUser(chatId) {
   if (!confirm('Deseja excluir permanentemente este usuário?')) return;
-  await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+  await fetch(`/api/users/${chatId}`, { method: 'DELETE' });
   refresh();
 }
 
@@ -867,7 +867,7 @@ async function saveUserConfig() {
     copySize: parseFloat(document.getElementById('edit-size').value)
   };
   
-  await fetch(\`/api/users/\${chatId}/config\`, {
+  await fetch(`/api/users/${chatId}/config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ config })
@@ -1450,45 +1450,45 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         }
 
         // Users Table
-        document.getElementById('user-body').innerHTML = users.map(u => \`
+        document.getElementById('user-body').innerHTML = users.map(u => `
           <tr>
             <td>
-              <div style="font-weight: 700; color: #fff">\${u.username || u.chatId}</div>
-              <div style="font-size: 0.7rem; color: var(--text-dim)">\${u.email || 'Web Session'}</div>
+              <div style="font-weight: 700; color: #fff">${u.username || u.chatId}</div>
+              <div style="font-size: 0.7rem; color: var(--text-dim)">${u.email || 'Web Session'}</div>
             </td>
-            <td style="font-family: var(--font-mono); font-size: 0.75rem">\${u.wallet?.address || '---'}</td>
+            <td style="font-family: var(--font-mono); font-size: 0.75rem">${u.wallet?.address || '---'}</td>
             <td>
-              <div style="font-size: 0.75rem; color: var(--text-dim)">Seguindo: \${u.config?.traderAddress?.slice(0,10) || 'Nenhum'}</div>
-              <div style="font-weight: 600">\${u.config?.strategy} (\${u.config?.copySize})</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim)">Seguindo: ${u.config?.traderAddress?.slice(0,10) || 'Nenhum'}</div>
+              <div style="font-weight: 600">${u.config?.strategy} (${u.config?.copySize})</div>
             </td>
-            <td><span class="badge \${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">\${u.step.toUpperCase()}</span></td>
+            <td><span class="badge ${u.step === 'ready' ? 'badge-ready' : 'badge-setup'}">${u.step.toUpperCase()}</span></td>
             <td>
               <label class="switch">
-                <input type="checkbox" \${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('\${u.chatId}', this.checked)">
+                <input type="checkbox" ${u.config?.enabled ? 'checked' : ''} onchange="toggleUser('${u.chatId}', this.checked)">
                 <span class="slider"></span>
               </label>
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u.chatId}')">⚙️</button>
-                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u.chatId}')">🔄</button>
-                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u.chatId}')">🗑️</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('${u.chatId}')">⚙️</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('${u.chatId}')">🔄</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('${u.chatId}')">🗑️</button>
               </div>
             </td>
           </tr>
-        \`).join('');
+        `).join('');
 
         // Trade Tables (Dash and Logs)
-        const tradesHtml = trades.map(t => \`
+        const tradesHtml = trades.map(t => `
           <tr>
-            <td style="font-size: 0.75rem; color: var(--text-dim)">\${new Date(t.timestamp).toLocaleString()}</td>
-            <td style="font-weight: 500">\${t.chatId || 'System'}</td>
-            <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis">\${t.title || t.slug}</td>
-            <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
-            <td style="font-weight: 700">$\${(t.usdcSize || 0).toFixed(2)}</td>
-            <td><span style="color: \${t.bot ? 'var(--success)' : 'var(--warning)'}">\${t.bot ? 'EXECUTED' : 'PENDING'}</span></td>
+            <td style="font-size: 0.75rem; color: var(--text-dim)">${new Date(t.timestamp).toLocaleString()}</td>
+            <td style="font-weight: 500">${t.chatId || 'System'}</td>
+            <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis">${t.title || t.slug}</td>
+            <td><span style="color: ${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">${t.side}</span></td>
+            <td style="font-weight: 700">$${(t.usdcSize || 0).toFixed(2)}</td>
+            <td><span style="color: ${t.bot ? 'var(--success)' : 'var(--warning)'}">${t.bot ? 'EXECUTED' : 'PENDING'}</span></td>
           </tr>
-        \`).join('');
+        `).join('');
         document.getElementById('dash-trade-body').innerHTML = tradesHtml;
         document.getElementById('log-trade-body').innerHTML = tradesHtml; // Detailed view could be richer
 
@@ -1496,7 +1496,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     }
 
     async function toggleUser(chatId, enabled) {
-      await fetch(\`/api/users/\${chatId}/config\`, {
+      await fetch(`/api/users/${chatId}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: { enabled } })
@@ -1507,7 +1507,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
     async function editUser(chatId) {
       try {
-        const res = await fetch(\`/api/users/\${chatId}\`);
+        const res = await fetch(`/api/users/${chatId}`);
         const user = await res.json();
         const c = user.config || {};
         
@@ -1546,7 +1546,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         copySell: document.getElementById('edit-copySell').checked
       };
       
-      const res = await fetch(\`/api/users/\${chatId}/config\`, {
+      const res = await fetch(`/api/users/${chatId}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config })
@@ -1563,14 +1563,14 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
     async function resetUser(chatId) {
       if (!confirm('CONFIRMAR RESET? Isso limpará a carteira e o fluxo do usuário.')) return;
-      await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+      await fetch(`/api/users/${chatId}/reset`, { method: 'POST' });
       showBanner('Usuário resetado com sucesso', 'warning');
       refresh();
     }
 
     async function deleteUser(chatId) {
       if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
-      await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+      await fetch(`/api/users/${chatId}`, { method: 'DELETE' });
       showBanner('Membro excluído do SaaS', 'danger');
       refresh();
     }
@@ -2045,7 +2045,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.querySelectorAll('.step').forEach(s => s.className = 'step');
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
-        document.getElementById('step-content').innerHTML = \`
+        document.getElementById('step-content').innerHTML = `
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
@@ -2057,7 +2057,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <input type="password" id="import-pk" placeholder="Chave Privada (0x...)">
             </div>
             <button class="btn btn-outline" onclick="importWallet(this)">Importar Chave Privada</button>
-        \`;
+        `;
     }
 
     async function generateWallet(btn) {
@@ -2093,7 +2093,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             }
         } catch (e) {
             console.error('Import error:', e);
-            showBanner('Erro de conexÃ£o com o servidor', 'danger');
+            showBanner('Erro de conexão com o servidor', 'danger');
             btn.disabled = false;
             btn.textContent = originalText;
         }
@@ -2104,23 +2104,25 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereÃ§o do trader que deseja copiar. O bot monitorarÃ¡ cada aposta dele no Polymarket.</p>
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>EndereÃ§o da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
+                <label>Endereço da Carteira (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">PrÃ³ximo Passo: EstratÃ©gia</button>
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
             <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
                 <span style="font-size:0.7rem; font-weight:700">OU</span>
                 <div style="flex:1; height:1px; background:var(--border)"></div>
             </div>
             <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar em Modo AFK</button>
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">No modo AFK vocÃª usa apenas alertas e TP/SL, sem copiar traders.</p>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">No modo AFK você usa apenas alertas e TP/SL, sem copiar traders.</p>
+        `;
+    }
 
     async function enterAfkMode(btn) {
-        if (!confirm('Deseja entrar no Modo AFK? VocÃª nÃ£o copiarÃ¡ trades automaticamente, mas terÃ¡ acesso aos alertas e gestÃ£o de risco (TP/SL).')) return;
+        if (!confirm('Deseja entrar no Modo AFK? Você não copiará trades automaticamente, mas terá acesso aos alertas e gestão de risco (TP/SL).')) return;
         btn.disabled = true; btn.textContent = 'Configurando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2129,12 +2131,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         });
         loadUser();
     }
-        \`;
-    }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('EndereÃ§o InvÃ¡lido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2149,38 +2149,38 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
-        document.getElementById('wizard-title').textContent = 'Passo 3: Sua EstratÃ©gia';
-        document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como vocÃª deseja copiar os trades? Defina o valor inicial da operaÃ§Ã£o.</p>
+        document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estratégia';
+        document.getElementById('step-content').innerHTML = `
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você deseja copiar os trades? Defina o valor inicial da operação.</p>
             
             <div class="form-group">
-                <label>EstratÃ©gia</label>
+                <label>Estratégia</label>
                 <select id="setup-strategy">
-                    <option value="PERCENTAGE">CÃ³pia Proporcional (%)</option>
+                    <option value="PERCENTAGE">Cópia Proporcional (%)</option>
                     <option value="FIXED">Valor Fixo (USD)</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>Tamanho da CÃ³pia (Valor ou %)</label>
+                <label>Tamanho da Cópia (Valor ou %)</label>
                 <input type="number" id="setup-size" value="10" step="0.1">
                 <small style="color:var(--text-dim)">Ex: 10% do trader ou 10 USD fixos.</small>
             </div>
 
             <div class="form-group">
-                <label>Volume MÃ¡ximo em Aberto (Total USD)</label>
+                <label>Volume Máximo em Aberto (Total USD)</label>
                 <input type="number" id="setup-maxExposure" value="500" step="1">
-                <small style="color:var(--text-dim)">O bot pararÃ¡ de negociar se seu volume total em posiÃ§Ãµes passar disso.</small>
+                <small style="color:var(--text-dim)">O bot parará de negociar se seu volume total em posições passar disso.</small>
             </div>
 
             <div style="background: rgba(var(--accent-rgb), 0.1); padding: 15px; border-radius: 8px; margin-bottom: 24px">
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
-                    ðŸ’¡ VocÃª poderÃ¡ alterar essas e outras configuraÃ§Ãµes avanÃ§adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                    💡 Você poderá alterar essas e outras configurações avançadas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
                 </p>
             </div>
 
             <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
-        \`;
+        `;
     }
 
     async function finalizeSetup(btn) {
@@ -2188,9 +2188,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         const size = parseFloat(document.getElementById('setup-size').value);
         const maxExposure = parseFloat(document.getElementById('setup-maxExposure').value);
         
-        if (isNaN(size) || size <= 0) return showBanner('Valor InvÃ¡lido', 'warning');
+        if (isNaN(size) || size <= 0) return showBanner('Valor Inválido', 'warning');
         
-        btn.disabled = true; btn.textContent = 'Iniciando OperaÃ§Ã£o...';
+        btn.disabled = true; btn.textContent = 'Iniciando Operação...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2281,7 +2281,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada NecessÃ¡ria', 'warning');
+        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
         btn.disabled = true; btn.textContent = 'Importando...';
         const res = await fetch('/api/user/import-wallet', {
             method: 'POST',
@@ -2295,7 +2295,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function generateWalletSettings(btn) {
-        if (!confirm('Isso criarÃ¡ uma nova carteira e substituirÃ¡ a atual. Deseja continuar?')) return;
+        if (!confirm('Isso criará uma nova carteira e substituirá a atual. Deseja continuar?')) return;
         btn.disabled = true; btn.textContent = 'Gerando...';
         const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
         const data = await res.json();
@@ -2309,8 +2309,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', `$${(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$${(data.exposure || 0).toFixed(2)}`);
             
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
@@ -2328,66 +2328,65 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">ðŸ” Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = trades.map(t => {
                 const status = t.executionStatus || 'DETECTADO';
+                const pnl = t.pnlPercent || 0;
 
-                // Status styling
                 const statusStyles = {
-                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: 'âœ…' },
-                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: 'âš¡' },
-                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: 'ðŸ’¸' },
-                    'PULADO (EXPOSIÃ‡ÃƒO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: 'ðŸ“Š' },
-                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'âš ï¸' },
-                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ“' },
-                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸš«' },
-                    'PULADO (PREÃ‡O)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ’²' },
-                    'PULADO (ESTRATÃ‰GIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: 'ðŸ§©' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: 'âŒ' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: 'ðŸ”´' },
+                    'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '✅' },
+                    'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '⚡' },
+                    'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '💸' },
+                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '📊' },
+                    'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '⚠️' },
+                    'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '📏' },
+                    'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🚫' },
+                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💲' },
+                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '🧩' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' }
                 };
-                const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: 'ðŸ”µ' };
 
                 // P&L styling
-                let pnlHtml = '<span style="color:var(--text-dim)">â€”</span>';
+                let pnlHtml = '<span style="color:var(--text-dim)">—</span>';
                 if (t.pnlPercent !== null && t.pnlPercent !== undefined) {
                     const pnlColor = t.pnlPercent >= 0 ? 'var(--success)' : 'var(--danger)';
-                    const pnlIcon = t.pnlPercent >= 0 ? 'â†‘' : 'â†“';
-                    pnlHtml = \`<span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${t.pnlLabel}</span>\`;
+                    const pnlIcon = t.pnlPercent >= 0 ? '↗️' : '↘️';
+                    pnlHtml = `<span style="color:${pnlColor}; font-weight:700">${pnlIcon} ${t.pnlLabel}</span>`;
                 }
 
                 // Entry price
-                const entryPrice = t.price ? \`\${(parseFloat(t.price)*100).toFixed(1)}Â¢\` : 'â€”';
-                const curPrice = t.curPrice !== null ? \`\${(t.curPrice*100).toFixed(1)}Â¢\` : 'â€”';
+                const entryPrice = t.price ? `${(parseFloat(t.price)*100).toFixed(1)}¢` : '—';
+                const curPrice = t.curPrice !== null ? `${(t.curPrice*100).toFixed(1)}¢` : '—';
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
+                    ? `<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>`
                     : '';
 
                 // Market link
                 const marketLink = t.slug
-                    ? \`<a href="https://polymarket.com/event/\${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="\${t.title}">\${(t.title || t.slug).slice(0,35)}...\${sourceBadge}</a>\`
-                    : \`<span style="font-size:0.85rem">\${(t.title || 'Detectando...').slice(0,35)}\${sourceBadge}</span>\`;
+                    ? `<a href="https://polymarket.com/event/${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="${t.title}">${(t.title || t.slug).slice(0,35)}...${sourceBadge}</a>`
+                    : `<span style="font-size:0.85rem">${(t.title || 'Detectando...').slice(0,35)}${sourceBadge}</span>`;
 
-                const tooltip = t.executionDetails ? \` title="\${t.executionDetails}"\` : '';
+                const tooltip = t.executionDetails ? ` title="${t.executionDetails}"` : '';
 
-                return \`
+                return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
-                    <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
-                    <td>\${marketLink}</td>
-                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'â–² COMPRA':'â–¼ VENDA'}</span></td>
-                    <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
-                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
-                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
-                    <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">â€”</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">â€”</span>'}</td>
-                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
-                </tr>\`;
+                    <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
+                    <td>${marketLink}</td>
+                    <td><span style="color:${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
+                    <td style="font-weight:700; color:#fff">$${(t.usdcSize||0).toFixed(2)}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">${entryPrice}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">${curPrice}</td>
+                    <td>${pnlHtml}</td>
+                    <td style="font-weight:700; color:#adf">${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td>${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td><span class="badge"${tooltip} style="background:${style.bg}; color:${style.color}; cursor:default">${style.icon} ${status}</span></td>
+                </tr>`;
             }).join('');
 
             // Update Trader Info
