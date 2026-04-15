@@ -2128,7 +2128,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.success) {
-                document.getElementById('step-content').innerHTML = \`
+                document.getElementById('step-content').innerHTML = `
                     <div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:24px; border-radius:16px; margin-bottom:24px; animation:fadeIn 0.3s ease">
                         <h4 style="color:var(--success); margin-bottom:16px">\u2705 Carteira Gerada com Sucesso!</h4>
                         <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, voc\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
@@ -2139,11 +2139,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <button onclick="copyToClipboard('\${data.privateKey}', this)" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:700">COPIAR</button>
                         </div>
 
-                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos. N\u00F3s n\u00F3s guardamos c\u00F3pias de seguran\u00E7a.</p>
+                        <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:16px; border-radius:12px; margin-bottom:20px">
+                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Como Vincular na Polymarket:</h5>
+                            <ol style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.4; margin-bottom:12px">
+                                <li>Copie sua <b>Chave Privada</b> acima.</li>
+                                <li>No seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
+                                <li>Cole a chave e clique em "Importar".</li>
+                                <li>Abra a Polymarket e clique em <b>"Conectar Carteira"</b>.</li>
+                            </ol>
+                            <button onclick="window.open('https://polymarket.com', '_blank')" style="width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">ABRIR POLYMARKET AGORA</button>
+                        </div>
+
+                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
                         
                         <button class="btn" onclick="loadUser()">J\u00C1 SALVEI EM LOCAL SEGURO, PROSSEGUIR</button>
                     </div>
-                \`;
+                `;
             } else {
                 showBanner(data.error || 'Erro ao gerar carteira', 'danger');
                 btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
@@ -2393,9 +2404,34 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const data = await res.json();
             btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
             if (res.ok && data.success) {
-                // We use a cleaner UI show for settings too? Or just an alert for now as it's a swap
-                alert('CARTEIRA GERADA COM SUCESSO!\\n\\nEndere\u00E7o: ' + data.address + '\\n\\nCHAVE PRIVADA (SALVE AGORA!):\\n' + data.privateKey + '\\n\\nVoc\u00EA deve salvar esta chave para configurar sua conta na Polymarket.');
-                loadUser();
+                document.getElementById('tab-config').innerHTML = `
+                    <div style="max-width:600px; margin:0 auto; background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:32px; border-radius:16px; animation:fadeIn 0.3s ease">
+                        <h3 style="color:var(--success); margin-bottom:20px">\u2705 Nova Carteira Criada!</h3>
+                        <p style="color:var(--text-dim); margin-bottom:20px">Sua carteira anterior foi substitu\u00EDda. Salve os dados abaixo imediatamente.</p>
+                        
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:20px">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">ENDERE\u00C7O</div>
+                            <div style="word-break:break-all">\${data.address}</div>
+                        </div>
+
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:24px; position:relative">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">CHAVE PRIVADA (CONSERVAR!)</div>
+                            <div style="color:var(--accent); word-break:break-all">\${data.privateKey}</div>
+                            <button onclick="copyToClipboard('\${data.privateKey}', this)" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:700">COPIAR</button>
+                        </div>
+
+                        <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:20px; border-radius:12px; margin-bottom:24px">
+                             <h4 style="color:#3b82f6; margin-bottom:12px; font-size:0.9rem">\uD83D\uDD17 Instru\u00E7\u00F5es de V\u00EDnculo:</h4>
+                             <ul style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.6">
+                                <li>Importe esta <b>Chave Privada</b> no seu MetaMask.</li>
+                                <li>Conecte sua MetaMask no site da Polymarket.</li>
+                             </ul>
+                             <button onclick="window.open('https://polymarket.com', '_blank')" style="margin-top:12px; width:100%; padding:12px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700">ABRIR POLYMARKET</button>
+                        </div>
+
+                        <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
+                    </div>
+                `;
             } else {
                 showBanner(data.error || 'Falha ao gerar', 'danger');
             }
