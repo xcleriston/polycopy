@@ -1881,6 +1881,21 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
                     </div>
                 </div>
+
+                <div style="margin-top: 20px; display: grid; gap: 12px">
+                    <label class="switch-container">
+                        <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                    </label>
+                    <label class="switch-container">
+                        <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
+                    </label>
+                    <label class="switch-container">
+                        <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
+                    </label>
+                    <label class="switch-container">
+                        <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
+                    </label>
+                </div>
             </div>
 
             <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
@@ -1946,22 +1961,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <label>Volume Máximo em Aberto ($)</label>
                             <input type="number" id="bot-maxExposure" step="1">
                             <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
-                        </div>
-                    </div>
-                </div>
-
-                    <div style="margin-top: 20px; display: grid; gap: 12px">
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
                     </div>
                     <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
                 </div>
