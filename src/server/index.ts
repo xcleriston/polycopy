@@ -2128,7 +2128,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.success) {
-                document.getElementById('step-content').innerHTML = `
+                document.getElementById('step-content').innerHTML = \`
                     <div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:24px; border-radius:16px; margin-bottom:24px; animation:fadeIn 0.3s ease">
                         <h4 style="color:var(--success); margin-bottom:16px">\u2705 Carteira Gerada com Sucesso!</h4>
                         <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, voc\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
@@ -2154,7 +2154,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         
                         <button class="btn" onclick="loadUser()">J\u00C1 SALVEI EM LOCAL SEGURO, PROSSEGUIR</button>
                     </div>
-                `;
+                \`;
             } else {
                 showBanner(data.error || 'Erro ao gerar carteira', 'danger');
                 btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
@@ -2404,7 +2404,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const data = await res.json();
             btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
             if (res.ok && data.success) {
-                document.getElementById('tab-config').innerHTML = `
+                document.getElementById('tab-config').innerHTML = \`
                     <div style="max-width:600px; margin:0 auto; background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:32px; border-radius:16px; animation:fadeIn 0.3s ease">
                         <h3 style="color:var(--success); margin-bottom:20px">\u2705 Nova Carteira Criada!</h3>
                         <p style="color:var(--text-dim); margin-bottom:20px">Sua carteira anterior foi substitu\u00EDda. Salve os dados abaixo imediatamente.</p>
@@ -2431,7 +2431,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
                         <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
                     </div>
-                `;
+                \`;
             } else {
                 showBanner(data.error || 'Falha ao gerar', 'danger');
             }
