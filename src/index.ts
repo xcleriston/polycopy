@@ -5,6 +5,7 @@ import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
 import { startChainMonitor } from './services/chainMonitor.js';
 import { startTpSlMonitor } from './services/tpSlMonitor.js';
+import { startArbitrageMonitor } from './services/arbitrageMonitor.js';
 import { startServer } from './server/index.js';
 import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
@@ -104,6 +105,9 @@ export const main = async () => {
 
         Logger.info('Starting trade executor...');
         tradeExecutor();
+
+        Logger.info('Starting arbitrage/hedge bot...');
+        startArbitrageMonitor();
 
         // Start web UI + API server
         await startServer(PORT);

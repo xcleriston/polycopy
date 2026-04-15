@@ -1358,9 +1358,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
               <option value="LIMIT">Limit (Preço Alvo)</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Slippage Máximo (%)</label>
-            <input type="number" id="edit-slippage" step="0.01">
+          <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+            <div>
+              <label>Slippage Compra (%)</label>
+              <input type="number" id="edit-slippageBuy" step="0.01">
+            </div>
+            <div>
+              <label>Slippage Venda (%)</label>
+              <input type="number" id="edit-slippageSell" step="0.01">
+            </div>
           </div>
         </div>
 
@@ -1516,7 +1522,8 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
         document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
-        document.getElementById('edit-slippage').value = c.slippage || 0.05;
+        document.getElementById('edit-slippageBuy').value = c.slippageBuy || 0.05;
+        document.getElementById('edit-slippageSell').value = c.slippageSell || 0.05;
         document.getElementById('edit-minPrice').value = c.minPrice || 0;
         document.getElementById('edit-maxPrice').value = c.maxPrice || 1.0;
         document.getElementById('edit-minTrade').value = c.minTradeSize || 0;
@@ -1536,7 +1543,8 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         strategy: document.getElementById('edit-strategy').value,
         copySize: parseFloat(document.getElementById('edit-size').value),
         orderType: document.getElementById('edit-orderType').value,
-        slippage: parseFloat(document.getElementById('edit-slippage').value),
+        slippageBuy: parseFloat(document.getElementById('edit-slippageBuy').value),
+        slippageSell: parseFloat(document.getElementById('edit-slippageSell').value),
         minPrice: parseFloat(document.getElementById('edit-minPrice').value),
         maxPrice: parseFloat(document.getElementById('edit-maxPrice').value),
         minTradeSize: parseFloat(document.getElementById('edit-minTrade').value),
@@ -1822,7 +1830,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <label>Modo de Operação</label>
                     <select id="bot-mode">
                         <option value="COPY">COPY: Cópia Automática</option>
-                        <option value="AFK">AFK: Apenas Alertas e TP/SL</option>
+                        <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1849,9 +1857,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <option value="LIMIT">Limit (Preço Específico)</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Slippage Máximo (%)</label>
-                    <input type="number" id="bot-slippage" step="0.01">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                    <div class="form-group">
+                        <label>Slippage Compra (%)</label>
+                        <input type="number" id="bot-slippageBuy" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Slippage Venda (%)</label>
+                        <input type="number" id="bot-slippageSell" step="0.01">
+                    </div>
                 </div>
             </div>
 
@@ -1879,6 +1893,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <input type="number" id="bot-slPercent" step="1" placeholder="Ex: -20">
                             <small style="color:var(--text-dim)">Venda aut. ao atingir este prejuízo (0 = desativado)</small>
                         </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label style="color:var(--danger); display:flex; align-items:center; gap:5px">🛑 Balance SL ($) - Kill Switch</label>
+                        <input type="number" id="bot-balanceSl" step="1">
+                        <small style="color:var(--text-dim)">Para o robô e vende se saldo total cair abaixo deste valor.</small>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
@@ -1914,7 +1933,21 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <input type="number" id="bot-maxExposure" step="1">
                             <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
                         </div>
+
+                    <h3 style="margin-top: 30px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                        <div class="form-group">
+                            <label>Trigger Delta ($)</label>
+                            <input type="number" id="bot-triggerDelta" step="0.001">
+                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Hedge Ceiling / Teto Max ($)</label>
+                            <input type="number" id="bot-hedgeCeiling" step="0.01">
+                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
+                        </div>
                     </div>
+                </div>
 
                     <div style="margin-top: 20px; display: grid; gap: 12px">
                         <label class="switch-container">
@@ -1928,14 +1961,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </label>
                         <label class="switch-container">
                             <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
-                        </label>
                     </div>
+                    <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
                 </div>
-                <button class="btn" style="margin-top: 30px" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
             </div>
-        </div>
 
-        <div class="card" style="margin-top: 24px">
+            <!-- Keep these inside tab-config -->
+            <div class="card" style="margin-top: 24px">
             <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Filtros Avançados & Anti-Scam (Fase 5)</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div class="form-group">
@@ -2116,16 +2148,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <span style="font-size:0.7rem; font-weight:700">OU</span>
                 <div style="flex:1; height:1px; background:var(--border)"></div>
             </div>
-            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar em Modo AFK</button>
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">No modo AFK vocÃª usa apenas alertas e TP/SL, sem copiar traders.</p>
+            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar robô de Hedge Autônomo com Perna dupla (BTC).</p>
 
     async function enterAfkMode(btn) {
-        if (!confirm('Deseja entrar no Modo AFK? VocÃª nÃ£o copiarÃ¡ trades automaticamente, mas terÃ¡ acesso aos alertas e gestÃ£o de risco (TP/SL).')) return;
+        if (!confirm('Deseja iniciar em Modo Arbitrage? O bot não copiará traders, mas entrará em operações baseado em seus limiares de Hedge e Momentum.')) return;
         btn.disabled = true; btn.textContent = 'Configurando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'AFK', finalize: true })
+            body: JSON.stringify({ mode: 'ARBITRAGE', finalize: true })
         });
         loadUser();
     }
@@ -2237,7 +2269,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
             setVal('bot-orderType', c.orderType || 'MARKET');
-            setVal('bot-slippage', c.slippage || 0.05);
+            setVal('bot-slippageBuy', c.slippageBuy || 0.05);
+            setVal('bot-slippageSell', c.slippageSell || 0.05);
             setVal('bot-tpPercent', c.tpPercent || 0);
             setVal('bot-slPercent', c.slPercent || 0);
             setVal('bot-minPrice', c.minPrice || 0);
@@ -2251,6 +2284,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-lastMinuteModeSec', c.lastMinuteModeSec || 0);
             setVal('bot-maxMarketCount', c.maxMarketCount || 0);
             setVal('bot-minMarketLiquidity', c.minMarketLiquidity || 0);
+            setVal('bot-balanceSl', c.balanceSl || 0);
+            setVal('bot-triggerDelta', c.triggerDelta || 0.005);
+            setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
             setVal('bot-mode', c.mode || 'COPY');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
@@ -2417,9 +2453,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             copySize: parseFloat(document.getElementById('bot-size').value),
             maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
             orderType: document.getElementById('bot-orderType').value,
-            slippage: parseFloat(document.getElementById('bot-slippage').value),
+            slippageBuy: parseFloat(document.getElementById('bot-slippageBuy').value),
+            slippageSell: parseFloat(document.getElementById('bot-slippageSell').value),
             tpPercent: parseFloat(document.getElementById('bot-tpPercent').value),
             slPercent: parseFloat(document.getElementById('bot-slPercent').value),
+            balanceSl: parseFloat(document.getElementById('bot-balanceSl').value),
             minPrice: parseFloat(document.getElementById('bot-minPrice').value),
             maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
             minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
@@ -2435,7 +2473,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value) || 0,
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
-            mode: document.getElementById('bot-mode').value
+            mode: document.getElementById('bot-mode').value,
+            triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2585,7 +2625,8 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
 
     const {
         traderAddress, enabled, strategy, copySize,
-        reverseCopy, orderType, slippage, tpPercent, slPercent,
+        reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent,
+        balanceSl, triggerDelta, hedgeCeiling,
         minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell,
         maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit,
         sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity,
@@ -2602,7 +2643,11 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     // Advanced fields
     if (reverseCopy !== undefined) user.config.reverseCopy = reverseCopy;
     if (orderType !== undefined) user.config.orderType = orderType;
-    if (slippage !== undefined) user.config.slippage = slippage;
+    if (slippageBuy !== undefined) user.config.slippageBuy = slippageBuy;
+    if (slippageSell !== undefined) user.config.slippageSell = slippageSell;
+    if (balanceSl !== undefined) user.config.balanceSl = balanceSl;
+    if (triggerDelta !== undefined) user.config.triggerDelta = triggerDelta;
+    if (hedgeCeiling !== undefined) user.config.hedgeCeiling = hedgeCeiling;
     if (tpPercent !== undefined) user.config.tpPercent = tpPercent;
     if (slPercent !== undefined) user.config.slPercent = slPercent;
     if (minPrice !== undefined) user.config.minPrice = minPrice;

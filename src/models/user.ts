@@ -12,7 +12,7 @@ export interface IUser extends Document {
         privateKey: string;
     };
     config: {
-        mode?: 'COPY' | 'AFK';
+        mode?: 'COPY' | 'ARBITRAGE';
         traderAddress: string;
         strategy: string;
         copySize: number;
@@ -20,9 +20,11 @@ export interface IUser extends Document {
         // Advanced Config
         reverseCopy?: boolean;
         orderType?: 'MARKET' | 'LIMIT';
-        slippage?: number;
+        slippageBuy?: number;
+        slippageSell?: number;
         tpPercent?: number;
         slPercent?: number;
+        balanceSl?: number;
         minPrice?: number;
         maxPrice?: number;
         minTradeSize?: number;
@@ -41,6 +43,9 @@ export interface IUser extends Document {
         lastMinuteModeSec?: number;
         maxMarketCount?: number;
         minMarketLiquidity?: number;
+        // Phase 6: Arbitrage
+        triggerDelta?: number;
+        hedgeCeiling?: number;
     };
     totalSpentUSD?: number;
     step: string;
@@ -61,16 +66,18 @@ const UserSchema: Schema = new Schema({
         privateKey: { type: String },
     },
     config: {
-        mode: { type: String, enum: ['COPY', 'AFK'], default: 'COPY' },
+        mode: { type: String, enum: ['COPY', 'ARBITRAGE'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },
         enabled: { type: Boolean, default: true },
         reverseCopy: { type: Boolean, default: false },
         orderType: { type: String, enum: ['MARKET', 'LIMIT'], default: 'MARKET' },
-        slippage: { type: Number, default: 0.05 },
+        slippageBuy: { type: Number, default: 0.05 },
+        slippageSell: { type: Number, default: 0.05 },
         tpPercent: { type: Number, default: 0 },
         slPercent: { type: Number, default: 0 },
+        balanceSl: { type: Number, default: 0 },
         minPrice: { type: Number, default: 0 },
         maxPrice: { type: Number, default: 1.0 },
         minTradeSize: { type: Number, default: 1.0 },
@@ -89,6 +96,9 @@ const UserSchema: Schema = new Schema({
         lastMinuteModeSec: { type: Number, default: 0 },
         maxMarketCount: { type: Number, default: 0 }, // 0 means no limit
         minMarketLiquidity: { type: Number, default: 0 },
+        // Phase 6 Arbitrage Filters
+        triggerDelta: { type: Number, default: 0.005 },
+        hedgeCeiling: { type: Number, default: 0.95 }
     },
     totalSpentUSD: { type: Number, default: 0.0 },
     step: { type: String, default: 'start' },
