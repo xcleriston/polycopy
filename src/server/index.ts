@@ -2037,6 +2037,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('nav-' + tab).classList.add('active');
     }
 
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.textContent;
+            btn.textContent = 'COPIADO!';
+            btn.style.color = 'var(--success)';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.color = 'var(--accent)';
+            }, 2000);
+        });
+    }
+
     async function loadUser() {
         try {
             const res = await fetch('/api/user/me');
@@ -2094,8 +2106,34 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function generateWallet(btn) {
         btn.disabled = true; btn.textContent = 'Gerando...';
-        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
-        if (res.ok) loadUser();
+        try {
+            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                document.getElementById('step-content').innerHTML = \`
+                    <div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:24px; border-radius:16px; margin-bottom:24px; animation:fadeIn 0.3s ease">
+                        <h4 style="color:var(--success); margin-bottom:16px">\u2705 Carteira Gerada com Sucesso!</h4>
+                        <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, voc\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
+                        
+                        <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.8rem; margin-bottom:16px; position:relative">
+                            <div style="color:var(--text-dim); font-size:0.6rem; margin-bottom:4px">CHAVE PRIVADA</div>
+                            <div style="color:var(--accent); word-break:break-all" id="generated-pk">\${data.privateKey}</div>
+                            <button onclick="copyToClipboard('\${data.privateKey}', this)" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:700">COPIAR</button>
+                        </div>
+
+                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos. N\u00F3s n\u00F3s guardamos c\u00F3pias de seguran\u00E7a.</p>
+                        
+                        <button class="btn" onclick="loadUser()">J\u00C1 SALVEI EM LOCAL SEGURO, PROSSEGUIR</button>
+                    </div>
+                \`;
+            } else {
+                showBanner(data.error || 'Erro ao gerar carteira', 'danger');
+                btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            }
+        } catch (e) {
+            showBanner('Erro de conex\u00E3o', 'danger');
+            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+        }
     }
 
     async function importWallet(btn) {
@@ -2331,13 +2369,23 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function generateWalletSettings(btn) {
-        if (!confirm('Isso criar\u00E1 uma nova carteira e substituir\u00E1 a atual. Deseja continuar?')) return;
+        if (!confirm('Deseja gerar uma NOVA carteira? A atual ser\u00E1 substit\u00EDda no sistema.')) return;
         btn.disabled = true; btn.textContent = 'Gerando...';
-        const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
-        const data = await res.json();
-        btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
-        if (res.ok) { showBanner('Nova Carteira Gerada!', 'success'); loadUser(); }
-        else { showBanner(data.error || 'Falha ao gerar', 'danger'); }
+        try {
+            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const data = await res.json();
+            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            if (res.ok && data.success) {
+                // We use a cleaner UI show for settings too? Or just an alert for now as it's a swap
+                alert('CARTEIRA GERADA COM SUCESSO!\\n\\nEndere\u00E7o: ' + data.address + '\\n\\nCHAVE PRIVADA (SALVE AGORA!):\\n' + data.privateKey + '\\n\\nVoc\u00EA deve salvar esta chave para configurar sua conta na Polymarket.');
+                loadUser();
+            } else {
+                showBanner(data.error || 'Falha ao gerar', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conex\u00E3o', 'danger');
+            btn.disabled = false;
+        }
     }
 
     async function refreshStats() {
@@ -2576,7 +2624,7 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         if (user.step !== 'ready') user.step = 'setup';
         await user.save();
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
-        res.json({ success: true, address: newWallet.address });
+        res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
     } catch (e) {
         console.error('[WALLET] Generation error:', e);
         res.status(500).json({ error: 'Failed to generate wallet' });
