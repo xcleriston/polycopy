@@ -2056,15 +2056,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
-        const isAfkMode = currentUser.config?.mode === 'AFK';
+        const isArbitrageMode = currentUser.config?.mode === 'ARBITRAGE';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || (!hasTrader && !isAfkMode) || !isReady) {
+        if (!hasWallet || (!hasTrader && !isArbitrageMode) || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader && !isAfkMode) renderStep2();
+            else if (!hasTrader && !isArbitrageMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
@@ -2078,7 +2078,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 1: Sua Carteira';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para voc\u00EA. Gere uma nova ou importe uma existente via Chave Privada.</p>
             <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
@@ -2136,25 +2136,25 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = `
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
+        document.getElementById('step-content').innerHTML = \`
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endere\u00E7o do trader que deseja copiar. O bot monitorar\u00E1 cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endereço da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
+                <label>Endere\u00E7o da Carteira (Polymarket)</label>
+                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+            <button class="btn" onclick="nextToStep3(this)">Pr\u00F3ximo Passo: Estrat\u00E9gia</button>
             <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
                 <span style="font-size:0.7rem; font-weight:700">OU</span>
                 <div style="flex:1; height:1px; background:var(--border)"></div>
             </div>
             <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar robô de Hedge Autônomo com Perna dupla (BTC).</p>
-        `;
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar rob\u00F4 de Hedge Aut\u00F4nomo com Perna dupla (BTC).</p>
+        \`;
     }
 
     async function enterAfkMode(btn) {
-        if (!confirm('Deseja iniciar em Modo Arbitrage? O bot não copiará traders, mas entrará em operações baseado em seus limiares de Hedge e Momentum.')) return;
+        if (!confirm('Deseja iniciar em Modo Arbitrage? O bot n\u00E3o copiar\u00E1 traders, mas entrar\u00E1 em opera\u00E7\u00F5es baseado em seus limiares de Hedge e Momentum.')) return;
         btn.disabled = true; btn.textContent = 'Configurando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2182,7 +2182,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step done';
         document.getElementById('s3').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 3: Sua Estrat\u00E9gia';
-        document.getElementById('step-content').innerHTML = `
+        document.getElementById('step-content').innerHTML = \`
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como voc\u00EA deseja copiar os trades? Defina o valor inicial da opera\u00E7\u00E3o.</p>
             
             <div class="form-group">
@@ -2212,7 +2212,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
 
             <button class="btn" onclick="finalizeSetup(this)">Finalizar e Iniciar Bot</button>
-        `;
+        \`;
     }
 
     async function finalizeSetup(btn) {
@@ -2317,7 +2317,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada NecessÃ¡ria', 'warning');
+        if (!pk) return showBanner('Chave Privada Necess\u00E1ria', 'warning');
         btn.disabled = true; btn.textContent = 'Importando...';
         const res = await fetch('/api/user/import-wallet', {
             method: 'POST',
@@ -2331,7 +2331,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function generateWalletSettings(btn) {
-        if (!confirm('Isso criarÃ¡ uma nova carteira e substituirÃ¡ a atual. Deseja continuar?')) return;
+        if (!confirm('Isso criar\u00E1 uma nova carteira e substituir\u00E1 a atual. Deseja continuar?')) return;
         btn.disabled = true; btn.textContent = 'Gerando...';
         const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
         const data = await res.json();
