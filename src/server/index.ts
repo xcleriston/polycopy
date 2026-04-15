@@ -181,16 +181,19 @@ app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req:
         const { config, step } = req.body;
         const update: any = {};
         if (config) {
-            Object.keys(config).forEach(key => {
-                update[`config.${key}`] = config[key];
-            });
-        }
+        if (config) update.config = config;
         if (step) update.step = step;
+        if (username !== undefined) update.username = username;
+        if (email !== undefined) update.email = email;
+        if (password && password.trim() !== '') {
+            update.password = await bcrypt.hash(password, 10);
+        }
 
-        const user = id.length === 24
-            ? await User.findByIdAndUpdate(id, { $set: update }, { new: true })
-            : await User.findOneAndUpdate({ chatId: id }, { $set: update }, { new: true });
-            
+        const user = id.length === 24 
+            ? await User.findByIdAndUpdate(id, update, { new: true })
+            : await User.findOneAndUpdate({ chatId: id }, update, { new: true });
+        
+        if (!user) return res.status(404).json({ error: 'User not found' });
         res.json({ success: true, user });
     } catch (error) {
         res.status(500).json({ error: 'Failed to update user' });
@@ -1343,6 +1346,28 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       </h2>
       <input type="hidden" id="edit-chatId">
       
+      <!-- Seção: Conta -->
+      <div style="margin-bottom: 24px; padding: 15px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px">
+        <h3 style="margin-bottom: 16px; font-size: 0.9rem; color: var(--accent); display: flex; align-items: center; gap: 8px">
+          <span>👤</span> Dados da Conta
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px">
+          <div class="form-group">
+            <label>Nome / Usuário</label>
+            <input type="text" id="edit-username" placeholder="Nome">
+          </div>
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="edit-email" placeholder="email@exemplo.com">
+          </div>
+          <div class="form-group">
+            <label>Nova Senha</label>
+            <input type="password" id="edit-password" placeholder="••••••••">
+          </div>
+        </div>
+        <small style="color: var(--text-dim); font-size: 0.7rem">Deixe a senha em branco para não alterar.</small>
+      </div>
+
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
         <!-- Coluna 1: Básico -->
         <div>
@@ -1524,10 +1549,14 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     async function editUser(id) {
       try {
         const res = await fetch(\`/api/users/\${id}\`);
-        const user = await res.json();
-        const c = user.config || {};
+        const u = await res.json();
+        const c = u.config || {};
         
-        document.getElementById('edit-chatId').value = id;
+        document.getElementById('edit-chatId').value = u._id || u.chatId;
+        document.getElementById('edit-username').value = u.username || '';
+        document.getElementById('edit-email').value = u.email || '';
+        document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
+        
         document.getElementById('edit-trader').value = c.traderAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
@@ -1548,6 +1577,10 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
     async function commitUserEdit() {
       const id = document.getElementById('edit-chatId').value;
+      const username = document.getElementById('edit-username').value.trim();
+      const email = document.getElementById('edit-email').value.trim();
+      const password = document.getElementById('edit-password').value.trim();
+
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
         strategy: document.getElementById('edit-strategy').value,
@@ -1564,10 +1597,15 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         copySell: document.getElementById('edit-copySell').checked
       };
       
+      const payload: any = { config };
+      if (username) payload.username = username;
+      if (email) payload.email = email;
+      if (password) payload.password = password;
+
       const res = await fetch(\`/api/users/\${id}/config\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config })
+        body: JSON.stringify(payload)
       });
       
       if (res.ok) {
