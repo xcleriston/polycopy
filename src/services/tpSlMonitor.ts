@@ -6,7 +6,7 @@ import createClobClient from '../utils/createClobClient.js';
 import telegram from '../utils/telegram.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 
-const MONITOR_INTERVAL = 15000; // 15 seconds
+const MONITOR_INTERVAL = 30000; // 30 seconds (Balanced frequency)
 
 export const startTpSlMonitor = () => {
     Logger.info('🛡️ Starting Auto TP/SL Risk Monitor...');

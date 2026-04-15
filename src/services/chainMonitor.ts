@@ -21,10 +21,12 @@ export const startChainMonitor = async () => {
         const provider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
 
         // Handle provider errors specifically to prevent Uncaught Exceptions
-        provider.on("error", (e) => {
-            Logger.error('WebSocket connection lost/failed. Retrying in 10s...');
+        provider.on("error", (e: any) => {
+            const isRateLimit = e.message?.includes('429') || e.code?.toString() === '429';
+            const waitTime = isRateLimit ? 30000 : 15000;
+            Logger.error(`${isRateLimit ? '🚫 RPC Rate Limit (429)' : '❌ WebSocket Error'}: Retrying in ${waitTime/1000}s...`);
             provider.destroy();
-            setTimeout(startChainMonitor, 10000);
+            setTimeout(startChainMonitor, waitTime);
         });
 
         const contract = new ethers.Contract(POLYMARKET_EXCHANGE_ADDR, EXCHANGE_ABI, provider);

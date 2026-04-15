@@ -51,14 +51,25 @@ const gracefulShutdown = async (signal: string) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
-    Logger.error(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
+    Logger.error(`🌪️ UNHANDLED REJECTION at: ${promise}, reason: ${reason}`);
     // Don't exit immediately, let the application try to recover
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
+    // Check if error is related to network/RPC limits (429 or frame errors)
+    const isNetworkError = error.message.includes('429') || 
+                          error.message.includes('Unexpected server response: 429') ||
+                          error.message.includes('Invalid WebSocket frame') || 
+                          error.message.includes('ECONNRESET');
+
+    if (isNetworkError) {
+        Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
+        return; // Don't kill the process for network hiccups
+    }
+
     Logger.error(`Uncaught Exception: ${error.message}`);
-    // Exit immediately for uncaught exceptions as the application is in an undefined state
+    // Exit immediately for other uncaught exceptions as the application is in an undefined state
     gracefulShutdown('uncaughtException').catch(() => {
         process.exit(1);
     });
