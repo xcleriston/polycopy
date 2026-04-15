@@ -1867,6 +1867,20 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <input type="number" id="bot-slippageSell" step="0.01">
                     </div>
                 </div>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                    <div class="form-group">
+                        <label>Trigger Delta ($)</label>
+                        <input type="number" id="bot-triggerDelta" step="0.001">
+                        <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Hedge Ceiling / Teto Max ($)</label>
+                        <input type="number" id="bot-hedgeCeiling" step="0.01">
+                        <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
+                    </div>
+                </div>
             </div>
 
             <div class="card" style="display: flex; flex-direction: column; justify-content: space-between">
@@ -1932,19 +1946,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <label>Volume Máximo em Aberto ($)</label>
                             <input type="number" id="bot-maxExposure" step="1">
                             <small style="color:var(--text-dim)">Pausa novas compras se posições abertas excederem este valor.</small>
-                        </div>
-
-                    <h3 style="margin-top: 30px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
-                        <div class="form-group">
-                            <label>Trigger Delta ($)</label>
-                            <input type="number" id="bot-triggerDelta" step="0.001">
-                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hedge Ceiling / Teto Max ($)</label>
-                            <input type="number" id="bot-hedgeCeiling" step="0.01">
-                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
                         </div>
                     </div>
                 </div>
