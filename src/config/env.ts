@@ -85,7 +85,7 @@ const validateAddresses = (): void => {
  * Validate numeric configuration values
  */
 const validateNumericConfig = (): void => {
-    const fetchInterval = parseInt(process.env.FETCH_INTERVAL || '1', 10);
+    const fetchInterval = parseInt(process.env.FETCH_INTERVAL || '60', 10);
     if (isNaN(fetchInterval) || fetchInterval <= 0) {
         throw new Error(
             `Invalid FETCH_INTERVAL: ${process.env.FETCH_INTERVAL}. Must be a positive integer.`
