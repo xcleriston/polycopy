@@ -69,7 +69,7 @@ const validateAddresses = () => {
  * Validate numeric configuration values
  */
 const validateNumericConfig = () => {
-    const fetchInterval = parseInt(process.env.FETCH_INTERVAL || '1', 10);
+    const fetchInterval = parseInt(process.env.FETCH_INTERVAL || '60', 10);
     if (isNaN(fetchInterval) || fetchInterval <= 0) {
         throw new Error(`Invalid FETCH_INTERVAL: ${process.env.FETCH_INTERVAL}. Must be a positive integer.`);
     }
@@ -104,7 +104,7 @@ const validateUrls = () => {
     if (process.env.CLOB_WS_URL && !process.env.CLOB_WS_URL.startsWith('ws')) {
         console.error('\n❌ Invalid CLOB_WS_URL\n');
         console.error(`Current value: ${process.env.CLOB_WS_URL}`);
-        console.error('Default value: wss://ws-subscriptions-clob.polymarket.com/ws\n');
+        console.error('Default value: wss://ws-subscriptions-clob.polymarket.com/ws/market\n');
         console.error('⚠️  Use the default value unless you have a specific reason to change it!\n');
         throw new Error(`Invalid CLOB_WS_URL: ${process.env.CLOB_WS_URL}. Must be a valid WebSocket URL (ws:// or wss://).`);
     }
@@ -262,8 +262,8 @@ export const ENV = {
     PROXY_WALLET: process.env.PROXY_WALLET,
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL,
-    CLOB_WS_URL: process.env.CLOB_WS_URL,
-    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '1', 10),
+    CLOB_WS_URL: (process.env.CLOB_WS_URL || 'wss://ws-subscriptions-clob.polymarket.com/ws/market'),
+    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '60', 10),
     TOO_OLD_TIMESTAMP: parseInt(process.env.TOO_OLD_TIMESTAMP || '24', 10),
     RETRY_LIMIT: parseInt(process.env.RETRY_LIMIT || '3', 10),
     // Legacy parameters (kept for backward compatibility)
@@ -272,8 +272,8 @@ export const ENV = {
     // New copy strategy configuration
     COPY_STRATEGY_CONFIG: parseCopyStrategy(),
     // Network settings
-    REQUEST_TIMEOUT_MS: parseInt(process.env.REQUEST_TIMEOUT_MS || '10000', 10),
-    NETWORK_RETRY_LIMIT: parseInt(process.env.NETWORK_RETRY_LIMIT || '3', 10),
+    REQUEST_TIMEOUT_MS: parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10),
+    NETWORK_RETRY_LIMIT: parseInt(process.env.NETWORK_RETRY_LIMIT || '5', 10),
     // Trade aggregation settings
     TRADE_AGGREGATION_ENABLED: process.env.TRADE_AGGREGATION_ENABLED === 'true',
     TRADE_AGGREGATION_WINDOW_SECONDS: parseInt(process.env.TRADE_AGGREGATION_WINDOW_SECONDS || '300', 10), // 5 minutes default

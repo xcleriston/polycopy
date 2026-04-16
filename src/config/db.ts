@@ -13,6 +13,10 @@ const connectDB = async () => {
         process.exit(1);
     }
 
+    // Improve stability by disabling buffering and auto-indexing
+    mongoose.set('bufferCommands', false);
+    mongoose.set('autoIndex', false);
+
     try {
         const options = {
             maxPoolSize: 10,

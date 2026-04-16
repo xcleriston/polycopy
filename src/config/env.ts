@@ -326,8 +326,8 @@ export const ENV = {
     // New copy strategy configuration
     COPY_STRATEGY_CONFIG: parseCopyStrategy(),
     // Network settings
-    REQUEST_TIMEOUT_MS: parseInt(process.env.REQUEST_TIMEOUT_MS || '10000', 10),
-    NETWORK_RETRY_LIMIT: parseInt(process.env.NETWORK_RETRY_LIMIT || '3', 10),
+    REQUEST_TIMEOUT_MS: parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10),
+    NETWORK_RETRY_LIMIT: parseInt(process.env.NETWORK_RETRY_LIMIT || '5', 10),
     // Trade aggregation settings
     TRADE_AGGREGATION_ENABLED: process.env.TRADE_AGGREGATION_ENABLED === 'true',
     TRADE_AGGREGATION_WINDOW_SECONDS: parseInt(

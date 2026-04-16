@@ -3042,30 +3042,30 @@ app.get('/', authenticateToken, (req, res) => {
     }
 });
 export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
-    var _a;
     // Initialize global proxy if configured
     yield setupProxy();
     yield bootstrapAdmin();
-    // ONE-TIME FIX: User identified proxy wallet mismatch
-    try {
-        const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
-        if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
-            console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
-            if (!userToFix.wallet)
-                userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
-            userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
-            yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
-            console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
-        }
-    }
-    catch (e) {
-        console.error('[FIX] Manual proxy fix failed:', e);
-    }
     botStartTime = Date.now();
-    app.listen(port, '0.0.0.0', () => {
-        console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);
-        console.log(`ðŸ“– Swagger: http://0.0.0.0:${port}/docs`);
-        console.log(`ðŸ”Œ API:     http://0.0.0.0:${port}/api/health\n`);
-    });
+    app.listen(port, '0.0.0.0', () => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
+        console.log(`\n🌍 Web UI:  http://0.0.0.0:${port}`);
+        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
+        console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
+        // ONE-TIME FIX: Run in background after port is bound to avoid Railway timeout
+        try {
+            const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
+            if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
+                console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
+                if (!userToFix.wallet)
+                    userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
+                userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
+                yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
+                console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
+            }
+        }
+        catch (e) {
+            console.error('[FIX] Manual proxy fix failed:', e);
+        }
+    }));
 });
 export default app;

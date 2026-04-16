@@ -19,8 +19,19 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(chalk.red('✗'), 'MongoDB connection failed: MONGODB_URI is required for multi-instance support.');
         process.exit(1);
     }
+    // Improve stability by disabling buffering and auto-indexing
+    mongoose.set('bufferCommands', false);
+    mongoose.set('autoIndex', false);
     try {
-        yield mongoose.connect(uri);
+        const options = {
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            family: 4, // Use IPv4 for stability
+            retryWrites: false,
+            retryReads: false
+        };
+        yield mongoose.connect(uri, options);
         console.log(chalk.green('✓'), 'MongoDB connected successfully');
     }
     catch (error) {
