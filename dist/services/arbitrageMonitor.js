@@ -11,6 +11,7 @@ import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
+import { Activity } from '../models/userHistory.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 import telegram from '../utils/telegram.js';
 import getMyBalance from '../utils/getMyBalance.js';
@@ -188,6 +189,25 @@ const executeArbitrageTrade = (user, market, tokenId, side, amount, reason) => _
         const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
         if (resp.success) {
             Logger.success(`✅ [${user.chatId}] ${reason} Executed: ${amount} tokens of ${side}`);
+            // Save to database for Dashboard display
+            try {
+                yield Activity.create({
+                    chatId: user.chatId,
+                    type: 'TRADE',
+                    side: 'BUY',
+                    usdcSize: amount,
+                    processedBy: [user._id],
+                    title: `${reason} | ${market.question}`,
+                    asset: tokenId,
+                    conditionId: market.conditionId,
+                    executionStatus: 'SUCESSO',
+                    price: (market.currentPrice || 0).toString(),
+                    timestamp: new Date()
+                });
+            }
+            catch (dbErr) {
+                Logger.error(`[DB] Failed to save arbitrage activity: ${dbErr}`);
+            }
             telegram.tradeExecuted(user.chatId, side, amount, 1.0, market.question);
         }
         else {
