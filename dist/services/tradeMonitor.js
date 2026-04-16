@@ -78,6 +78,7 @@ const fetchTradeDataForTrader = (address) => __awaiter(void 0, void 0, void 0, f
                 bio: activity.bio,
                 profileImage: activity.profileImage,
                 profileImageOptimized: activity.profileImageOptimized,
+                traderAddress: address.toLowerCase(),
                 bot: false,
                 botExcutedTime: 0,
             }).save();

@@ -12,6 +12,7 @@ import { ENV } from './config/env.js';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
 import { startChainMonitor } from './services/chainMonitor.js';
+import { startWSMonitor } from './services/wsMonitor.js';
 import { startTpSlMonitor } from './services/tpSlMonitor.js';
 import { startArbitrageMonitor } from './services/arbitrageMonitor.js';
 import { startServer } from './server/index.js';
@@ -92,6 +93,8 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
         tradeMonitor();
         Logger.info('Starting real-time chain monitor...');
         startChainMonitor();
+        Logger.info('Starting ultra-fast WS monitor...');
+        startWSMonitor();
         Logger.info('Starting TP/SL monitor...');
         startTpSlMonitor();
         Logger.info('Starting trade executor...');

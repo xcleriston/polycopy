@@ -73,7 +73,7 @@ export class WSMonitor {
             }
         });
 
-        this.ws.on('error', (err) => {
+        this.ws.on('error', (err: Error) => {
             Logger.error(`WebSocket Monitor Error: ${err.message}`);
         });
 
