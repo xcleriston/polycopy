@@ -18,7 +18,9 @@ const connectDB = async () => {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
-            family: 4 // Use IPv4 for stability
+            family: 4, // Use IPv4 for stability
+            retryWrites: false,
+            retryReads: false
         };
         await mongoose.connect(uri, options);
         console.log(chalk.green('✓'), 'MongoDB connected successfully');
