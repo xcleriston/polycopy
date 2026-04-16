@@ -70,25 +70,34 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
         if (users.length === 0)
             return;
         for (const market of activeMarkets) {
-            // Get current prices for Yes and No
-            // We use the last trade price (prob) for simplicity, 
-            // but in high frequency we should ideally check the orderbook.
-            const marketData = yield fetchData(`https://data-api.polymarket.com/markets/${market.conditionId}`);
-            if (!marketData || marketData.lastTradePrice === undefined)
-                continue;
-            const currentPrice = marketData.lastTradePrice; // Usually probability of YES
-            const previousPrice = market.currentPrice || currentPrice;
-            market.currentPrice = currentPrice;
-            for (const user of users) {
-                yield processUserArbitrage(user, market, currentPrice, previousPrice);
+            // Get current prices for Yes via the fast CLOB Midpoint API
+            // This is much faster than the Data API
+            try {
+                const priceData = yield fetchData(`https://clob.polymarket.com/midpoint?token_id=${market.yesTokenId}`);
+                if (!priceData || priceData.mid === undefined)
+                    continue;
+                const currentPrice = parseFloat(priceData.mid);
+                const previousPrice = market.currentPrice || currentPrice;
+                // Add a heartbeat log for visibility (only if price changed or every 5th loop)
+                const priceChanged = Math.abs(currentPrice - previousPrice) > 0.0001;
+                if (priceChanged || Math.random() < 0.2) {
+                    Logger.info(`[ARBITRAGE] ${market.question.slice(0, 20)}... | Price: ${currentPrice.toFixed(4)}`);
+                }
+                market.currentPrice = currentPrice;
+                for (const user of users) {
+                    yield processUserArbitrage(user, market, currentPrice, previousPrice);
+                }
+            }
+            catch (err) {
+                // Individual market error shouldn't stop the whole loop
             }
         }
     }
     catch (error) {
-        // Suppress noisy logs, but kept for critical errors
+        // Suppress noisy fetch logs, but keep critical errors
         const errMsg = (error === null || error === void 0 ? void 0 : error.toString()) || '';
         if (!errMsg.includes('fetch')) {
-            Logger.error('Arbitrage loop inner error: ' + errMsg);
+            Logger.error('Arbitrage loop error: ' + errMsg);
         }
     }
 });
