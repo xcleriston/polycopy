@@ -11,11 +11,10 @@ export const getProvider = () => {
     if (!providerInstance) {
         const rpcUrl = ENV.RPC_URL || 'https://rpc.ankr.com/polygon';
         Logger.info(`[RPC] Initializing StaticJsonRpcProvider for Polygon (ChainID: 137)`);
-        // Explicitly set network to skip detection
+        // Use standard network definition for StaticJsonRpcProvider
         const network = {
             name: 'polygon',
-            chainId: 137,
-            _defaultProvider: (providers) => new providers.JsonRpcProvider(rpcUrl)
+            chainId: 137
         };
         providerInstance = new ethers.providers.StaticJsonRpcProvider(rpcUrl, network);
         // Add error handling to refresh instance if needed

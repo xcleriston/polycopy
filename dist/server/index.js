@@ -18,6 +18,7 @@ import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
 import setupProxy from '../utils/setupProxy.js';
+import { ENV } from '../config/env.js';
 // Global proxy will be initialized inside startServer
 const app = express();
 app.use(express.json());
@@ -3042,14 +3043,17 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
     }
 }));
 app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     try {
         const user = req.fullUser;
-        if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
-            return res.json({ balance: 0, exposure: 0 });
-        const proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
-        const mainAddress = ((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.address) || '';
-        const balance = yield getMyBalance(mainAddress, (_e = user.wallet) === null || _e === void 0 ? void 0 : _e.proxyAddress);
+        const mainAddress = ((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || '';
+        let proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
+        // Fallback to ENV.PROXY_WALLET if DB is empty but we have a matching main wallet in env
+        if (!((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.proxyAddress) && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
+            proxyAddress = ENV.PROXY_WALLET;
+            console.log(`[STATS] Falling back to ENV.PROXY_WALLET for user ${user.chatId}`);
+        }
+        const balance = yield getMyBalance(mainAddress, proxyAddress);
         console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         // Fetch positions to calculate exposure
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);

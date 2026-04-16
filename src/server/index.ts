@@ -12,6 +12,7 @@ import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
 import setupProxy from '../utils/setupProxy.js';
+import { ENV } from '../config/env.js';
 
 // Global proxy will be initialized inside startServer
 
@@ -3066,12 +3067,16 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
-        if (!user || !user.wallet?.address) return res.json({ balance: 0, exposure: 0 });
-
-        const proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
         const mainAddress = user.wallet?.address || '';
+        let proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
         
-        const balance = await getMyBalance(mainAddress, user.wallet?.proxyAddress);
+        // Fallback to ENV.PROXY_WALLET if DB is empty but we have a matching main wallet in env
+        if (!user.wallet?.proxyAddress && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
+            proxyAddress = ENV.PROXY_WALLET;
+            console.log(`[STATS] Falling back to ENV.PROXY_WALLET for user ${user.chatId}`);
+        }
+        
+        const balance = await getMyBalance(mainAddress, proxyAddress);
         console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         
         // Fetch positions to calculate exposure

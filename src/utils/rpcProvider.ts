@@ -15,11 +15,10 @@ export const getProvider = (): ethers.providers.StaticJsonRpcProvider => {
         
         Logger.info(`[RPC] Initializing StaticJsonRpcProvider for Polygon (ChainID: 137)`);
         
-        // Explicitly set network to skip detection
+        // Use standard network definition for StaticJsonRpcProvider
         const network = {
             name: 'polygon',
-            chainId: 137,
-            _defaultProvider: (providers: any) => new providers.JsonRpcProvider(rpcUrl)
+            chainId: 137
         };
 
         providerInstance = new ethers.providers.StaticJsonRpcProvider(rpcUrl, network);

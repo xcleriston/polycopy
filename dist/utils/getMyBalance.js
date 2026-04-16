@@ -26,19 +26,23 @@ const getMyBalance = (address, proxy) => __awaiter(void 0, void 0, void 0, funct
     }
     try {
         const rpcProvider = getProvider();
-        // Use Promise.all to fetch both balances in parallel for speed
+        // Sequential calls are more stable on Ankr than Promise.all for some connection types
         const nativeContract = new ethers.Contract(NATIVE_USDC, USDC_ABI, rpcProvider);
+        const nativeBalance = yield nativeContract.balanceOf(targetAddress).catch((e) => {
+            Logger.error(`[BALANCE] Native fetch error: ${e.message}`);
+            return ethers.BigNumber.from(0);
+        });
         const bridgedContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
-        const [nativeBalance, bridgedBalance] = yield Promise.all([
-            nativeContract.balanceOf(targetAddress).catch(() => ethers.BigNumber.from(0)),
-            bridgedContract.balanceOf(targetAddress).catch(() => ethers.BigNumber.from(0))
-        ]);
+        const bridgedBalance = yield bridgedContract.balanceOf(targetAddress).catch((e) => {
+            Logger.error(`[BALANCE] Bridged fetch error: ${e.message}`);
+            return ethers.BigNumber.from(0);
+        });
         const totalRaw = nativeBalance.add(bridgedBalance);
         const balance_usdc_real = ethers.utils.formatUnits(totalRaw, 6);
         const finalValue = parseFloat(balance_usdc_real);
         // Update cache
         balanceCacheMap.set(cacheKey, { value: finalValue, timestamp: Date.now() });
-        Logger.info(`[BALANCE] Successfully fetched for ${targetAddress}: $${finalValue.toFixed(2)}`);
+        Logger.info(`[BALANCE] ${targetAddress} | Native: ${ethers.utils.formatUnits(nativeBalance, 6)} | Bridged: ${ethers.utils.formatUnits(bridgedBalance, 6)} | Total: $${finalValue.toFixed(2)}`);
         return finalValue;
     }
     catch (error) {
