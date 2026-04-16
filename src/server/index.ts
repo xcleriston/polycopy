@@ -2676,21 +2676,27 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     async function syncProxy() {
         const btn = event.target;
         btn.disabled = true;
+        const originalText = btn.textContent;
         btn.textContent = 'Buscando...';
         try {
-            const res = await fetch('/api/user/me');
+            const res = await fetch('/api/user/sync-proxy', { method: 'POST' });
             const data = await res.json();
-            if (data.wallet?.address) {
-                // We ask the backend to re-run detection effectively
-                // But for now we just show what's currently stored or try to fetch
-                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
+            
+            if (res.ok && data.success) {
+                if (data.found) {
+                    showBanner('Sucesso! Proxy Encontrada: ' + data.address, 'success');
+                } else {
+                    showBanner('Nenhuma proxy detectada. Certifique-se de estar logado na Polymarket.', 'warning');
+                }
                 loadUser(); 
+            } else {
+                showBanner(data.error || 'Erro na sincronização', 'danger');
             }
         } catch (e) {
             showBanner('Erro ao sincronizar', 'danger');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Sincronizar';
+            btn.textContent = originalText;
         }
     }
 
@@ -2883,6 +2889,33 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     res.json({ success: true });
 });
 
+app.post('/api/user/sync-proxy', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const user = await User.findById(req.user?.id);
+        if (!user || !user.wallet?.address) {
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
+        }
+
+        console.log(`[SYNC] Manual proxy scan requested for ${user.username || user.chatId} (${user.wallet.address})`);
+        
+        const currentProxy = user.wallet.proxyAddress;
+        const newProxy = await findPolymarketProxy(user.wallet.address);
+        
+        if (newProxy && newProxy !== currentProxy) {
+            user.wallet.proxyAddress = newProxy;
+            await user.save();
+            console.log(`[SYNC] Found NEW proxy for ${user.chatId}: ${newProxy}`);
+            return res.json({ success: true, found: true, address: newProxy });
+        }
+        
+        console.log(`[SYNC] No changes found for ${user.chatId}. Current: ${currentProxy || 'NONE'}`);
+        res.json({ success: true, found: !!currentProxy, address: currentProxy || user.wallet.address });
+    } catch (error) {
+        console.error('[SYNC] Error:', error);
+        res.status(500).json({ error: 'Erro ao sincronizar proxy' });
+    }
+});
+
 app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
@@ -3036,9 +3069,10 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         if (!user || !user.wallet?.address) return res.json({ balance: 0, exposure: 0 });
 
         const proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
+        const mainAddress = user.wallet?.address || '';
         
-        const balance = await getMyBalance(user.wallet?.address || '', user.wallet?.proxyAddress);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
+        const balance = await getMyBalance(mainAddress, user.wallet?.proxyAddress);
+        console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         
         // Fetch positions to calculate exposure
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);

@@ -38,13 +38,15 @@ const getMyBalance = (address, proxy) => __awaiter(void 0, void 0, void 0, funct
         const finalValue = parseFloat(balance_usdc_real);
         // Update cache
         balanceCacheMap.set(cacheKey, { value: finalValue, timestamp: Date.now() });
+        Logger.info(`[BALANCE] Successfully fetched for ${targetAddress}: $${finalValue.toFixed(2)}`);
         return finalValue;
     }
     catch (error) {
-        Logger.error(`[BALANCE] Error fetching for ${targetAddress}: ${error instanceof Error ? error.message : String(error)}`);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        Logger.error(`[BALANCE] Error fetching for ${targetAddress}: ${errorMsg}`);
         // If we have a cached value, return it even if expired rather than returning 0
         if (cached) {
-            Logger.warning(`[BALANCE] Returning stale cache for ${targetAddress}`);
+            Logger.warning(`[BALANCE] Returning stale cache for ${targetAddress} ($${cached.value.toFixed(2)})`);
             return cached.value;
         }
         return 0;

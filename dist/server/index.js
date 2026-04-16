@@ -2650,21 +2650,27 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     async function syncProxy() {
         const btn = event.target;
         btn.disabled = true;
+        const originalText = btn.textContent;
         btn.textContent = 'Buscando...';
         try {
-            const res = await fetch('/api/user/me');
+            const res = await fetch('/api/user/sync-proxy', { method: 'POST' });
             const data = await res.json();
-            if (data.wallet?.address) {
-                // We ask the backend to re-run detection effectively
-                // But for now we just show what's currently stored or try to fetch
-                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
+            
+            if (res.ok && data.success) {
+                if (data.found) {
+                    showBanner('Sucesso! Proxy Encontrada: ' + data.address, 'success');
+                } else {
+                    showBanner('Nenhuma proxy detectada. Certifique-se de estar logado na Polymarket.', 'warning');
+                }
                 loadUser(); 
+            } else {
+                showBanner(data.error || 'Erro na sincronização', 'danger');
             }
         } catch (e) {
             showBanner('Erro ao sincronizar', 'danger');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Sincronizar';
+            btn.textContent = originalText;
         }
     }
 
@@ -2874,6 +2880,30 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     yield user.save();
     res.json({ success: true });
 }));
+app.post('/api/user/sync-proxy', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    try {
+        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+        if (!user || !((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.address)) {
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
+        }
+        console.log(`[SYNC] Manual proxy scan requested for ${user.username || user.chatId} (${user.wallet.address})`);
+        const currentProxy = user.wallet.proxyAddress;
+        const newProxy = yield findPolymarketProxy(user.wallet.address);
+        if (newProxy && newProxy !== currentProxy) {
+            user.wallet.proxyAddress = newProxy;
+            yield user.save();
+            console.log(`[SYNC] Found NEW proxy for ${user.chatId}: ${newProxy}`);
+            return res.json({ success: true, found: true, address: newProxy });
+        }
+        console.log(`[SYNC] No changes found for ${user.chatId}. Current: ${currentProxy || 'NONE'}`);
+        res.json({ success: true, found: !!currentProxy, address: currentProxy || user.wallet.address });
+    }
+    catch (error) {
+        console.error('[SYNC] Error:', error);
+        res.status(500).json({ error: 'Erro ao sincronizar proxy' });
+    }
+}));
 app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const user = req.fullUser;
@@ -3018,8 +3048,9 @@ app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, vo
         if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
             return res.json({ balance: 0, exposure: 0 });
         const proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
-        const balance = yield getMyBalance(((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.address) || '', (_e = user.wallet) === null || _e === void 0 ? void 0 : _e.proxyAddress);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
+        const mainAddress = ((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.address) || '';
+        const balance = yield getMyBalance(mainAddress, (_e = user.wallet) === null || _e === void 0 ? void 0 : _e.proxyAddress);
+        console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         // Fetch positions to calculate exposure
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
