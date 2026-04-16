@@ -138,7 +138,7 @@ const validateUrls = (): void => {
     if (process.env.CLOB_WS_URL && !process.env.CLOB_WS_URL.startsWith('ws')) {
         console.error('\n❌ Invalid CLOB_WS_URL\n');
         console.error(`Current value: ${process.env.CLOB_WS_URL}`);
-        console.error('Default value: wss://ws-subscriptions-clob.polymarket.com/ws\n');
+        console.error('Default value: wss://ws-subscriptions-clob.polymarket.com/ws/market\n');
         console.error('⚠️  Use the default value unless you have a specific reason to change it!\n');
         throw new Error(
             `Invalid CLOB_WS_URL: ${process.env.CLOB_WS_URL}. Must be a valid WebSocket URL (ws:// or wss://).`
@@ -316,8 +316,8 @@ export const ENV = {
     PROXY_WALLET: process.env.PROXY_WALLET as string,
     PRIVATE_KEY: process.env.PRIVATE_KEY as string,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL as string,
-    CLOB_WS_URL: process.env.CLOB_WS_URL as string,
-    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '1', 10),
+    CLOB_WS_URL: (process.env.CLOB_WS_URL || 'wss://ws-subscriptions-clob.polymarket.com/ws/market') as string,
+    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '60', 10),
     TOO_OLD_TIMESTAMP: parseInt(process.env.TOO_OLD_TIMESTAMP || '24', 10),
     RETRY_LIMIT: parseInt(process.env.RETRY_LIMIT || '3', 10),
     // Legacy parameters (kept for backward compatibility)
