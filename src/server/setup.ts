@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import fetchData from '../utils/fetchData.js';
+import { getProvider } from '../utils/rpcProvider.js';
 
 interface SetupRequest {
     traderAddress?: string;
@@ -68,8 +69,7 @@ export async function findPolymarketProxy(eoaAddress: string): Promise<string | 
         }
 
         // Method 2: Fallback to event scanning
-        const RPC_URL = process.env.RPC_URL || 'https://poly.api.pocket.network';
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+        const provider = getProvider();
         const POLYMARKET_PROXY_FACTORY = '0xab45c5a4b0c941a2f231c04c3f49182e1a254052';
         const proxyFactoryAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
         const polymarketProxyFactory = new ethers.Contract(POLYMARKET_PROXY_FACTORY, proxyFactoryAbi, provider);

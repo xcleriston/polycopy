@@ -1,31 +1,59 @@
 import { ethers } from 'ethers';
 import { ENV } from '../config/env.js';
+import { getProvider } from './rpcProvider.js';
+import Logger from './logger.js';
 
-const RPC_URL = ENV.RPC_URL;
 const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
-
 const USDC_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 const NATIVE_USDC = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
 
+// Cache to prevent RPC spamming
+interface BalanceCache {
+    value: number;
+    timestamp: number;
+}
+const balanceCacheMap: Map<string, BalanceCache> = new Map();
+const CACHE_DURATION_MS = 10000; // 10 seconds
+
 const getMyBalance = async (address: string, proxy?: string): Promise<number> => {
+    const targetAddress = proxy || address;
+    const cacheKey = targetAddress.toLowerCase();
+    
+    // Check cache
+    const cached = balanceCacheMap.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION_MS)) {
+        return cached.value;
+    }
+
     try {
-        const rpcProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        const targetAddress = proxy || address;
+        const rpcProvider = getProvider();
         
-        // 1. Check Native USDC (Circle)
+        // Use Promise.all to fetch both balances in parallel for speed
         const nativeContract = new ethers.Contract(NATIVE_USDC, USDC_ABI, rpcProvider);
-        const nativeBalance = await nativeContract.balanceOf(targetAddress);
-        
-        // 2. Check Bridged USDC (USDC.e) - fallback/legacy
         const bridgedContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
-        const bridgedBalance = await bridgedContract.balanceOf(targetAddress);
+
+        const [nativeBalance, bridgedBalance] = await Promise.all([
+            nativeContract.balanceOf(targetAddress).catch(() => ethers.BigNumber.from(0)),
+            bridgedContract.balanceOf(targetAddress).catch(() => ethers.BigNumber.from(0))
+        ]);
         
         const totalRaw = nativeBalance.add(bridgedBalance);
         const balance_usdc_real = ethers.utils.formatUnits(totalRaw, 6);
+        const finalValue = parseFloat(balance_usdc_real);
+
+        // Update cache
+        balanceCacheMap.set(cacheKey, { value: finalValue, timestamp: Date.now() });
         
-        return parseFloat(balance_usdc_real);
+        return finalValue;
     } catch (error) {
-        console.error(`Error fetching balance for ${address} (Proxy: ${proxy}):`, error);
+        Logger.error(`[BALANCE] Error fetching for ${targetAddress}: ${error instanceof Error ? error.message : String(error)}`);
+        
+        // If we have a cached value, return it even if expired rather than returning 0
+        if (cached) {
+            Logger.warning(`[BALANCE] Returning stale cache for ${targetAddress}`);
+            return cached.value;
+        }
+        
         return 0;
     }
 };

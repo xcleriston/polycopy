@@ -4,17 +4,18 @@ import { SignatureType } from '@polymarket/order-utils';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 
+import { getProvider } from './rpcProvider.js';
+
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
-const RPC_URL = ENV.RPC_URL;
+
 /**
  * Determines if a wallet is a Gnosis Safe by checking if it has contract code
  */
 const isGnosisSafe = async (address: string): Promise<boolean> => {
     try {
-        // Using ethers v5 syntax
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+        const provider = getProvider();
         const code = await provider.getCode(address);
         // If code is not "0x", then it's a contract (likely Gnosis Safe)
         return code !== '0x';
