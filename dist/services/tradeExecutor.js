@@ -43,7 +43,7 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
     return yield Activity.find({ bot: false, type: 'TRADE' }).lean();
 });
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a;
     const traderAddress = trade.traderAddress.toLowerCase();
     // Find all users following this trader in COPY mode
     const followers = yield User.find({
@@ -56,21 +56,23 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
         yield Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
         return;
     }
-    for (const follower of followers) {
+    // Parallel Execution: Process all followers at once
+    yield Promise.all(followers.map((follower) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b, _c;
         const followerId = (follower.chatId || follower._id.toString());
         // Skip if this follower already processed this trade
         if (trade.processedBy && trade.processedBy.includes(followerId)) {
-            continue;
+            return;
         }
-        Logger.header(`👤 FOLLOWER: ${followerId} copying ${traderAddress.slice(0, 6)}...`);
+        Logger.header(`👤 FOLLOWER: ${followerId} parallel copying ${traderAddress.slice(0, 6)}...`);
         try {
             const clobClient = yield getClobClientForUser(follower);
             if (!clobClient)
-                continue;
+                return;
             const proxyWallet = (_a = follower.wallet) === null || _a === void 0 ? void 0 : _a.address;
             if (!proxyWallet) {
                 Logger.warning(`[${followerId}] No wallet configured - skipping`);
-                continue;
+                return;
             }
             // Mark user as processing immediately (atomic-ish update)
             yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
@@ -103,23 +105,20 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 const user_position = user_positions.find((position) => position.conditionId === trade.conditionId);
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
-                yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, // Pass individual user config
-                my_positions // Pass all positions for exposure calculation
-                );
+                yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, my_positions);
             }
         }
         catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
         }
-        Logger.separator();
-    }
+    })));
     // After attempting all followers, check if we should mark the trade as completely processed
     const latestTrade = yield Activity.findById(trade._id).lean();
     if (latestTrade) {
         const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId || f._id.toString()));
         if (stillMissing.length === 0) {
             yield Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
-            Logger.info(`✅ Trade ${(_d = trade.transactionHash) === null || _d === void 0 ? void 0 : _d.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+            Logger.info(`✅ Trade ${(_a = trade.transactionHash) === null || _a === void 0 ? void 0 : _a.slice(0, 8)} fully processed for all ${followers.length} followers.`);
             // Notify web followers via Push
             yield broadcastTrade(traderAddress, trade);
         }

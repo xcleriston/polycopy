@@ -61,24 +61,25 @@ const doTrading = async (trade: any) => {
         await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
         return;
     }
-    for (const follower of followers) {
+    // Parallel Execution: Process all followers at once
+    await Promise.all(followers.map(async (follower) => {
         const followerId = (follower.chatId || (follower._id as any).toString());
 
         // Skip if this follower already processed this trade
         if (trade.processedBy && trade.processedBy.includes(followerId)) {
-            continue;
+            return;
         }
 
-        Logger.header(`👤 FOLLOWER: ${followerId} copying ${traderAddress.slice(0, 6)}...`);
+        Logger.header(`👤 FOLLOWER: ${followerId} parallel copying ${traderAddress.slice(0, 6)}...`);
 
         try {
             const clobClient = await getClobClientForUser(follower);
-            if (!clobClient) continue;
+            if (!clobClient) return;
             
             const proxyWallet = follower.wallet?.address;
             if (!proxyWallet) {
                 Logger.warning(`[${followerId}] No wallet configured - skipping`);
-                continue;
+                return;
             }
 
             // Mark user as processing immediately (atomic-ish update)
@@ -111,15 +112,15 @@ const doTrading = async (trade: any) => {
                     getMyBalance(follower.wallet?.address || '', follower.wallet?.proxyAddress)
                 ]);
 
-                const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
+                const user_balance = user_positions.reduce((total: number, pos: any) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
 
                 const my_position = my_positions.find(
-                    (position: UserPositionInterface) => position.conditionId === trade.conditionId
+                    (position: any) => position.conditionId === trade.conditionId
                 );
                 const user_position = user_positions.find(
-                    (position: UserPositionInterface) => position.conditionId === trade.conditionId
+                    (position: any) => position.conditionId === trade.conditionId
                 );
 
                 Logger.balance(my_balance, user_balance, followerId);
@@ -133,15 +134,14 @@ const doTrading = async (trade: any) => {
                     trade,
                     my_balance,
                     followerId,
-                    follower.config, // Pass individual user config
-                    my_positions // Pass all positions for exposure calculation
+                    follower.config,
+                    my_positions
                 );
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
         }
-        Logger.separator();
-    }
+    }));
 
     // After attempting all followers, check if we should mark the trade as completely processed
     const latestTrade = await Activity.findById(trade._id).lean() as unknown as IUserActivity | null;

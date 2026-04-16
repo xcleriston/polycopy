@@ -37,8 +37,8 @@ export class WSMonitor {
             }
             Logger.info('Initializing Ultra-Fast CLOB WebSocket Monitor...');
             this.connect();
-            // Refresh trader list every 5 minutes
-            setInterval(() => this.updateTraders(), 5 * 60 * 1000);
+            // Refresh trader list every 30 seconds for near-instant detection of new settings
+            setInterval(() => this.updateTraders(), 30 * 1000);
         });
     }
     connect() {
