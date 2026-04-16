@@ -17,7 +17,7 @@ const CACHE_DURATION_MS = 10000; // 10 seconds
 
 const getMyBalance = async (address: string, proxy?: string): Promise<number> => {
     const targetAddress = proxy || address;
-    const cacheKey = targetAddress.toLowerCase();
+    const cacheKey = `balance_${targetAddress.toLowerCase()}`;
     
     // Check cache
     const cached = balanceCacheMap.get(cacheKey);
@@ -25,43 +25,54 @@ const getMyBalance = async (address: string, proxy?: string): Promise<number> =>
         return cached.value;
     }
 
-    try {
-        const rpcProvider = getProvider();
-        
-        // Sequential calls are more stable on Ankr than Promise.all for some connection types
-        const nativeContract = new ethers.Contract(NATIVE_USDC, USDC_ABI, rpcProvider);
-        const nativeBalance = await nativeContract.balanceOf(targetAddress).catch((e: any) => {
-            Logger.error(`[BALANCE] Native fetch error: ${e.message}`);
-            return ethers.BigNumber.from(0);
-        });
+    let attempts = 0;
+    const maxAttempts = 3;
 
-        const bridgedContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
-        const bridgedBalance = await bridgedContract.balanceOf(targetAddress).catch((e: any) => {
-            Logger.error(`[BALANCE] Bridged fetch error: ${e.message}`);
-            return ethers.BigNumber.from(0);
-        });
-        
-        const totalRaw = nativeBalance.add(bridgedBalance);
-        const balance_usdc_real = ethers.utils.formatUnits(totalRaw, 6);
-        const finalValue = parseFloat(balance_usdc_real);
+    while (attempts < maxAttempts) {
+        try {
+            const rpcProvider = getProvider();
+            
+            // Sequential calls are more stable on Ankr than Promise.all for some connection types
+            const nativeContract = new ethers.Contract(NATIVE_USDC, USDC_ABI, rpcProvider);
+            const nativeBalance = await nativeContract.balanceOf(targetAddress);
 
-        // Update cache
-        balanceCacheMap.set(cacheKey, { value: finalValue, timestamp: Date.now() });
-        
-        Logger.info(`[BALANCE] ${targetAddress} | Native: ${ethers.utils.formatUnits(nativeBalance, 6)} | Bridged: ${ethers.utils.formatUnits(bridgedBalance, 6)} | Total: $${finalValue.toFixed(2)}`);
-        return finalValue;
-    } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        Logger.error(`[BALANCE] Error fetching for ${targetAddress}: ${errorMsg}`);
-        
-        // If we have a cached value, return it even if expired rather than returning 0
-        if (cached) {
-            Logger.warning(`[BALANCE] Returning stale cache for ${targetAddress} ($${cached.value.toFixed(2)})`);
-            return cached.value;
+            const bridgedContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
+            const bridgedBalance = await bridgedContract.balanceOf(targetAddress);
+            
+            const totalRaw = nativeBalance.add(bridgedBalance);
+            const balance_usdc_real = ethers.utils.formatUnits(totalRaw, 6);
+            const finalValue = parseFloat(balance_usdc_real);
+
+            // Update cache
+            balanceCacheMap.set(cacheKey, { value: finalValue, timestamp: Date.now() });
+            
+            Logger.info(`[BALANCE] ${targetAddress} | Native: ${ethers.utils.formatUnits(nativeBalance, 6)} | Bridged: ${ethers.utils.formatUnits(bridgedBalance, 6)} | Total: $${finalValue.toFixed(2)}`);
+            return finalValue;
+        } catch (error) {
+            attempts++;
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            Logger.warning(`[BALANCE] Attempt ${attempts} failed for ${targetAddress}: ${errorMsg}`);
+            
+            if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('rate limit') || errorMsg.includes('429') || errorMsg.includes('block')) {
+                Logger.error(`[BALANCE] RPC Issue/Block detected, rotating...`);
+                import('./rpcProvider.js').then(m => m.rotateProvider());
+            }
+
+            if (attempts >= maxAttempts) {
+                Logger.error(`[BALANCE] All ${maxAttempts} attempts failed for ${targetAddress}`);
+                if (cached) {
+                    Logger.warning(`[BALANCE] Returning stale cache for ${targetAddress} ($${cached.value.toFixed(2)})`);
+                    return cached.value;
+                }
+                return 0;
+            }
+            
+            // Small delay before retry
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
-        
-        return 0;
     }
+    
+    return 0;
 };
 
 export default getMyBalance;

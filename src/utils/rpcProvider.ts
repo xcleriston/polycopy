@@ -2,39 +2,49 @@ import { ethers } from 'ethers';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 
+const PUBLIC_RPCS = [
+    ENV.RPC_URL || 'https://polygon-rpc.com',
+    'https://polygon.publicnode.com',
+    'https://1rpc.io/matic',
+    'https://poly-rpc.gateway.pokt.network',
+    'https://rpc.ankr.com/polygon' // Keep as fallback
+];
+
+let currentIndex = 0;
 let providerInstance: ethers.providers.StaticJsonRpcProvider | null = null;
 
 /**
- * Get a singleton instance of the Ethers StaticJsonRpcProvider.
- * Using StaticJsonRpcProvider avoids frequent eth_chainId calls, 
- * which is critical for staying within public RPC rate limits.
+ * Get a singleton instance of the Ethers StaticJsonRpcProvider with rotation support.
  */
 export const getProvider = (): ethers.providers.StaticJsonRpcProvider => {
     if (!providerInstance) {
-        const rpcUrl = ENV.RPC_URL || 'https://rpc.ankr.com/polygon';
+        const rpcUrl = PUBLIC_RPCS[currentIndex];
         
-        Logger.info(`[RPC] Initializing StaticJsonRpcProvider for Polygon (ChainID: 137)`);
+        Logger.info(`[RPC] Initializing Provider (Slot ${currentIndex}): ${rpcUrl}`);
         
-        // Use standard network definition for StaticJsonRpcProvider
         const network = {
             name: 'polygon',
             chainId: 137
         };
 
         providerInstance = new ethers.providers.StaticJsonRpcProvider(rpcUrl, network);
-        
-        // Add error handling to refresh instance if needed
-        providerInstance.on('error', (error) => {
-            Logger.error(`[RPC] Provider Error: ${error.message}`);
-            // We don't nullify here to prevent infinite reconstruction unless necessary
-        });
     }
     
     return providerInstance;
 };
 
 /**
- * Reset the provider instance (useful for testing or manual recovery)
+ * Handle provider errors by rotating to the next RPC
+ */
+export const rotateProvider = () => {
+    currentIndex = (currentIndex + 1) % PUBLIC_RPCS.length;
+    providerInstance = null;
+    Logger.warning(`[RPC] Rotated to provider slot ${currentIndex}: ${PUBLIC_RPCS[currentIndex]}`);
+    return getProvider();
+};
+
+/**
+ * Reset the provider instance
  */
 export const resetProvider = () => {
     providerInstance = null;
