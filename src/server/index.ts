@@ -1829,7 +1829,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
                 <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">🎯</div>
                 <div>
-                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Trader Monitorado</div>
+                    <div id="trader-card-title" style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Trader Monitorado</div>
                     <div id="stat-trader" style="font-weight: 700; font-size: 0.9rem; color: #fff">Desconhecido</div>
                 </div>
             </div>
@@ -2384,11 +2384,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             
             if (addrDisplay) {
                 if (isArbitrage) {
-                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
+                    addrDisplay.textContent = 'AUTÔNOMO: BTC ARBITRAGE';
                     addrDisplay.style.color = 'var(--warning)';
+                    document.getElementById('trader-name').textContent = 'IA Autonomous Bot';
+                    document.getElementById('trader-avatar').textContent = '🤖';
+                    document.getElementById('trader-card-title').textContent = 'MODO ATIVO';
                 } else {
                     addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
                     addrDisplay.style.color = 'var(--accent)';
+                    document.getElementById('trader-avatar').textContent = '👤';
+                    document.getElementById('trader-card-title').textContent = 'TRADER MONITORADO';
                 }
             }
             
@@ -2528,7 +2533,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
-                setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
+                const isArbitrage = currentUser.config.mode === 'ARBITRAGE';
+                if (isArbitrage) {
+                    setTxt('stat-trader', 'BTC-5M-15M');
+                } else {
+                    setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
+                }
             }
         } catch (e) { console.error('Stats refresh fail:', e); }
     }
@@ -2970,8 +2980,10 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
         const userId = req.user?.id?.toString();
         const traderAddress = user?.config?.traderAddress?.toLowerCase();
 
-        // Build query: show all trades from trader being monitored, OR any processed by this user
-        const query = traderAddress
+        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user.
+        // If in COPY mode, show both the monitored trader's activity and the user's copies.
+        const isArbitrage = user?.config?.mode === 'ARBITRAGE';
+        const query = (traderAddress && !isArbitrage)
             ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
             : { processedBy: userId, type: 'TRADE' };
 
