@@ -2405,7 +2405,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 statusText.className = c.enabled ? 'status-active' : 'status-paused';
             }
             if (masterBtn) {
-                masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR AGORA';
+                const modeLabel = isArbitrage ? 'ARBITRAGEM' : 'CÓPIA';
+                masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR ' + modeLabel;
                 masterBtn.style.background = c.enabled ? 'var(--danger)' : 'var(--success)';
             }
 
@@ -2556,7 +2557,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 return;
             }
 
-            tbody.innerHTML = trades.map(t => {
+            const isArbitrage = currentUser.config?.mode === 'ARBITRAGE';
+            tbody.innerHTML = trades
+                .filter(t => {
+                    // In Arbitrage Mode, we only want to see trades WE executed (no traderAddress)
+                    if (isArbitrage && t.traderAddress) return false;
+                    return true;
+                })
+                .map(t => {
                 const status = t.executionStatus || 'DETECTADO';
 
                 // Status styling
