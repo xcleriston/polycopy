@@ -79,6 +79,7 @@ const fetchTradeDataForTrader = async (address: string) => {
                 bio: activity.bio,
                 profileImage: activity.profileImage,
                 profileImageOptimized: activity.profileImageOptimized,
+                traderAddress: address.toLowerCase(),
                 bot: false,
                 botExcutedTime: 0,
             }).save();

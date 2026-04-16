@@ -105,23 +105,22 @@ const doTrading = async (trade: any) => {
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             } else {
-                const my_positions: UserPositionInterface[] = await fetchData(
-                    `https://data-api.polymarket.com/positions?user=${proxyWallet}`
-                );
-                const user_positions: UserPositionInterface[] = await fetchData(
-                    `https://data-api.polymarket.com/positions?user=${traderAddress}`
-                );
+                const [my_positions, user_positions, my_balance] = await Promise.all([
+                    fetchData(`https://data-api.polymarket.com/positions?user=${proxyWallet}`),
+                    fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`),
+                    getMyBalance(follower.wallet?.address || '', follower.wallet?.proxyAddress)
+                ]);
+
+                const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
+                    return total + (pos.currentValue || 0);
+                }, 0);
+
                 const my_position = my_positions.find(
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
                 const user_position = user_positions.find(
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
-
-                const my_balance = await getMyBalance(follower.wallet?.address || '', follower.wallet?.proxyAddress);
-                const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
-                    return total + (pos.currentValue || 0);
-                }, 0);
 
                 Logger.balance(my_balance, user_balance, followerId);
 
