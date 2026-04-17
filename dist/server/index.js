@@ -3012,14 +3012,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = ` < tr > colspan;
-"7";
-style = "text-align:center; padding:30px; color:var(--text-dim)" > Nenhuma;
-posição;
-ativa;
-encontrada;
-no;
-momento. < /td></tr > `;
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>\`;
                 return;
             }
 

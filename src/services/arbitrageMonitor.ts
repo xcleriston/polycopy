@@ -182,12 +182,13 @@ const runArbitrageLoop = async () => {
                     } catch (userErr) {
                         Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
                     }
-                            } catch (e) { /* user handled */ }
                 }));
-            } catch (e) { /* market handled */ }
+            } catch (marketErr) {
+                Logger.error(`[ARBITRAGE] Error monitoring market ${market.conditionId}: ${marketErr}`);
+            }
         }));
     } catch (error: any) {
-        Logger.error('Error in arbitrage loop: ' + error.message || error);
+        Logger.error('Error in arbitrage loop: ' + (error.message || error));
     } finally {
         isLoopProcessing = false;
     }

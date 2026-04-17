@@ -169,22 +169,19 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
                         Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
                     }
                 })));
-                try { }
-                catch (e) { /* user handled */ }
             }
-            finally { }
+            catch (marketErr) {
+                Logger.error(`[ARBITRAGE] Error monitoring market ${market.conditionId}: ${marketErr}`);
+            }
         })));
     }
-    catch (e) { /* market handled */ }
+    catch (error) {
+        Logger.error('Error in arbitrage loop: ' + (error.message || error));
+    }
+    finally {
+        isLoopProcessing = false;
+    }
 });
-try { }
-catch (error) {
-    Logger.error('Error in arbitrage loop: ' + error.message || error);
-}
-finally {
-    isLoopProcessing = false;
-}
-;
 const processUserArbitrage = (user, market, currentPrice, previousPrice) => __awaiter(void 0, void 0, void 0, function* () {
     const triggerDelta = user.config.triggerDelta || 0.005;
     const hedgeCeiling = user.config.hedgeCeiling || 0.95;
