@@ -7,6 +7,7 @@ import createClobClient from '../utils/createClobClient.js';
 import { Activity } from '../models/userHistory.js';
 import { Side, OrderType } from '@polymarket/clob-client';
 import telegram from '../utils/telegram.js';
+import { refreshUserStats } from '../utils/userStats.js';
 import getMyBalance from '../utils/getMyBalance.js';
 
 // Configuration
@@ -256,6 +257,9 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
             }
 
             telegram.tradeExecuted(user.chatId, side, amount, 1.0, market.question);
+            
+            // Refresh balance in DB after arbitrage
+            refreshUserStats(user._id.toString()).catch(() => {});
         } else {
             Logger.error(`[${user.chatId}] Arbitrage execution failed: ${JSON.stringify(resp)}`);
         }

@@ -49,6 +49,11 @@ export interface IUser extends Document {
         hedgeCeiling?: number;
     };
     totalSpentUSD?: number;
+    stats?: {
+        balance: number;
+        exposure: number;
+        lastUpdate: Date;
+    };
     step: string;
     refCode?: string;
     createdAt: Date;
@@ -103,6 +108,11 @@ const UserSchema: Schema = new Schema({
         hedgeCeiling: { type: Number, default: 0.95 }
     },
     totalSpentUSD: { type: Number, default: 0.0 },
+    stats: {
+        balance: { type: Number, default: 0.0 },
+        exposure: { type: Number, default: 0.0 },
+        lastUpdate: { type: Date, default: Date.now }
+    },
     step: { type: String, default: 'start' },
     refCode: { type: String },
 }, { timestamps: true });

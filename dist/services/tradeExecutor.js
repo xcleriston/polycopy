@@ -16,6 +16,7 @@ import postOrder from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
 import createClobClient from '../utils/createClobClient.js';
 import { broadcastTrade } from '../utils/push.js';
+import { refreshUserStats } from '../utils/userStats.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 // Cache for CLOB clients to avoid repeated instantiation
@@ -106,6 +107,8 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
                 yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, my_positions);
+                // Refresh user balance in DB after trade
+                refreshUserStats(follower._id.toString()).catch(() => { });
             }
         }
         catch (error) {

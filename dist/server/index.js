@@ -3078,17 +3078,32 @@ app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, vo
         const user = req.fullUser;
         const mainAddress = ((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || '';
         let proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
-        // Fallback to ENV.PROXY_WALLET if DB is empty but we have a matching main wallet in env
+        // Cache Policy: If last update was < 10 mins ago, return cached data
+        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+        if (user.stats && user.stats.lastUpdate > tenMinsAgo) {
+            return res.json({
+                balance: user.stats.balance,
+                exposure: user.stats.exposure,
+                cached: true
+            });
+        }
+        // Otherwise, fetch real data
         if (!((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.proxyAddress) && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
             proxyAddress = ENV.PROXY_WALLET;
-            console.log(`[STATS] Falling back to ENV.PROXY_WALLET for user ${user.chatId}`);
         }
         const balance = yield getMyBalance(mainAddress, proxyAddress);
-        console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         // Fetch positions to calculate exposure
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        res.json({ balance, exposure });
+        // Update cache in background/DB
+        yield User.updateOne({ _id: user._id }, {
+            $set: {
+                'stats.balance': balance,
+                'stats.exposure': exposure,
+                'stats.lastUpdate': new Date()
+            }
+        });
+        res.json({ balance, exposure, cached: false });
     }
     catch (e) {
         console.error('Stats error:', e);

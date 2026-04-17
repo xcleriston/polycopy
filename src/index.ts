@@ -12,6 +12,8 @@ import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 import setupProxy from './utils/setupProxy.js';
+import { refreshUserStats } from './utils/userStats.js';
+import User from './models/user.js';
 
 // Function handles proxy initialization inside main
 
@@ -109,13 +111,12 @@ export const main = async () => {
         ];
 
         for (const service of services) {
-            try {
-                Logger.info(`Starting ${service.name}...`);
-                await service.start();
-            } catch (err) {
-                Logger.error(`Failed to start ${service.name}: ${err}`);
-                // Continue starting other services
-            }
+            Logger.info(`Starting ${service.name}...`);
+            // Start services in parallel without blocking main thread
+            // Using Promise.resolve to handle both sync and async start functions
+            Promise.resolve(service.start()).catch((err: any) => {
+                Logger.error(`Failed to start ${service.name}: \${err.message || err}`);
+            });
         }
 
         if (ENV.TELEGRAM_BOT_TOKEN) {
@@ -126,6 +127,20 @@ export const main = async () => {
         }
         
         Logger.success('All services initialized and port bound 🚀');
+
+        // 5. Background Balance Sync (Every 10 minutes)
+        setInterval(async () => {
+            try {
+                const activeUsers = await User.find({ 'config.enabled': true });
+                Logger.info(`[SYNC] Starting periodic balance refresh for ${activeUsers.length} users...`);
+                for (const user of activeUsers) {
+                    await refreshUserStats(user._id.toString());
+                }
+            } catch (err) {
+                Logger.error(`[SYNC] Periodic refresh failed: ${err}`);
+            }
+        }, 10 * 60 * 1000);
+
     } catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);
         // Ensure process exits with 1 so Railway restarts it

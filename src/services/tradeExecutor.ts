@@ -10,6 +10,7 @@ import Logger from '../utils/logger.js';
 import telegram from '../utils/telegram.js';
 import createClobClient from '../utils/createClobClient.js';
 import { broadcastTrade } from '../utils/push.js';
+import { refreshUserStats } from '../utils/userStats.js';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
@@ -137,6 +138,9 @@ const doTrading = async (trade: any) => {
                     follower.config,
                     my_positions
                 );
+                
+                // Refresh user balance in DB after trade
+                refreshUserStats(follower._id.toString()).catch(() => {});
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);

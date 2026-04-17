@@ -3100,20 +3100,40 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const mainAddress = user.wallet?.address || '';
         let proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
         
-        // Fallback to ENV.PROXY_WALLET if DB is empty but we have a matching main wallet in env
+        // Cache Policy: If last update was < 10 mins ago, return cached data
+        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+        if (user.stats && user.stats.lastUpdate > tenMinsAgo) {
+            return res.json({ 
+                balance: user.stats.balance, 
+                exposure: user.stats.exposure,
+                cached: true 
+            });
+        }
+
+        // Otherwise, fetch real data
         if (!user.wallet?.proxyAddress && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
             proxyAddress = ENV.PROXY_WALLET;
-            console.log(`[STATS] Falling back to ENV.PROXY_WALLET for user ${user.chatId}`);
         }
         
         const balance = await getMyBalance(mainAddress, proxyAddress);
-        console.log(`[STATS] ${user.username || user.chatId} | Target: ${proxyAddress} | Main: ${mainAddress} | Balance: $${balance}`);
         
         // Fetch positions to calculate exposure
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
-        res.json({ balance, exposure });
+        // Update cache in background/DB
+        await User.updateOne(
+            { _id: user._id },
+            { 
+                $set: { 
+                    'stats.balance': balance, 
+                    'stats.exposure': exposure, 
+                    'stats.lastUpdate': new Date() 
+                } 
+            }
+        );
+
+        res.json({ balance, exposure, cached: false });
     } catch (e) {
         console.error('Stats error:', e);
         res.status(500).json({ error: 'Failed to fetch stats' });
