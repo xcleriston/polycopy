@@ -61,15 +61,28 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
 /**
  * Main loop to check for price movements and execute arbitrage/hedge
  */
+let isFirstArbitrageRun = true;
 const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        // Prevent MongoNotConnectedError by checking state
+        const mongoose = (yield import('mongoose')).default;
+        if (mongoose.connection.readyState !== 1)
+            return;
         const users = yield User.find({
             'config.mode': 'ARBITRAGE',
             'config.enabled': true,
             'wallet.privateKey': { $exists: true, $ne: '' }
         });
-        if (users.length === 0)
+        if (isFirstArbitrageRun) {
+            Logger.success(`[ARBITRAGE] Motor Iniciado | Monitorando ${users.length} usuário(s) ativos.`);
+            isFirstArbitrageRun = false;
+        }
+        if (users.length === 0) {
+            // Log heartbeat occasionally even with no users to show service is alive
+            if (Math.random() < 0.05)
+                Logger.info('[ARBITRAGE] Monitor ativo (aguardando usuários)');
             return;
+        }
         for (const market of activeMarkets) {
             // Get current prices for Yes via the fast CLOB Midpoint API
             // This is much faster than the Data API

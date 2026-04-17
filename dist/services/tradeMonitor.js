@@ -15,7 +15,15 @@ import Logger from '../utils/logger.js';
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
 const getUniqueTraders = () => __awaiter(void 0, void 0, void 0, function* () {
-    const users = yield User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
+    // Prevent MongoNotConnectedError by checking state
+    const mongoose = (yield import('mongoose')).default;
+    if (mongoose.connection.readyState !== 1)
+        return [];
+    const users = yield User.find({
+        'config.traderAddress': { $exists: true, $ne: '' },
+        'config.enabled': true,
+        'config.mode': 'COPY' // Somente usuários que querem copiar
+    });
     const addresses = users.map(u => u.config.traderAddress.toLowerCase());
     return Array.from(new Set(addresses));
 });

@@ -8,7 +8,15 @@ const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
 
 const getUniqueTraders = async (): Promise<string[]> => {
-    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
+    // Prevent MongoNotConnectedError by checking state
+    const mongoose = (await import('mongoose')).default;
+    if (mongoose.connection.readyState !== 1) return [];
+
+    const users = await User.find({ 
+        'config.traderAddress': { $exists: true, $ne: '' }, 
+        'config.enabled': true,
+        'config.mode': 'COPY' // Somente usuários que querem copiar
+    });
     const addresses = users.map(u => u.config.traderAddress!.toLowerCase());
     return Array.from(new Set(addresses));
 };
