@@ -22,7 +22,14 @@ export class WSMonitor {
         this.monitoredTraders = new Set();
         this.reconnectTimeout = null;
         this.retryCount = 0;
-        this.MAX_BACKOFF = 60000; // 1 minute cap
+        this.MAX_BACKOFF = 60000;
+        this.ENDPOINTS = [
+            'wss://ws-subscriptions-clob.polymarket.com/ws/market',
+            'wss://clob.polymarket.com/ws/market',
+            'wss://ws-subscriptions-clob.polymarket.com/ws/',
+            'wss://clob.polymarket.com/ws/'
+        ];
+        this.currentEndpointIndex = 0;
         // Constructor is kept synchronous for safe startup
     }
     updateTraders() {
@@ -49,20 +56,16 @@ export class WSMonitor {
         });
     }
     connect() {
-        if (this.reconnectTimeout)
-            clearTimeout(this.reconnectTimeout);
         try {
-            // Circuit Breaker: Criação segura do objeto WS
-            this.ws = new WebSocket(ENV.CLOB_WS_URL);
+            const url = this.ENDPOINTS[this.currentEndpointIndex];
+            Logger.info(`[WS] Attempting connection to: ${url}`);
+            this.ws = new WebSocket(url);
             this.ws.on('open', () => {
-                var _a;
+                var _a, _b;
                 Logger.success('⚡ Connected to Polymarket CLOB WebSocket');
                 this.retryCount = 0; // Reset backoff on success
-                const subMessage = {
-                    type: 'subscribe',
-                    topic: 'fills'
-                };
-                (_a = this.ws) === null || _a === void 0 ? void 0 : _a.send(JSON.stringify(subMessage));
+                (_a = this.ws) === null || _a === void 0 ? void 0 : _a.send(JSON.stringify({ type: 'subscribe', topic: 'fills' }));
+                (_b = this.ws) === null || _b === void 0 ? void 0 : _b.send(JSON.stringify({ type: 'subscribe', topic: 'trades' }));
             });
             this.ws.on('message', (data) => __awaiter(this, void 0, void 0, function* () {
                 var _a, _b;
@@ -96,6 +99,8 @@ export class WSMonitor {
                 if (code !== 1000) {
                     this.reconnectTimeout = setTimeout(() => {
                         this.retryCount++;
+                        // Cycle endpoints on failure
+                        this.currentEndpointIndex = (this.currentEndpointIndex + 1) % this.ENDPOINTS.length;
                         this.connect();
                     }, backoff);
                 }

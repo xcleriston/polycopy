@@ -219,8 +219,16 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
         Logger.info(`🚀 [${user.chatId}] Arbitrage Action: ${reason} | ${side} on ${market.question.slice(0, 30)}...`);
         
         const balance = await getMyBalance(user.wallet.address);
-        if (balance < amount) {
-            Logger.warning(`[${user.chatId}] Insufficient balance for arbitrage: $${balance.toFixed(2)}`);
+        
+        // Enforce exchange minimum floor ($1.00)
+        let finalAmount = amount;
+        if (finalAmount < 1.0) {
+            Logger.info(`[${user.chatId}] Calculated size $${finalAmount.toFixed(2)} is below floor. Adjusting to $1.00.`);
+            finalAmount = 1.0;
+        }
+
+        if (balance < finalAmount) {
+            Logger.warning(`[${user.chatId}] Insufficient balance for arbitrage: Current $${balance.toFixed(2)} | Required $${finalAmount.toFixed(2)}`);
             return;
         }
 
@@ -230,7 +238,7 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
         const orderArgs = {
             side: Side.BUY,
             tokenID: tokenId,
-            amount: amount,
+            amount: finalAmount,
             // To be fast, we can use a very high price and rely on FOK/Market protection
             // Or fetch orderbook bids. For arbitrage, we usually want FOK on the Best Ask.
             price: 0.99 
@@ -240,7 +248,7 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
         const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
 
         if (resp.success) {
-            Logger.success(`✅ [${user.chatId}] ${reason} Executed: ${amount} tokens of ${side}`);
+            Logger.success(`✅ [${user.chatId}] ${reason} Executed: ${finalAmount} tokens of ${side}`);
             
             // Save to database for Dashboard display
             try {
@@ -248,7 +256,7 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
                     chatId: user.chatId,
                     type: 'TRADE',
                     side: 'BUY',
-                    usdcSize: amount,
+                    usdcSize: finalAmount,
                     processedBy: [user._id],
                     title: `${reason} | ${market.question}`,
                     asset: tokenId,
@@ -261,7 +269,7 @@ const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId
                 Logger.error(`[DB] Failed to save arbitrage activity: ${dbErr}`);
             }
 
-            telegram.tradeExecuted(user.chatId, side, amount, 1.0, market.question);
+            telegram.tradeExecuted(user.chatId, side, finalAmount, 1.0, market.question);
             
             // Refresh balance in DB after arbitrage
             refreshUserStats(user._id.toString()).catch(() => {});
