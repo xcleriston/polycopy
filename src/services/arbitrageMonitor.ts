@@ -49,6 +49,27 @@ export const startArbitrageMonitor = async () => {
 };
 
 /**
+ * Returns the currently tracked markets with their current midpoints
+ */
+export const getArbitrageMarkets = async () => {
+    // Enrich with current YES/NO prices before returning
+    const enriched = await Promise.all(activeMarkets.map(async (m) => {
+        try {
+            const priceData = await fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
+            const yesPrice = priceData?.mid ? parseFloat(priceData.mid) : 0;
+            return {
+                ...m,
+                yesPrice,
+                noPrice: 1 - yesPrice
+            };
+        } catch (e) {
+            return { ...m, yesPrice: 0, noPrice: 0 };
+        }
+    }));
+    return enriched;
+};
+
+/**
  * Fetches BTC 5m and 15m markets from Polymarket
  */
 const updateTargetMarkets = async () => {
@@ -187,7 +208,7 @@ const processUserArbitrage = async (user: any, market: ArbitrageMarket, currentP
         
         if (totalSetPrice <= hedgeCeiling + 0.005) { // Small buffer for slippage
             // Valid Hedge/Arbitrage entry
-            await executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
+            await executeArbitrageTrade(user, market, assetToBuy, balanceAbs, 'Leg 2 / Balance');
             return;
         }
         
@@ -207,12 +228,13 @@ const processUserArbitrage = async (user: any, market: ArbitrageMarket, currentP
         const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         
         const amount = user.config.copySize || 20; 
-        await executeArbitrageTrade(user, market, tokenId, 'BUY', amount, 'Leg 1 / Trigger');
+        await executeArbitrageTrade(user, market, side, amount, 'Leg 1 / Trigger');
     }
 };
 
-const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, tokenId: string, side: string, amount: number, reason: string) => {
+export const executeArbitrageTrade = async (user: any, market: ArbitrageMarket, side: string, amount: number, reason: string) => {
     try {
+        const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         const pk = user.wallet.privateKey;
         const clobClient = await createClobClient(pk);
         

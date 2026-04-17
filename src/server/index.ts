@@ -13,6 +13,7 @@ import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
 import setupProxy from '../utils/setupProxy.js';
 import { ENV } from '../config/env.js';
+import * as arbitrageMonitor from '../services/arbitrageMonitor.js';
 
 // Global proxy will be initialized inside startServer
 
@@ -2680,7 +2681,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
                     </div>
                 \`;
-                `;
             } else {
                 showBanner(data.error || 'Falha ao gerar', 'danger');
             }
@@ -2695,9 +2695,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', `$${(data.balance || 0).toFixed(2)}`);
-            setTxt('display-balance', `SALDO: $${(data.balance || 0).toFixed(2)}`);
-            setTxt('stat-exposure', `$${(data.exposure || 0).toFixed(2)}`);
+            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
+            setTxt('display-balance', \`SALDO: $\${(data.balance || 0).toFixed(2)}\`);
+            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
             
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
@@ -2720,7 +2720,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2892,9 +2892,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 const price = parseFloat(data.lastPrice);
                 const change = parseFloat(data.priceChangePercent);
                 
-                document.getElementById('btc-price').textContent = `$${price.toLocaleString()}`;
+                document.getElementById('btc-price').textContent = \`$\${price.toLocaleString()}\`;
                 const changeEl = document.getElementById('btc-change');
-                changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                changeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
                 changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
 
                 candleSeries.update({
@@ -2979,8 +2979,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const m = data.find(item => item.question.toLowerCase().includes(timeframeStr));
             
             if (m) {
-                document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}Â¢\`;
-                document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}Â¢\`;
+                document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}¢\`;
+                document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}¢\`;
                 document.getElementById('target-info').textContent = \`Target: BTC above \${m.target}\`;
             }
         } catch (e) { /* silent */ }
@@ -3240,7 +3240,7 @@ app.post('/api/user/sync-proxy', authenticateToken, async (req: AuthRequest, res
     }
 });
 
-app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res) => {
+app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
         const { side, amount, timeframe } = req.body; // side: UP (YES) or DOWN (NO), timeframe: '5m' or '15m'
         const user = await User.findById(req.user?.id);
@@ -3254,7 +3254,7 @@ app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res) =
 
         // 1. Identify active market
         const markets = await arbitrageMonitor.getArbitrageMarkets();
-        const market = markets.find(m => m.question.toLowerCase().includes(timeframe || '5 minutos'));
+        const market = markets.find((m: any) => m.question.toLowerCase().includes(timeframe || '5 minutos'));
         
         if (!market) {
             return res.status(404).json({ error: `Nenhum mercado de BTC ${timeframe} ativo no momento` });
@@ -3266,7 +3266,7 @@ app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res) =
         
         // Use a background call to avoid blocking
         arbitrageMonitor.executeArbitrageTrade(user, market, polymarketSide, amount, `MANUAL ${side}`)
-            .catch(err => console.error(`[MANUAL TRADE] Execution error: ${err}`));
+            .catch((err: any) => console.error(`[MANUAL TRADE] Execution error: ${err}`));
 
         res.json({ success: true, message: `Ordem ${side} enviada para o mercado ${timeframe}` });
     } catch (err) {
@@ -3275,18 +3275,18 @@ app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res) =
     }
 });
 
-app.get('/api/arbitrage/active-markets', authenticateToken, async (_req, res) => {
+app.get('/api/arbitrage/active-markets', authenticateToken, async (_req: AuthRequest, res: Response) => {
     try {
         const markets = await arbitrageMonitor.getArbitrageMarkets();
         // Return thin objects for the UI
-        const data = markets.map(m => ({
+        const data = markets.map((m: any) => ({
             question: m.question,
             yesPrice: m.yesPrice,
             noPrice: m.noPrice,
             target: m.question.split('above')[1]?.split('at')[0]?.trim() || '---'
         }));
         res.json(data);
-    } catch (err) {
+    } catch (err: any) {
         res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
     }
 });

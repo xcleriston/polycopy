@@ -42,6 +42,23 @@ export const startArbitrageMonitor = () => __awaiter(void 0, void 0, void 0, fun
     monitorInterval = setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
 });
 /**
+ * Returns the currently tracked markets with their current midpoints
+ */
+export const getArbitrageMarkets = () => __awaiter(void 0, void 0, void 0, function* () {
+    // Enrich with current YES/NO prices before returning
+    const enriched = yield Promise.all(activeMarkets.map((m) => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            const priceData = yield fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
+            const yesPrice = (priceData === null || priceData === void 0 ? void 0 : priceData.mid) ? parseFloat(priceData.mid) : 0;
+            return Object.assign(Object.assign({}, m), { yesPrice, noPrice: 1 - yesPrice });
+        }
+        catch (e) {
+            return Object.assign(Object.assign({}, m), { yesPrice: 0, noPrice: 0 });
+        }
+    })));
+    return enriched;
+});
+/**
  * Fetches BTC 5m and 15m markets from Polymarket
  */
 const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -168,7 +185,7 @@ const processUserArbitrage = (user, market, currentPrice, previousPrice) => __aw
         const totalSetPrice = yesPrice + noPrice;
         if (totalSetPrice <= hedgeCeiling + 0.005) { // Small buffer for slippage
             // Valid Hedge/Arbitrage entry
-            yield executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
+            yield executeArbitrageTrade(user, market, assetToBuy, balanceAbs, 'Leg 2 / Balance');
             return;
         }
         // If not cheap enough yet, we wait.
@@ -183,11 +200,12 @@ const processUserArbitrage = (user, market, currentPrice, previousPrice) => __aw
         const side = currentPrice > previousPrice ? 'YES' : 'NO';
         const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         const amount = user.config.copySize || 20;
-        yield executeArbitrageTrade(user, market, tokenId, 'BUY', amount, 'Leg 1 / Trigger');
+        yield executeArbitrageTrade(user, market, side, amount, 'Leg 1 / Trigger');
     }
 });
-const executeArbitrageTrade = (user, market, tokenId, side, amount, reason) => __awaiter(void 0, void 0, void 0, function* () {
+export const executeArbitrageTrade = (user, market, side, amount, reason) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         const pk = user.wallet.privateKey;
         const clobClient = yield createClobClient(pk);
         Logger.info(`🚀 [${user.chatId}] Arbitrage Action: ${reason} | ${side} on ${market.question.slice(0, 30)}...`);
