@@ -123,7 +123,7 @@ const runArbitrageLoop = async () => {
         });
 
         if (activeUsers.length === 0) {
-            if (Math.random() < 0.05) Logger.debug('[ARBITRAGE] No active arbitrage users found. Skipping checks.');
+            if (Math.random() < 0.05) Logger.info('[ARBITRAGE] No active arbitrage users found. Skipping checks.');
             return;
         }
 

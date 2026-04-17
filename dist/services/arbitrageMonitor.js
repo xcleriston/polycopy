@@ -112,7 +112,7 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
         });
         if (activeUsers.length === 0) {
             if (Math.random() < 0.05)
-                Logger.debug('[ARBITRAGE] No active arbitrage users found. Skipping checks.');
+                Logger.info('[ARBITRAGE] No active arbitrage users found. Skipping checks.');
             return;
         }
         // Processing loop
