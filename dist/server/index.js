@@ -1834,6 +1834,36 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 .tf-switcher { display: flex; background: var(--bg); border-radius: 8px; padding: 4px; gap: 4px; }
 .tf-btn { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-dim); }
 .tf-btn.active { background: var(--card); color: #fff; border: 1px solid var(--border); }
+
+/* BYPASS ACTIVE STYLES */
+.btn-bypass-active {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fff !important;
+  border: 1px solid var(--danger) !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5) !important;
+  animation: bypass-pulse 1.5s infinite alternate ease-in-out;
+  letter-spacing: 1px;
+}
+
+@keyframes bypass-pulse {
+  from { box-shadow: 0 0 5px rgba(239, 68, 68, 0.3); border-color: rgba(239, 68, 68, 0.5); }
+  to { box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); border-color: var(--danger); }
+}
+
+#bypass-alert-banner {
+  background: var(--danger);
+  color: #fff;
+  padding: 8px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  display: none;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
 </style>
 </head>
 <body>
@@ -1848,6 +1878,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
   </aside>
   <main>
+    <div id="bypass-alert-banner">⚠️ ATENÇÃO: MODO BYPASS ATIVO - FILTROS DE RISCO DESATIVADOS ⚠️</div>
     <div id="message-banner"></div>
     <div id="setup-wizard" class="wizard-card" style="display:none">
         <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
@@ -2556,14 +2587,20 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             }
             
             const bypassBtn = document.getElementById('bot-bypass-btn');
+            const bypassBanner = document.getElementById('bypass-alert-banner');
             if (bypassBtn) {
                 const isActive = !!c.bypassFilters;
-                bypassBtn.textContent = isActive ? '⚡ MODO BYPASS ON' : 'MODO BYPASS OFF';
-                bypassBtn.style.background = isActive ? 'rgba(239, 68, 68, 0.2)' : 'var(--bg)';
-                bypassBtn.style.color = isActive ? 'var(--danger)' : 'var(--accent)';
-                bypassBtn.style.borderColor = isActive ? 'var(--danger)' : 'var(--accent)';
-                if (isActive) bypassBtn.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.3)';
-                else bypassBtn.style.boxShadow = 'none';
+                bypassBtn.textContent = isActive ? '⚡ BYPASS ACTIVE' : 'MODO BYPASS OFF';
+                if (isActive) {
+                    bypassBtn.classList.add('btn-bypass-active');
+                } else {
+                    bypassBtn.classList.remove('btn-bypass-active');
+                    bypassBtn.style.background = 'var(--bg)';
+                    bypassBtn.style.color = 'var(--accent)';
+                    bypassBtn.style.borderColor = 'var(--accent)';
+                    bypassBtn.style.boxShadow = 'none';
+                }
+                if (bypassBanner) bypassBanner.style.display = isActive ? 'block' : 'none';
             }
 
             // Config Fill
