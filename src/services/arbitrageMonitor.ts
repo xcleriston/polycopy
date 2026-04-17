@@ -23,6 +23,7 @@ interface ArbitrageMarket {
 }
 
 let activeMarkets: ArbitrageMarket[] = [];
+let priceBaselines: Record<string, number> = {}; // Persist baseline across cycles
 
 let refreshInterval: NodeJS.Timeout | null = null;
 let monitorInterval: NodeJS.Timeout | null = null;
@@ -112,9 +113,14 @@ const runArbitrageLoop = async () => {
                 if (!priceData || priceData.mid === undefined) return;
 
                 const currentPrice = parseFloat(priceData.mid); 
-                const previousPrice = market.currentPrice || currentPrice;
+                const previousPrice = priceBaselines[market.yesTokenId] || currentPrice;
                 
-                // Vitality check: Update price cache
+                // Vitality check: baseline only updates when a trade happens or after a long timeout
+                // Actually, let's keep it until trigger is met or 5 mins pass
+                if (!priceBaselines[market.yesTokenId]) {
+                    priceBaselines[market.yesTokenId] = currentPrice;
+                }
+                
                 market.currentPrice = currentPrice;
 
                 // Process all users for this market shift in parallel
@@ -177,21 +183,12 @@ const processUserArbitrage = async (user: any, market: ArbitrageMarket, currentP
         // We calculate what we spent on the other leg. Since we don't track original price easily,
         // we use the current market equilibrium requirement.
         
-        if (1.0 <= hedgeCeiling + 0.0001 || ( (imbalance > 0 && noPrice < (hedgeCeiling - 0.4)) || (imbalance < 0 && yesPrice < (hedgeCeiling - 0.4)) )) {
-            // This is complex because we don't know the exact entry price of Leg 1.
-            // Simplified: If current Yes+No < hedgeCeiling, we can balance/re-entry.
-            // Note: In Polymarket, pure arbitrage requires the SUM of BestAsk(Yes) + BestAsk(No) < 1.0.
-            // We use hedgeCeiling as our target total cost for 1.00 item.
-            
-            // For now, let's use a conservative check: if the "needed" leg is cheap enough compared to the ceiling.
-            // If the user set 0.95, and we are buying Leg 2, we just buy if total price allows.
-            
-            // Better: If we have an existing position, we wait for a price where the total set cost < hedgeCeiling.
-            // Since we use probability (last trade), we check:
-            if (1.0 < hedgeCeiling) { // Basically if floor price is cheap
-                  await executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
-                  return;
-            }
+        const totalSetPrice = yesPrice + noPrice;
+        
+        if (totalSetPrice <= hedgeCeiling + 0.005) { // Small buffer for slippage
+            // Valid Hedge/Arbitrage entry
+            await executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
+            return;
         }
         
         // If not cheap enough yet, we wait.
@@ -203,14 +200,13 @@ const processUserArbitrage = async (user: any, market: ArbitrageMarket, currentP
     if (delta >= triggerDelta) {
         Logger.info(`🎯 [${user.chatId}] Trigger Delta reached: ${delta.toFixed(4)} on ${market.question}`);
         
-        // Logic: If price moves Up, we might want to catch the momentum? 
-        // Or if it drops, we buy the "Value". 
-        // User said: "observa uma alta ou baixa no valor determinado em dolar para entrar"
-        // Let's buy the side that moved significantly or just a base side.
+        // Reset baseline after trigger to detect next move
+        priceBaselines[market.yesTokenId] = currentPrice;
+
         const side = currentPrice > previousPrice ? 'YES' : 'NO';
         const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         
-        const amount = user.config.copySize || 20; // Use copySize as initial leg size
+        const amount = user.config.copySize || 20; 
         await executeArbitrageTrade(user, market, tokenId, 'BUY', amount, 'Leg 1 / Trigger');
     }
 };

@@ -316,7 +316,7 @@ export const ENV = {
     PROXY_WALLET: process.env.PROXY_WALLET as string,
     PRIVATE_KEY: process.env.PRIVATE_KEY as string,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL as string,
-    CLOB_WS_URL: (process.env.CLOB_WS_URL || 'wss://ws-subscriptions-clob.polymarket.com/ws/market') as string,
+    CLOB_WS_URL: (process.env.CLOB_WS_URL || 'wss://clob.polymarket.com/ws/') as string,
     FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '15', 10),
     TOO_OLD_TIMESTAMP: parseInt(process.env.TOO_OLD_TIMESTAMP || '24', 10),
     RETRY_LIMIT: parseInt(process.env.RETRY_LIMIT || '3', 10),

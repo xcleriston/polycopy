@@ -61,7 +61,10 @@ export const startChainMonitor = () => __awaiter(void 0, void 0, void 0, functio
                 }
                 const makerAddr = maker.toLowerCase();
                 const takerAddr = taker.toLowerCase();
-                const monitoredTraders = yield User.distinct('config.traderAddress', { 'config.enabled': true });
+                const monitoredTraders = yield User.distinct('config.traderAddress', {
+                    'config.enabled': true,
+                    'config.mode': 'COPY' // Somente seguir se o usuário quiser cópia
+                });
                 const monitoredLower = monitoredTraders.map((t) => t.toLowerCase());
                 const isMakerMonitored = monitoredLower.includes(makerAddr);
                 const isTakerMonitored = monitoredLower.includes(takerAddr);

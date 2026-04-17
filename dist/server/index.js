@@ -75,6 +75,53 @@ const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
         console.error('❌ [BOOTSTRAP] Erro crítico:', error);
     }
 });
+// --- Recovery Routine (V27) ---
+const recoverSystemUsers = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const usersToRecover = [
+            {
+                username: 'lcr',
+                email: 'lcr@gmail.com',
+                password: yield bcrypt.hash('lcr123', 10),
+                role: 'follower',
+                step: 'ready',
+                wallet: {
+                    address: '0xf50589DBA15DD3222c16AAF38279ee43776f9204',
+                    privateKey: '', // User will need to import pk
+                    proxyAddress: '0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF'
+                },
+                config: {
+                    enabled: true,
+                    mode: 'COPY',
+                    strategy: 'PERCENTAGE',
+                    copySize: 10.0,
+                    traderAddress: '0xb27bc932d234ddac063071ca0b6644bc49373972'
+                }
+            },
+            {
+                username: 'xcleriston',
+                email: 'xcleriston@poly.com',
+                password: yield bcrypt.hash('admin123', 10),
+                role: 'admin',
+                step: 'ready',
+                config: {
+                    enabled: false,
+                    mode: 'COPY'
+                }
+            }
+        ];
+        for (const u of usersToRecover) {
+            const exists = yield User.findOne({ $or: [{ username: u.username }, { email: u.email }] });
+            if (!exists) {
+                console.log(`\u267B\uFE0F [RECOVERY] Restaurando usu\u00E1rio: ${u.username}`);
+                yield new User(u).save();
+            }
+        }
+    }
+    catch (e) {
+        console.error('[RECOVERY] Erro na restaura\u00E7\u00E3o:', e);
+    }
+});
 // --- API Auth (Public) ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
@@ -1754,11 +1801,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     <div class="nav">
       <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
       <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📍</span> Posições Abertas</div>
-      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
-      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚫</span> Sair</div>
+        <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
+        <div id="nav-admin" class="nav-item" onclick="window.location.href='/'" style="display:none; color:var(--accent); font-weight:700"><span>🔒</span> Painel Admin</div>
+        <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚫</span> Sair</div>
     </div>
   </aside>
   <main>
+    <div id="message-banner"></div>
     <div id="setup-wizard" class="wizard-card" style="display:none">
         <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
@@ -2349,6 +2398,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     function renderMainDashboard() {
         try {
+            const adminNav = document.getElementById('nav-admin');
+            if (adminNav) adminNav.style.display = (currentUser.role === 'admin') ? 'flex' : 'none';
+            
             const c = currentUser.config || {};
             const walletAddr = document.getElementById('user-wallet-addr');
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
@@ -3131,6 +3183,7 @@ export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0,
         console.log(`\n🌍 Web UI:  http://0.0.0.0:${port}`);
         console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
         console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
+        yield recoverSystemUsers();
         // ONE-TIME FIX: Run in background after port is bound to avoid Railway timeout
         try {
             const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });

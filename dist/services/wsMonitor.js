@@ -27,7 +27,10 @@ export class WSMonitor {
     }
     updateTraders() {
         return __awaiter(this, void 0, void 0, function* () {
-            const traders = yield User.distinct('config.traderAddress', { 'config.enabled': true });
+            const traders = yield User.distinct('config.traderAddress', {
+                'config.enabled': true,
+                'config.mode': 'COPY' // Only follow traders for COPY users
+            });
             this.monitoredTraders = new Set(traders.map((t) => t.toLowerCase()));
         });
     }

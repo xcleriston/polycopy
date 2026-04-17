@@ -21,7 +21,10 @@ export class WSMonitor {
     }
 
     private async updateTraders() {
-        const traders = await User.distinct('config.traderAddress', { 'config.enabled': true });
+        const traders = await User.distinct('config.traderAddress', { 
+            'config.enabled': true,
+            'config.mode': 'COPY' // Only follow traders for COPY users
+        });
         this.monitoredTraders = new Set(traders.map((t: string) => t.toLowerCase()));
     }
 
