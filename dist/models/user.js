@@ -44,7 +44,8 @@ const UserSchema = new Schema({
         minMarketLiquidity: { type: Number, default: 0 },
         // Phase 6 Arbitrage Filters
         triggerDelta: { type: Number, default: 0.005 },
-        hedgeCeiling: { type: Number, default: 0.95 }
+        hedgeCeiling: { type: Number, default: 0.95 },
+        bypassFilters: { type: Boolean, default: false }
     },
     totalSpentUSD: { type: Number, default: 0.0 },
     stats: {

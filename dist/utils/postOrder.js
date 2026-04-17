@@ -57,38 +57,45 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
     // 1. Pre-execution Filters
     const tradePrice = trade.price;
     const tradeSizeUSD = trade.usdcSize;
-    // Side filter
-    if (condition === 'buy' && config.copyBuy === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
-        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
-        return;
+    // --- BYPASS MODE GUARD ---
+    if (config.bypassFilters === true) {
+        Logger.warning(`[${followerId}] ⚡ BYPASS MODE ACTIVE: Skipping all safety filters!`);
     }
-    if (condition === 'sell' && config.copySell === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
-        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
-        return;
-    }
-    // Price filter
-    if (config.minPrice > 0 && tradePrice < config.minPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
-        return;
-    }
-    if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
-        return;
-    }
-    // Trade size filter
-    if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
-        return;
-    }
-    if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
-        return;
+    else {
+        // Standard Filters
+        // Side filter
+        if (condition === 'buy' && config.copyBuy === false) {
+            Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
+            yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
+            return;
+        }
+        if (condition === 'sell' && config.copySell === false) {
+            Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
+            yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
+            return;
+        }
+        // Price filter
+        if (config.minPrice > 0 && tradePrice < config.minPrice) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
+            return;
+        }
+        if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
+            return;
+        }
+        // Trade size filter
+        if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
+            return;
+        }
+        if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
+            return;
+        }
     }
     // 2. Reverse Copy Logic
     let effectiveCondition = condition;
@@ -164,9 +171,24 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 }
             }
         }
-        // Get current position size 
-        const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
-        const orderCalc = calculateOrderSize(config, trade.usdcSize, my_balance, currentPositionValue);
+        // 2.5 Order Size Calculation
+        let orderCalc;
+        if (config.bypassFilters === true) {
+            // CLONE 100% Value Strategy
+            const affordable = my_balance * 0.98;
+            const targetAmount = trade.usdcSize;
+            const finalAmount = Math.min(targetAmount, affordable);
+            orderCalc = {
+                finalAmount,
+                reasoning: `BYPASS ACTIVE: Cloning 100% of trader's $${targetAmount.toFixed(2)} (Affordable: $${finalAmount.toFixed(2)})`
+            };
+        }
+        else {
+            // Standard Strategy
+            // Get current position size 
+            const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
+            orderCalc = calculateOrderSize(config, trade.usdcSize, my_balance, currentPositionValue);
+        }
         Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
         // Check Buy at Min
         if (config.buyAtMin && orderCalc.finalAmount > 0 && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {

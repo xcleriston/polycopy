@@ -1997,7 +1997,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
+                <div style="display: flex; gap: 10px; align-items: center">
+                    <button id="bot-bypass-btn" class="btn btn-sm" onclick="toggleBypass()" style="background: var(--bg); border: 1px solid var(--accent); color: var(--accent); font-weight: 700; width: 140px">MODO BYPASS OFF</button>
+                    <button id="bot-master-btn" class="btn btn-sm" onclick="toggleBotMain()" style="min-width: 140px">ATIVAR BOT</button>
+                    <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 15px">⚙️</button>
+                </div>
             </div>
         </div>
 
@@ -2577,6 +2581,17 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 masterBtn.textContent = c.enabled ? 'DESATIVAR' : 'ATIVAR ' + modeLabel;
                 masterBtn.style.background = c.enabled ? 'var(--danger)' : 'var(--success)';
             }
+            
+            const bypassBtn = document.getElementById('bot-bypass-btn');
+            if (bypassBtn) {
+                const isActive = !!c.bypassFilters;
+                bypassBtn.textContent = isActive ? '⚡ MODO BYPASS ON' : 'MODO BYPASS OFF';
+                bypassBtn.style.background = isActive ? 'rgba(239, 68, 68, 0.2)' : 'var(--bg)';
+                bypassBtn.style.color = isActive ? 'var(--danger)' : 'var(--accent)';
+                bypassBtn.style.borderColor = isActive ? 'var(--danger)' : 'var(--accent)';
+                if (isActive) bypassBtn.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.3)';
+                else bypassBtn.style.boxShadow = 'none';
+            }
 
             // Config Fill
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
@@ -2605,6 +2620,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
             setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
             setVal('bot-mode', c.mode || 'COPY');
+            
+            const botBypassConfig = document.getElementById('bot-bypass-config');
+            if (botBypassConfig) botBypassConfig.checked = !!c.bypassFilters;
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2811,6 +2829,21 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         } catch (e) { console.error('Toggle bot fail:', e); }
     }
 
+    async function toggleBypass() {
+        try {
+            const nextState = !(currentUser.config?.bypassFilters);
+            const btn = document.getElementById('bot-bypass-btn');
+            btn.disabled = true;
+            await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bypassFilters: nextState })
+            });
+            loadUser();
+            showBanner(nextState ? 'MODO BYPASS ATIVADO!' : 'MODO BYPASS DESATIVADO', nextState ? 'danger' : 'success');
+        } catch (e) { console.error('Toggle bypass fail:', e); }
+    }
+
     async function updateBotConfig() {
         const config = {
             traderAddress: document.getElementById('bot-trader').value,
@@ -2841,6 +2874,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             mode: document.getElementById('bot-mode').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
             hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
+            bypassFilters: document.getElementById('bot-bypass-config').checked,
             proxyAddress: document.getElementById('bot-proxyAddress').value
         };
         const res = await fetch('/api/user/update-config', {
