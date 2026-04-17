@@ -176,28 +176,36 @@ const tradeExecutor = async () => {
         Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
     }
 
-    let lastCheck = Date.now();
     while (isRunning) {
-        const trades = await readUnprocessedTrades();
+        try {
+            // Guard: Database stability
+            const mongoose = (await import('mongoose')).default;
+            if (mongoose.connection.readyState !== 1) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+            }
 
-        if (trades.length > 0) {
-            Logger.clearLine();
-            Logger.header(`⚡ ${trades.length} NEW TRADE${trades.length > 1 ? 'S' : ''} DETECTED`);
-            for (const trade of trades) {
-                await doTrading(trade);
+            // Check for new trades to process (bot: false means not yet handled by executor)
+            const unprocessedTrades = (await Activity.find({
+                type: 'TRADE',
+                bot: false,
+                executionStatus: 'PENDENTE'
+            }).sort({ timestamp: -1 })) as unknown as IUserActivity[];
+
+            if (unprocessedTrades.length > 0) {
+                for (const trade of unprocessedTrades) {
+                    if (!isRunning) break;
+                    await doTrading(trade);
+                }
             }
-            lastCheck = Date.now();
-        } else {
-            if (Date.now() - lastCheck > 1000) {
-                // Get count of active unique traders being monitored across all users
-                const uniqueTradersCount = (await User.distinct('config.traderAddress', { 'config.enabled': true })).length;
-                Logger.waiting(uniqueTradersCount);
-                lastCheck = Date.now();
-            }
+        } catch (error) {
+            Logger.error(`[EXECUTOR] Fatal Loop Error: ${error}`);
+            // Safety backoff to prevent CPU spin during database/network outages
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
 
-        if (!isRunning) break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Fast poll: check every 2 seconds for new trades in the database
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     Logger.info('Trade executor stopped');

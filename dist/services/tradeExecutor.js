@@ -138,28 +138,35 @@ const tradeExecutor = () => __awaiter(void 0, void 0, void 0, function* () {
     if (PREVIEW_MODE) {
         Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
     }
-    let lastCheck = Date.now();
     while (isRunning) {
-        const trades = yield readUnprocessedTrades();
-        if (trades.length > 0) {
-            Logger.clearLine();
-            Logger.header(`⚡ ${trades.length} NEW TRADE${trades.length > 1 ? 'S' : ''} DETECTED`);
-            for (const trade of trades) {
-                yield doTrading(trade);
+        try {
+            // Guard: Database stability
+            const mongoose = (yield import('mongoose')).default;
+            if (mongoose.connection.readyState !== 1) {
+                yield new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
             }
-            lastCheck = Date.now();
-        }
-        else {
-            if (Date.now() - lastCheck > 1000) {
-                // Get count of active unique traders being monitored across all users
-                const uniqueTradersCount = (yield User.distinct('config.traderAddress', { 'config.enabled': true })).length;
-                Logger.waiting(uniqueTradersCount);
-                lastCheck = Date.now();
+            // Check for new trades to process (bot: false means not yet handled by executor)
+            const unprocessedTrades = (yield Activity.find({
+                type: 'TRADE',
+                bot: false,
+                executionStatus: 'PENDENTE'
+            }).sort({ timestamp: -1 }));
+            if (unprocessedTrades.length > 0) {
+                for (const trade of unprocessedTrades) {
+                    if (!isRunning)
+                        break;
+                    yield doTrading(trade);
+                }
             }
         }
-        if (!isRunning)
-            break;
-        yield new Promise((resolve) => setTimeout(resolve, 100));
+        catch (error) {
+            Logger.error(`[EXECUTOR] Fatal Loop Error: ${error}`);
+            // Safety backoff to prevent CPU spin during database/network outages
+            yield new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        // Fast poll: check every 2 seconds for new trades in the database
+        yield new Promise(resolve => setTimeout(resolve, 2000));
     }
     Logger.info('Trade executor stopped');
 });

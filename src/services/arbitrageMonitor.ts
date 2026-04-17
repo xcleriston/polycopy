@@ -24,15 +24,27 @@ interface ArbitrageMarket {
 
 let activeMarkets: ArbitrageMarket[] = [];
 
+let refreshInterval: NodeJS.Timeout | null = null;
+let monitorInterval: NodeJS.Timeout | null = null;
+let isArbitrageRunning = true;
+
+export const stopArbitrageMonitor = () => {
+    isArbitrageRunning = false;
+    if (refreshInterval) clearInterval(refreshInterval);
+    if (monitorInterval) clearInterval(monitorInterval);
+    Logger.info('Arbitrage monitor stopped');
+};
+
 export const startArbitrageMonitor = async () => {
     Logger.info('⚡ Starting Autonomous Arbitrage/Hedge Bot...');
+    isArbitrageRunning = true;
     
     // Initial fetch
     await updateTargetMarkets();
     
     // Intervals
-    setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
-    setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
+    refreshInterval = setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
+    monitorInterval = setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
 };
 
 /**
@@ -69,61 +81,58 @@ const updateTargetMarkets = async () => {
 /**
  * Main loop to check for price movements and execute arbitrage/hedge
  */
-let isFirstArbitrageRun = true;
 const runArbitrageLoop = async () => {
+    if (!isArbitrageRunning) return;
+
     try {
-        // Prevent MongoNotConnectedError by checking state
+        // Core Guard: Database stability
         const mongoose = (await import('mongoose')).default;
-        if (mongoose.connection.readyState !== 1) return;
-
-        const users = await User.find({ 
-            'config.mode': 'ARBITRAGE', 
-            'config.enabled': true,
-            'wallet.privateKey': { $exists: true, $ne: '' }
-        });
-
-        if (isFirstArbitrageRun) {
-            Logger.success(`[ARBITRAGE] Motor Iniciado | Monitorando ${users.length} usuário(s) ativos.`);
-            isFirstArbitrageRun = false;
-        }
-
-        if (users.length === 0) {
-            // Log heartbeat occasionally even with no users to show service is alive
-            if (Math.random() < 0.05) Logger.info('[ARBITRAGE] Monitor ativo (aguardando usuários)');
+        if (mongoose.connection.readyState !== 1) {
+            if (Math.random() < 0.1) Logger.warning('[ARBITRAGE] Database not ready, skipping cycle...');
             return;
         }
 
-        for (const market of activeMarkets) {
-            // Get current prices for Yes via the fast CLOB Midpoint API
-            // This is much faster than the Data API
+        if (activeMarkets.length === 0) return;
+
+        const activeUsers = await User.find({ 
+            'config.enabled': true, 
+            'config.mode': 'ARBITRAGE',
+            'wallet.privateKey': { $exists: true, $ne: '' }
+        });
+
+        if (activeUsers.length === 0) return;
+
+        // Process markets in parallel
+        await Promise.all(activeMarkets.map(async (market) => {
+            if (!isArbitrageRunning) return;
+
             try {
+                // High-Speed Midpoint Check
                 const priceData = await fetchData(`https://clob.polymarket.com/midpoint?token_id=${market.yesTokenId}`);
-                if (!priceData || priceData.mid === undefined) continue;
+                if (!priceData || priceData.mid === undefined) return;
 
                 const currentPrice = parseFloat(priceData.mid); 
                 const previousPrice = market.currentPrice || currentPrice;
                 
-                // Add a heartbeat log for visibility (only if price changed or every 5th loop)
-                const priceChanged = Math.abs(currentPrice - previousPrice) > 0.0001;
-                if (priceChanged || Math.random() < 0.2) {
-                    Logger.info(`[ARBITRAGE] ${market.question.slice(0, 20)}... | Price: ${currentPrice.toFixed(4)}`);
-                }
-
+                // Vitality check: Update price cache
                 market.currentPrice = currentPrice;
 
-                for (const user of users) {
-                    await processUserArbitrage(user, market, currentPrice, previousPrice);
-                }
-            } catch (err) {
-                // Individual market error shouldn't stop the whole loop
+                // Process all users for this market shift in parallel
+                await Promise.all(activeUsers.map(async (user) => {
+                    try {
+                        if (isArbitrageRunning) {
+                            await processUserArbitrage(user, market, currentPrice, previousPrice);
+                        }
+                    } catch (userErr) {
+                        Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
+                    }
+                }));
+            } catch (marketErr) {
+                // Isolated market failure - Circuit Breaker pattern
             }
-        }
+        }));
     } catch (error: any) {
-        // Suppress noisy fetch logs, but keep critical errors
-        const errMsg = error?.toString() || '';
-        if (!errMsg.includes('fetch')) {
-            Logger.error('Arbitrage loop error: ' + errMsg);
-        }
+        Logger.error('Arbitrage loop critical failure: ' + (error.message || error));
     }
 };
 

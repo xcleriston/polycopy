@@ -16,14 +16,26 @@ const EXCHANGE_ABI = [
     "event OrderFilled(bytes32 indexed orderHash, address indexed maker, address indexed taker, uint256 makerAssetId, uint256 takerAssetId, uint256 makerAmountFilled, uint256 takerAmountFilled, uint256 fee)"
 ];
 const POLYMARKET_EXCHANGE_ADDR = ENV.POLYMARKET_EXCHANGE_ADDR;
+let isChainMonitorRunning = true;
+let chainProvider = null;
+export const stopChainMonitor = () => {
+    isChainMonitorRunning = false;
+    if (chainProvider) {
+        chainProvider.removeAllListeners();
+        chainProvider.destroy();
+        chainProvider = null;
+    }
+};
 export const startChainMonitor = () => __awaiter(void 0, void 0, void 0, function* () {
     if (!ENV.WSS_RPC_URL) {
         Logger.error('WSS_RPC_URL not configured. Real-time chain monitoring disabled.');
         return;
     }
+    isChainMonitorRunning = true;
     try {
         Logger.info('Initializing High-Speed Monitor...');
-        const provider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
+        chainProvider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
+        const provider = chainProvider;
         // Handle provider errors specifically to prevent Uncaught Exceptions
         provider.on("error", (e) => {
             var _a, _b;

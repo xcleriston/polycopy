@@ -21,7 +21,9 @@ export class WSMonitor {
         this.ws = null;
         this.monitoredTraders = new Set();
         this.reconnectTimeout = null;
-        this.updateTraders();
+        this.retryCount = 0;
+        this.MAX_BACKOFF = 60000; // 1 minute cap
+        // Constructor is kept synchronous for safe startup
     }
     updateTraders() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -36,53 +38,74 @@ export class WSMonitor {
                 return;
             }
             Logger.info('Initializing Ultra-Fast CLOB WebSocket Monitor...');
+            // Initial sync of traders before connecting
+            yield this.updateTraders().catch(err => Logger.error(`WS Trader Sync Error: ${err}`));
             this.connect();
-            // Refresh trader list every 30 seconds for near-instant detection of new settings
-            setInterval(() => this.updateTraders(), 30 * 1000);
+            // Refresh trader list every 30 seconds
+            setInterval(() => this.updateTraders().catch(() => { }), 30 * 1000);
         });
     }
     connect() {
         if (this.reconnectTimeout)
             clearTimeout(this.reconnectTimeout);
-        this.ws = new WebSocket(ENV.CLOB_WS_URL);
-        this.ws.on('open', () => {
-            var _a;
-            Logger.success('⚡ Connected to Polymarket CLOB WebSocket for ultra-fast detection');
-            // Subscribe to fills. Note: Some versions of CLOB WS require asset_ids.
-            // If asset_ids is omitted, some implementations send all fills.
-            const subMessage = {
-                type: 'subscribe',
-                topic: 'fills'
-            };
-            (_a = this.ws) === null || _a === void 0 ? void 0 : _a.send(JSON.stringify(subMessage));
-        });
-        this.ws.on('message', (data) => __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
-            try {
-                const message = JSON.parse(data.toString());
-                // Polymarket CLOB WS payload structure for fills
-                if (message.topic === 'fills' && Array.isArray(message.data)) {
-                    for (const fill of message.data) {
-                        const maker = (_a = fill.maker) === null || _a === void 0 ? void 0 : _a.toLowerCase();
-                        const taker = (_b = fill.taker) === null || _b === void 0 ? void 0 : _b.toLowerCase();
-                        if (this.monitoredTraders.has(maker) || this.monitoredTraders.has(taker)) {
-                            const targetTrader = this.monitoredTraders.has(maker) ? maker : taker;
-                            yield this.processFill(fill, targetTrader);
+        try {
+            // Circuit Breaker: Criação segura do objeto WS
+            this.ws = new WebSocket(ENV.CLOB_WS_URL);
+            this.ws.on('open', () => {
+                var _a;
+                Logger.success('⚡ Connected to Polymarket CLOB WebSocket');
+                this.retryCount = 0; // Reset backoff on success
+                const subMessage = {
+                    type: 'subscribe',
+                    topic: 'fills'
+                };
+                (_a = this.ws) === null || _a === void 0 ? void 0 : _a.send(JSON.stringify(subMessage));
+            });
+            this.ws.on('message', (data) => __awaiter(this, void 0, void 0, function* () {
+                var _a, _b;
+                try {
+                    const message = JSON.parse(data.toString());
+                    if (message.topic === 'fills' && Array.isArray(message.data)) {
+                        for (const fill of message.data) {
+                            const maker = (_a = fill.maker) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+                            const taker = (_b = fill.taker) === null || _b === void 0 ? void 0 : _b.toLowerCase();
+                            if (this.monitoredTraders.has(maker) || this.monitoredTraders.has(taker)) {
+                                const targetTrader = this.monitoredTraders.has(maker) ? maker : taker;
+                                yield this.processFill(fill, targetTrader);
+                            }
                         }
                     }
                 }
-            }
-            catch (err) {
-                // Silently handle parse errors or non-JSON heartbeats
-            }
-        }));
-        this.ws.on('error', (err) => {
-            Logger.error(`WebSocket Monitor Error: ${err.message}`);
-        });
-        this.ws.on('close', () => {
-            Logger.warning('WebSocket Monitor disconnected. Reconnecting in 5s...');
-            this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
-        });
+                catch (err) { }
+            }));
+            this.ws.on('error', (err) => {
+                var _a;
+                const backoff = Math.min(Math.pow(2, this.retryCount) * 1000, this.MAX_BACKOFF);
+                if ((_a = err.message) === null || _a === void 0 ? void 0 : _a.includes('404')) {
+                    Logger.warning(`[WS] Endpoint 404 (Handled). Retrying in ${backoff / 1000}s...`);
+                }
+                else {
+                    Logger.warning(`[WS] Connection Error: ${err.message}. Retrying in ${backoff / 1000}s...`);
+                }
+            });
+            this.ws.on('close', (code) => {
+                const backoff = Math.min(Math.pow(2, this.retryCount) * 1000, this.MAX_BACKOFF);
+                if (code !== 1000) {
+                    this.reconnectTimeout = setTimeout(() => {
+                        this.retryCount++;
+                        this.connect();
+                    }, backoff);
+                }
+            });
+        }
+        catch (err) {
+            const backoff = Math.min(Math.pow(2, this.retryCount) * 1000, this.MAX_BACKOFF);
+            Logger.error(`[WS] Critical Handshake Failure: ${err.message}. Retrying in ${backoff / 1000}s...`);
+            this.reconnectTimeout = setTimeout(() => {
+                this.retryCount++;
+                this.connect();
+            }, backoff);
+        }
     }
     processFill(fill, traderAddress) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -116,9 +139,28 @@ export class WSMonitor {
             }
         });
     }
+    stop() {
+        if (this.reconnectTimeout)
+            clearTimeout(this.reconnectTimeout);
+        if (this.ws) {
+            this.ws.removeAllListeners();
+            this.ws.terminate();
+            this.ws = null;
+        }
+        Logger.info('WS Monitor stopped');
+    }
 }
+let activeWSMonitor = null;
 export const startWSMonitor = () => {
-    const monitor = new WSMonitor();
-    monitor.start();
+    if (activeWSMonitor)
+        activeWSMonitor.stop();
+    activeWSMonitor = new WSMonitor();
+    activeWSMonitor.start();
+};
+export const stopWSMonitor = () => {
+    if (activeWSMonitor) {
+        activeWSMonitor.stop();
+        activeWSMonitor = null;
+    }
 };
 export default startWSMonitor;

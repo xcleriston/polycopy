@@ -20,13 +20,25 @@ import getMyBalance from '../utils/getMyBalance.js';
 const REFRESH_MARKETS_INTERVAL = 60000 * 5; // 5 minutes
 const MONITOR_PRICE_INTERVAL = 5000; // 5 seconds for loop check
 let activeMarkets = [];
+let refreshInterval = null;
+let monitorInterval = null;
+let isArbitrageRunning = true;
+export const stopArbitrageMonitor = () => {
+    isArbitrageRunning = false;
+    if (refreshInterval)
+        clearInterval(refreshInterval);
+    if (monitorInterval)
+        clearInterval(monitorInterval);
+    Logger.info('Arbitrage monitor stopped');
+};
 export const startArbitrageMonitor = () => __awaiter(void 0, void 0, void 0, function* () {
     Logger.info('⚡ Starting Autonomous Arbitrage/Hedge Bot...');
+    isArbitrageRunning = true;
     // Initial fetch
     yield updateTargetMarkets();
     // Intervals
-    setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
-    setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
+    refreshInterval = setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
+    monitorInterval = setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
 });
 /**
  * Fetches BTC 5m and 15m markets from Polymarket
@@ -62,58 +74,58 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
 /**
  * Main loop to check for price movements and execute arbitrage/hedge
  */
-let isFirstArbitrageRun = true;
 const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
+    if (!isArbitrageRunning)
+        return;
     try {
-        // Prevent MongoNotConnectedError by checking state
+        // Core Guard: Database stability
         const mongoose = (yield import('mongoose')).default;
-        if (mongoose.connection.readyState !== 1)
+        if (mongoose.connection.readyState !== 1) {
+            if (Math.random() < 0.1)
+                Logger.warning('[ARBITRAGE] Database not ready, skipping cycle...');
             return;
-        const users = yield User.find({
-            'config.mode': 'ARBITRAGE',
+        }
+        if (activeMarkets.length === 0)
+            return;
+        const activeUsers = yield User.find({
             'config.enabled': true,
+            'config.mode': 'ARBITRAGE',
             'wallet.privateKey': { $exists: true, $ne: '' }
         });
-        if (isFirstArbitrageRun) {
-            Logger.success(`[ARBITRAGE] Motor Iniciado | Monitorando ${users.length} usuário(s) ativos.`);
-            isFirstArbitrageRun = false;
-        }
-        if (users.length === 0) {
-            // Log heartbeat occasionally even with no users to show service is alive
-            if (Math.random() < 0.05)
-                Logger.info('[ARBITRAGE] Monitor ativo (aguardando usuários)');
+        if (activeUsers.length === 0)
             return;
-        }
-        for (const market of activeMarkets) {
-            // Get current prices for Yes via the fast CLOB Midpoint API
-            // This is much faster than the Data API
+        // Process markets in parallel
+        yield Promise.all(activeMarkets.map((market) => __awaiter(void 0, void 0, void 0, function* () {
+            if (!isArbitrageRunning)
+                return;
             try {
+                // High-Speed Midpoint Check
                 const priceData = yield fetchData(`https://clob.polymarket.com/midpoint?token_id=${market.yesTokenId}`);
                 if (!priceData || priceData.mid === undefined)
-                    continue;
+                    return;
                 const currentPrice = parseFloat(priceData.mid);
                 const previousPrice = market.currentPrice || currentPrice;
-                // Add a heartbeat log for visibility (only if price changed or every 5th loop)
-                const priceChanged = Math.abs(currentPrice - previousPrice) > 0.0001;
-                if (priceChanged || Math.random() < 0.2) {
-                    Logger.info(`[ARBITRAGE] ${market.question.slice(0, 20)}... | Price: ${currentPrice.toFixed(4)}`);
-                }
+                // Vitality check: Update price cache
                 market.currentPrice = currentPrice;
-                for (const user of users) {
-                    yield processUserArbitrage(user, market, currentPrice, previousPrice);
-                }
+                // Process all users for this market shift in parallel
+                yield Promise.all(activeUsers.map((user) => __awaiter(void 0, void 0, void 0, function* () {
+                    try {
+                        if (isArbitrageRunning) {
+                            yield processUserArbitrage(user, market, currentPrice, previousPrice);
+                        }
+                    }
+                    catch (userErr) {
+                        Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
+                    }
+                })));
             }
-            catch (err) {
-                // Individual market error shouldn't stop the whole loop
+            catch (marketErr) {
+                // Isolated market failure - Circuit Breaker pattern
             }
-        }
+        })));
     }
     catch (error) {
-        // Suppress noisy fetch logs, but keep critical errors
-        const errMsg = (error === null || error === void 0 ? void 0 : error.toString()) || '';
-        if (!errMsg.includes('fetch')) {
-            Logger.error('Arbitrage loop error: ' + errMsg);
-        }
+        Logger.error('Arbitrage loop critical failure: ' + (error.message || error));
     }
 });
 const processUserArbitrage = (user, market, currentPrice, previousPrice) => __awaiter(void 0, void 0, void 0, function* () {

@@ -8,9 +8,19 @@ import { Side, OrderType } from '@polymarket/clob-client';
 
 const MONITOR_INTERVAL = 30000; // 30 seconds (Balanced frequency)
 
+let tpSlInterval: NodeJS.Timeout | null = null;
+
+export const stopTpSlMonitor = () => {
+    if (tpSlInterval) {
+        clearInterval(tpSlInterval);
+        tpSlInterval = null;
+    }
+    Logger.info('TP/SL Monitor stopped');
+};
+
 export const startTpSlMonitor = () => {
     Logger.info('🛡️ Starting Auto TP/SL Risk Monitor...');
-    setInterval(checkPositions, MONITOR_INTERVAL);
+    tpSlInterval = setInterval(checkPositions, MONITOR_INTERVAL);
 };
 
 const checkPositions = async () => {

@@ -3,10 +3,10 @@ import { ENV } from './config/env.js';
 import createClobClient from './utils/createClobClient.js';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor.js';
-import { startChainMonitor } from './services/chainMonitor.js';
-import { startWSMonitor } from './services/wsMonitor.js';
-import { startTpSlMonitor } from './services/tpSlMonitor.js';
-import { startArbitrageMonitor } from './services/arbitrageMonitor.js';
+import { startChainMonitor, stopChainMonitor } from './services/chainMonitor.js';
+import { startWSMonitor, stopWSMonitor } from './services/wsMonitor.js';
+import { startTpSlMonitor, stopTpSlMonitor } from './services/tpSlMonitor.js';
+import { startArbitrageMonitor, stopArbitrageMonitor } from './services/arbitrageMonitor.js';
 import { startServer } from './server/index.js';
 import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
@@ -37,9 +37,13 @@ const gracefulShutdown = async (signal: string) => {
     Logger.info(`Received ${signal}, initiating graceful shutdown...`);
 
     try {
-        // Stop services
+        // Stop all services graciosamente
         stopTradeMonitor();
         stopTradeExecutor();
+        stopChainMonitor();
+        stopWSMonitor();
+        stopTpSlMonitor();
+        stopArbitrageMonitor();
 
         // Give services time to finish current operations
         Logger.info('Waiting for services to finish current operations...');
@@ -65,9 +69,12 @@ process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) =>
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
     const isNetworkError = error.message.includes('429') || 
-                          error.message.includes('Unexpected server response: 429') ||
+                          error.message.includes('404') ||
+                          error.message.includes('Unexpected server response') ||
+                          error.message.includes('WebSocket') ||
                           error.message.includes('Invalid WebSocket frame') || 
                           error.message.includes('ECONNRESET') ||
+                          error.message.includes('socket hang up') ||
                           error.message.includes('MongoExpiredSessionError');
 
     if (isNetworkError) {
@@ -99,8 +106,18 @@ export const main = async () => {
         // 3. START SERVER FIRST to satisfy Railway port health checks
         Logger.info(`Starting web server on port ${PORT}...`);
         await startServer(PORT);
+
+        // 4. Initial Balance Sync (T+0) - Preenche o cache imediatamente (Await crítico)
+        const activeUsersCount = await User.countDocuments({ 'config.enabled': true });
+        if (activeUsersCount > 0) {
+            Logger.info(`[BOOT] Performing initial balance sync for ${activeUsersCount} users...`);
+            const users = await User.find({ 'config.enabled': true });
+            // Usando Promise.all para ser rápido, mas aguardando o fim do lote
+            await Promise.all(users.map(user => refreshUserStats(user._id.toString()).catch(() => {})));
+            Logger.success('[BOOT] Initial balance sync completed');
+        }
         
-        // 4. Start background monitors sequentially with error suppression
+        // 5. Start background monitors in parallel
         const services = [
             { name: 'Trade Monitor', start: tradeMonitor },
             { name: 'Chain Monitor', start: startChainMonitor },
@@ -112,10 +129,10 @@ export const main = async () => {
 
         for (const service of services) {
             Logger.info(`Starting ${service.name}...`);
-            // Start services in parallel without blocking main thread
-            // Using Promise.resolve to handle both sync and async start functions
+            // Circuit Breaker: Cada serviço inicia de forma isolada
             Promise.resolve(service.start()).catch((err: any) => {
-                Logger.error(`Failed to start ${service.name}: \${err.message || err}`);
+                const errMsg = err?.message || err;
+                Logger.error(`Failed to start ${service.name}: ${errMsg}`);
             });
         }
 
