@@ -1776,11 +1776,13 @@ const userDashboardHtml = `<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
   --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
   --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  --up: #00ff88; --down: #ff3366;
   --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -1820,6 +1822,44 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 .status-paused { color: var(--warning); }
 .switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
 .switch-container input { width: 18px; height: 18px; cursor: pointer; }
+
+/* ARBITRAGE TERMINAL STYLES */
+.terminal-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; margin-bottom: 30px; min-height: 480px; }
+.chart-container { background: #0c0f16; border: 1px solid var(--border); border-radius: 16px; position: relative; overflow: hidden; display:flex; flex-direction:column; }
+.chart-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.chart-title { display: flex; align-items: center; gap: 10px; }
+.ticker-price { font-size: 1.4rem; font-weight: 700; color: #fff; }
+.ticker-change { font-size: 0.85rem; font-weight: 600; }
+
+.order-panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; }
+.order-tabs { display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.order-tab { font-size: 0.85rem; font-weight: 700; color: var(--text-dim); cursor: pointer; padding-bottom: 8px; position: relative; }
+.order-tab.active { color: #fff; }
+.order-tab.active::after { content: ''; position: absolute; bottom: -12px; left: 0; width: 100%; height: 2px; background: var(--accent); }
+
+.side-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+.side-btn { padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; transition: 0.2s; text-align: center; }
+.side-btn.up { border-color: var(--success); color: var(--success); }
+.side-btn.up:hover { background: rgba(16, 185, 129, 0.1); }
+.side-btn.up.active { background: var(--success); color: #fff; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+.side-btn.down { border-color: var(--danger); color: var(--danger); }
+.side-btn.down:hover { background: rgba(239, 68, 68, 0.1); }
+.side-btn.down.active { background: var(--danger); color: #fff; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+.side-btn-price { display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px; }
+
+.amount-input-box { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 16px; }
+.amount-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.7rem; color: var(--text-dim); }
+.amount-input-row { display: flex; align-items: center; justify-content: space-between; }
+.amount-input { background: transparent; border: none; font-size: 1.5rem; font-weight: 700; width: 120px; padding: 0; }
+.amount-input:focus { outline: none; }
+
+.shortcut-btns { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 8px; margin-bottom: 20px; }
+.sc-btn { background: var(--bg); border: 1px solid var(--border); padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+.sc-btn:hover { border-color: var(--text-dim); }
+
+.tf-switcher { display: flex; background: var(--bg); border-radius: 8px; padding: 4px; gap: 4px; }
+.tf-btn { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-dim); }
+.tf-btn.active { background: var(--card); color: #fff; border: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -1848,16 +1888,78 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     <div id="tab-bot" class="tab-view">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px">
-            <div>
-                <h1 style="font-size: 1.8rem">Dashboard <span>Bot</span></h1>
-                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operações em tempo real.</p>
-            </div>
-            <div id="bot-status-container" style="display: flex; align-items: center; gap: 20px">
-                <div style="text-align: right">
-                    <div style="font-size: 0.7rem; color: var(--text-dim); font-weight: 700">STATUS ATUAL</div>
-                    <div id="bot-status-text" class="status-active" style="font-weight: 800; font-size: 1.1rem">ATIVO</div>
+        </div>
+
+        <!-- ARBITRAGE TERMINAL (VISIBLE ONLY IN ARBITRAGE MODE) -->
+        <div id="arbitrage-terminal" class="terminal-grid" style="display: none">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div style="background: #f7931a; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800">₿</div>
+                        <div>
+                            <div style="font-weight:700; font-size:0.95rem">Bitcoin Up or Down - <span id="current-tf">5 minutos</span></div>
+                            <div id="target-info" style="font-size:0.7rem; color:var(--text-dim)">Target: Calculating...</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:20px">
+                        <div style="text-align:right">
+                            <div id="btc-price" class="ticker-price">$0.00</div>
+                            <div id="btc-change" class="ticker-change" style="color:var(--success)">+0.00%</div>
+                        </div>
+                        <div class="tf-switcher">
+                            <div class="tf-btn active" onclick="switchTerminalTF('5m')">5 min</div>
+                            <div class="tf-btn" onclick="switchTerminalTF('15m')">15 min</div>
+                        </div>
+                    </div>
                 </div>
-                <button id="bot-master-btn" class="btn btn-sm" onclick="toggleBotMain()" style="width: 140px">DESATIVAR</button>
+                <div id="chart-main" style="flex:1"></div>
+            </div>
+
+            <div class="order-panel">
+                <div class="order-tabs">
+                    <div class="order-tab active">COMPRAR</div>
+                    <div class="order-tab">VENDER</div>
+                    <div style="flex:1"></div>
+                    <div style="font-size:0.7rem; color:var(--text-dim)">MERCADO ⌄</div>
+                </div>
+
+                <div class="side-btns">
+                    <div id="btn-side-up" class="side-btn up active" onclick="setEntrySide('UP')">
+                        <div style="font-weight:800; font-size:1.1rem">UP</div>
+                        <span id="price-up" class="side-btn-price">--¢</span>
+                    </div>
+                    <div id="btn-side-down" class="side-btn down" onclick="setEntrySide('DOWN')">
+                        <div style="font-weight:800; font-size:1.1rem">DOWN</div>
+                        <span id="price-down" class="side-btn-price">--¢</span>
+                    </div>
+                </div>
+
+                <div class="amount-input-box">
+                    <div class="amount-header">
+                        <span>VALOR (USD)</span>
+                        <span id="display-balance" style="color:#fff">SALDO: $0.00</span>
+                    </div>
+                    <div class="amount-input-row">
+                        <span style="font-size:1.5rem; font-weight:700; color:var(--text-dim)">$</span>
+                        <input type="number" id="manual-amount" class="amount-input" value="1" min="1">
+                    </div>
+                </div>
+
+                <div class="shortcut-btns">
+                    <button class="sc-btn" onclick="addAmount(1)">+$1</button>
+                    <button class="sc-btn" onclick="addAmount(5)">+$5</button>
+                    <button class="sc-btn" onclick="addAmount(10)">+$10</button>
+                    <button class="sc-btn" onclick="addAmount(100)">+$100</button>
+                    <button class="sc-btn" style="flex:1" onclick="setMaxAmount()">MÁX</button>
+                </div>
+
+                <button id="btn-buy-now" class="btn" style="height:56px; font-size:1.1rem; border-radius:12px" onclick="executeManualTrade()">
+                    BUY <span id="side-label" style="margin-left:4px">UP</span>
+                </button>
+                
+                <p style="margin-top:20px; font-size:0.65rem; color:var(--text-dim); text-align:center">
+                    Ao negociar, você concorda com os <a href="#" style="color:var(--text-dim)">Termos de Uso</a>.
+                </p>
             </div>
         </div>
 
@@ -2225,6 +2327,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             document.getElementById('setup-wizard').style.display = 'none';
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
+
+            // Arbitrage Terminal Logic
+            const terminal = document.getElementById('arbitrage-terminal');
+            if (isArbitrageMode && currentTab === 'bot') {
+                terminal.style.display = 'grid';
+                initTerminalChart();
+            } else {
+                if (terminal) terminal.style.display = 'none';
+            }
+
             renderMainDashboard();
         }
     }
@@ -2568,6 +2680,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
                     </div>
                 \`;
+                `;
             } else {
                 showBanner(data.error || 'Falha ao gerar', 'danger');
             }
@@ -2582,8 +2695,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', `$${(data.balance || 0).toFixed(2)}`);
+            setTxt('display-balance', `SALDO: $${(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$${(data.exposure || 0).toFixed(2)}`);
             
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
@@ -2732,7 +2846,144 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
-        if (res.ok) { showBanner('ConfiguraÃ§Ãµes Salvas', 'success'); loadUser(); }
+        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+    }
+
+    /* --- ARBITRAGE TERMINAL LOGIC --- */
+    let chart = null;
+    let candleSeries = null;
+    let selectedSide = 'UP';
+    let selectedTF = '5m';
+
+    function initTerminalChart() {
+        if (chart) return;
+        const container = document.getElementById('chart-main');
+        if (!container) return;
+
+        chart = LightweightCharts.createChart(container, {
+            layout: { background: { color: '#0c0f16' }, textColor: '#94a3b8' },
+            grid: { vertLines: { color: '#1a1f26' }, horzLines: { color: '#1a1f26' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: '#2d343f' },
+            timeScale: { borderColor: '#2d343f', timeVisible: true, secondsVisible: false },
+        });
+
+        candleSeries = chart.addAreaSeries({
+            lineColor: '#3b82f6',
+            topColor: 'rgba(59, 130, 246, 0.4)',
+            bottomColor: 'rgba(59, 130, 246, 0.0)',
+            lineWidth: 2,
+        });
+
+        window.addEventListener('resize', () => {
+             chart.resize(container.clientWidth, container.clientHeight);
+        });
+        
+        // Start Binance Data Stream
+        startPriceStream();
+    }
+
+    async function startPriceStream() {
+        // Simple fetch-based "stream" for reliability, or use Binance WebSockets directly in browser
+        const updatePrice = async () => {
+            try {
+                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+                const data = await res.json();
+                const price = parseFloat(data.lastPrice);
+                const change = parseFloat(data.priceChangePercent);
+                
+                document.getElementById('btc-price').textContent = `$${price.toLocaleString()}`;
+                const changeEl = document.getElementById('btc-change');
+                changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+
+                candleSeries.update({
+                    time: Math.floor(Date.now() / 1000),
+                    value: price
+                });
+            } catch (e) { console.error('Price fetch fail:', e); }
+        };
+        
+        // Initial history (mocked or fetched if desired)
+        updatePrice();
+        setInterval(updatePrice, 2000); // 2s polling is enough for visual "real-time"
+    }
+
+    function switchTerminalTF(tf) {
+        selectedTF = tf;
+        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('current-tf').textContent = tf === '5m' ? '5 minutos' : '15 minutos';
+        // Logic for refreshing target price or markers could go here
+    }
+
+    function setEntrySide(side) {
+        selectedSide = side;
+        document.getElementById('btn-side-up').classList.toggle('active', side === 'UP');
+        document.getElementById('btn-side-down').classList.toggle('active', side === 'DOWN');
+        document.getElementById('side-label').textContent = side;
+    }
+
+    function addAmount(val) {
+        const el = document.getElementById('manual-amount');
+        el.value = (parseFloat(el.value) || 0) + val;
+    }
+
+    function setMaxAmount() {
+        const balance = parseFloat(document.getElementById('stat-balance').textContent.replace('$', '')) || 0;
+        document.getElementById('manual-amount').value = Math.floor(balance);
+    }
+
+    async function executeManualTrade() {
+        const btn = document.getElementById('btn-buy-now');
+        const amount = parseFloat(document.getElementById('manual-amount').value);
+        
+        if (amount < 1) return showBanner('Mínimo $1.00', 'warning');
+        
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'EXECUTANDO...';
+
+        try {
+            const res = await fetch('/api/trade/manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    side: selectedSide,
+                    amount: amount,
+                    timeframe: selectedTF === '5m' ? '5 minutos' : '15 minutos'
+                })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                showBanner('ORDEM ENVIADA! Verifique o Histórico.', 'success');
+                setTimeout(() => { refreshTrades(); refreshStats(); }, 2000);
+            } else {
+                showBanner(data.error || 'Falha na execução', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conexão', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function updateTerminalMarketData() {
+        if (currentUser?.config?.mode !== 'ARBITRAGE') return;
+        try {
+            const res = await fetch('/api/arbitrage/active-markets');
+            const data = await res.json();
+            const timeframeStr = selectedTF === '5m' ? '5 minutos' : '15 minutos';
+            const m = data.find(item => item.question.toLowerCase().includes(timeframeStr));
+            
+            if (m) {
+                document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}Â¢\`;
+                document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}Â¢\`;
+                document.getElementById('target-info').textContent = \`Target: BTC above \${m.target}\`;
+            }
+        } catch (e) { /* silent */ }
     }
 
     function showBanner(msg, type = 'success') {
@@ -2777,6 +3028,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     setInterval(refreshStats, 30000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
+    setInterval(updateTerminalMarketData, 5000);
     
     async function refreshPositions() {
         try {
@@ -2985,6 +3237,57 @@ app.post('/api/user/sync-proxy', authenticateToken, async (req: AuthRequest, res
     } catch (error) {
         console.error('[SYNC] Error:', error);
         res.status(500).json({ error: 'Erro ao sincronizar proxy' });
+    }
+});
+
+app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        const { side, amount, timeframe } = req.body; // side: UP (YES) or DOWN (NO), timeframe: '5m' or '15m'
+        const user = await User.findById(req.user?.id);
+        if (!user || user.config?.mode !== 'ARBITRAGE') {
+            return res.status(403).json({ error: 'Acesso negado ou usuário não está em modo Arbitragem' });
+        }
+
+        if (!user.wallet?.privateKey) {
+            return res.status(400).json({ error: 'Carteira não configurada' });
+        }
+
+        // 1. Identify active market
+        const markets = await arbitrageMonitor.getArbitrageMarkets();
+        const market = markets.find(m => m.question.toLowerCase().includes(timeframe || '5 minutos'));
+        
+        if (!market) {
+            return res.status(404).json({ error: `Nenhum mercado de BTC ${timeframe} ativo no momento` });
+        }
+
+        // 2. Execute Manual Trade logic
+        // We reuse the executeArbitrageTrade logic but flag it as MANUAL
+        const polymarketSide = side === 'UP' ? 'YES' : 'NO';
+        
+        // Use a background call to avoid blocking
+        arbitrageMonitor.executeArbitrageTrade(user, market, polymarketSide, amount, `MANUAL ${side}`)
+            .catch(err => console.error(`[MANUAL TRADE] Execution error: ${err}`));
+
+        res.json({ success: true, message: `Ordem ${side} enviada para o mercado ${timeframe}` });
+    } catch (err) {
+        console.error('[MANUAL TRADE] Route error:', err);
+        res.status(500).json({ error: 'Erro interno ao processar ordem manual' });
+    }
+});
+
+app.get('/api/arbitrage/active-markets', authenticateToken, async (_req, res) => {
+    try {
+        const markets = await arbitrageMonitor.getArbitrageMarkets();
+        // Return thin objects for the UI
+        const data = markets.map(m => ({
+            question: m.question,
+            yesPrice: m.yesPrice,
+            noPrice: m.noPrice,
+            target: m.question.split('above')[1]?.split('at')[0]?.trim() || '---'
+        }));
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
     }
 });
 

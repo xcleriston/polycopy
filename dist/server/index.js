@@ -1749,11 +1749,13 @@ const userDashboardHtml = `<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
   --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
   --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  --up: #00ff88; --down: #ff3366;
   --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -1793,6 +1795,44 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 .status-paused { color: var(--warning); }
 .switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
 .switch-container input { width: 18px; height: 18px; cursor: pointer; }
+
+/* ARBITRAGE TERMINAL STYLES */
+.terminal-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; margin-bottom: 30px; min-height: 480px; }
+.chart-container { background: #0c0f16; border: 1px solid var(--border); border-radius: 16px; position: relative; overflow: hidden; display:flex; flex-direction:column; }
+.chart-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.chart-title { display: flex; align-items: center; gap: 10px; }
+.ticker-price { font-size: 1.4rem; font-weight: 700; color: #fff; }
+.ticker-change { font-size: 0.85rem; font-weight: 600; }
+
+.order-panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; }
+.order-tabs { display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.order-tab { font-size: 0.85rem; font-weight: 700; color: var(--text-dim); cursor: pointer; padding-bottom: 8px; position: relative; }
+.order-tab.active { color: #fff; }
+.order-tab.active::after { content: ''; position: absolute; bottom: -12px; left: 0; width: 100%; height: 2px; background: var(--accent); }
+
+.side-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+.side-btn { padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; transition: 0.2s; text-align: center; }
+.side-btn.up { border-color: var(--success); color: var(--success); }
+.side-btn.up:hover { background: rgba(16, 185, 129, 0.1); }
+.side-btn.up.active { background: var(--success); color: #fff; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+.side-btn.down { border-color: var(--danger); color: var(--danger); }
+.side-btn.down:hover { background: rgba(239, 68, 68, 0.1); }
+.side-btn.down.active { background: var(--danger); color: #fff; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+.side-btn-price { display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px; }
+
+.amount-input-box { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 16px; }
+.amount-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.7rem; color: var(--text-dim); }
+.amount-input-row { display: flex; align-items: center; justify-content: space-between; }
+.amount-input { background: transparent; border: none; font-size: 1.5rem; font-weight: 700; width: 120px; padding: 0; }
+.amount-input:focus { outline: none; }
+
+.shortcut-btns { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 8px; margin-bottom: 20px; }
+.sc-btn { background: var(--bg); border: 1px solid var(--border); padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+.sc-btn:hover { border-color: var(--text-dim); }
+
+.tf-switcher { display: flex; background: var(--bg); border-radius: 8px; padding: 4px; gap: 4px; }
+.tf-btn { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-dim); }
+.tf-btn.active { background: var(--card); color: #fff; border: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -1821,16 +1861,78 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     <div id="tab-bot" class="tab-view">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px">
-            <div>
-                <h1 style="font-size: 1.8rem">Dashboard <span>Bot</span></h1>
-                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operações em tempo real.</p>
-            </div>
-            <div id="bot-status-container" style="display: flex; align-items: center; gap: 20px">
-                <div style="text-align: right">
-                    <div style="font-size: 0.7rem; color: var(--text-dim); font-weight: 700">STATUS ATUAL</div>
-                    <div id="bot-status-text" class="status-active" style="font-weight: 800; font-size: 1.1rem">ATIVO</div>
+        </div>
+
+        <!-- ARBITRAGE TERMINAL (VISIBLE ONLY IN ARBITRAGE MODE) -->
+        <div id="arbitrage-terminal" class="terminal-grid" style="display: none">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div style="background: #f7931a; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800">₿</div>
+                        <div>
+                            <div style="font-weight:700; font-size:0.95rem">Bitcoin Up or Down - <span id="current-tf">5 minutos</span></div>
+                            <div id="target-info" style="font-size:0.7rem; color:var(--text-dim)">Target: Calculating...</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:20px">
+                        <div style="text-align:right">
+                            <div id="btc-price" class="ticker-price">$0.00</div>
+                            <div id="btc-change" class="ticker-change" style="color:var(--success)">+0.00%</div>
+                        </div>
+                        <div class="tf-switcher">
+                            <div class="tf-btn active" onclick="switchTerminalTF('5m')">5 min</div>
+                            <div class="tf-btn" onclick="switchTerminalTF('15m')">15 min</div>
+                        </div>
+                    </div>
                 </div>
-                <button id="bot-master-btn" class="btn btn-sm" onclick="toggleBotMain()" style="width: 140px">DESATIVAR</button>
+                <div id="chart-main" style="flex:1"></div>
+            </div>
+
+            <div class="order-panel">
+                <div class="order-tabs">
+                    <div class="order-tab active">COMPRAR</div>
+                    <div class="order-tab">VENDER</div>
+                    <div style="flex:1"></div>
+                    <div style="font-size:0.7rem; color:var(--text-dim)">MERCADO ⌄</div>
+                </div>
+
+                <div class="side-btns">
+                    <div id="btn-side-up" class="side-btn up active" onclick="setEntrySide('UP')">
+                        <div style="font-weight:800; font-size:1.1rem">UP</div>
+                        <span id="price-up" class="side-btn-price">--¢</span>
+                    </div>
+                    <div id="btn-side-down" class="side-btn down" onclick="setEntrySide('DOWN')">
+                        <div style="font-weight:800; font-size:1.1rem">DOWN</div>
+                        <span id="price-down" class="side-btn-price">--¢</span>
+                    </div>
+                </div>
+
+                <div class="amount-input-box">
+                    <div class="amount-header">
+                        <span>VALOR (USD)</span>
+                        <span id="display-balance" style="color:#fff">SALDO: $0.00</span>
+                    </div>
+                    <div class="amount-input-row">
+                        <span style="font-size:1.5rem; font-weight:700; color:var(--text-dim)">$</span>
+                        <input type="number" id="manual-amount" class="amount-input" value="1" min="1">
+                    </div>
+                </div>
+
+                <div class="shortcut-btns">
+                    <button class="sc-btn" onclick="addAmount(1)">+$1</button>
+                    <button class="sc-btn" onclick="addAmount(5)">+$5</button>
+                    <button class="sc-btn" onclick="addAmount(10)">+$10</button>
+                    <button class="sc-btn" onclick="addAmount(100)">+$100</button>
+                    <button class="sc-btn" style="flex:1" onclick="setMaxAmount()">MÁX</button>
+                </div>
+
+                <button id="btn-buy-now" class="btn" style="height:56px; font-size:1.1rem; border-radius:12px" onclick="executeManualTrade()">
+                    BUY <span id="side-label" style="margin-left:4px">UP</span>
+                </button>
+                
+                <p style="margin-top:20px; font-size:0.65rem; color:var(--text-dim); text-align:center">
+                    Ao negociar, você concorda com os <a href="#" style="color:var(--text-dim)">Termos de Uso</a>.
+                </p>
             </div>
         </div>
 
@@ -2198,6 +2300,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             document.getElementById('setup-wizard').style.display = 'none';
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
+
+            // Arbitrage Terminal Logic
+            const terminal = document.getElementById('arbitrage-terminal');
+            if (isArbitrageMode && currentTab === 'bot') {
+                terminal.style.display = 'grid';
+                initTerminalChart();
+            } else {
+                if (terminal) terminal.style.display = 'none';
+            }
+
             renderMainDashboard();
         }
     }
@@ -2541,45 +2653,55 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
                     </div>
                 \`;
-            } else {
-                showBanner(data.error || 'Falha ao gerar', 'danger');
-            }
-        } catch (e) {
-            showBanner('Erro de conex\u00E3o', 'danger');
-            btn.disabled = false;
-        }
-    }
-
-    async function refreshStats() {
+                `;
+{
+    showBanner(data.error || 'Falha ao gerar', 'danger');
+}
+try { }
+catch (e) {
+    showBanner('Erro de conex\u00E3o', 'danger');
+    btn.disabled = false;
+}
+function refreshStats() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         try {
-            const res = await fetch('/api/user/stats');
-            const data = await res.json();
-            const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
-            
-            if (currentUser.config?.traderAddress) {
+            const res = yield fetch('/api/user/stats');
+            const data = yield res.json();
+            const setTxt = (id, txt) => { const el = document.getElementById(id); if (el)
+                el.textContent = txt; };
+            setTxt('stat-balance', `$${(data.balance || 0).toFixed(2)}`);
+            setTxt('display-balance', `SALDO: $${(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$${(data.exposure || 0).toFixed(2)}`);
+            if ((_a = currentUser.config) === null || _a === void 0 ? void 0 : _a.traderAddress) {
                 const addr = currentUser.config.traderAddress;
                 const isArbitrage = currentUser.config.mode === 'ARBITRAGE';
                 if (isArbitrage) {
                     setTxt('stat-trader', 'BTC-5M-15M');
-                } else {
-                    setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
+                }
+                else {
+                    setTxt('stat-trader', addr.slice(0, 6) + '...' + addr.slice(-4));
                 }
             }
-        } catch (e) { console.error('Stats refresh fail:', e); }
-    }
-
-    async function refreshTrades() {
+        }
+        catch (e) {
+            console.error('Stats refresh fail:', e);
+        }
+    });
+}
+function refreshTrades() {
+    return __awaiter(this, void 0, void 0, function* () {
         try {
-            const res = await fetch('/api/user/trades');
-            if (!res.ok) return;
-            const trades = await res.json();
+            const res = yield fetch('/api/user/trades');
+            if (!res.ok)
+                return;
+            const trades = yield res.json();
             const tbody = document.getElementById('user-trade-body');
-            if (!tbody) return;
-
+            if (!tbody)
+                return;
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = ;
+                `<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2705,7 +2827,158 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
-        if (res.ok) { showBanner('ConfiguraÃ§Ãµes Salvas', 'success'); loadUser(); }
+        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+    }
+
+    /* --- ARBITRAGE TERMINAL LOGIC --- */
+    let chart = null;
+    let candleSeries = null;
+    let selectedSide = 'UP';
+    let selectedTF = '5m';
+
+    function initTerminalChart() {
+        if (chart) return;
+        const container = document.getElementById('chart-main');
+        if (!container) return;
+
+        chart = LightweightCharts.createChart(container, {
+            layout: { background: { color: '#0c0f16' }, textColor: '#94a3b8' },
+            grid: { vertLines: { color: '#1a1f26' }, horzLines: { color: '#1a1f26' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: '#2d343f' },
+            timeScale: { borderColor: '#2d343f', timeVisible: true, secondsVisible: false },
+        });
+
+        candleSeries = chart.addAreaSeries({
+            lineColor: '#3b82f6',
+            topColor: 'rgba(59, 130, 246, 0.4)',
+            bottomColor: 'rgba(59, 130, 246, 0.0)',
+            lineWidth: 2,
+        });
+
+        window.addEventListener('resize', () => {
+             chart.resize(container.clientWidth, container.clientHeight);
+        });
+        
+        // Start Binance Data Stream
+        startPriceStream();
+    }
+
+    async function startPriceStream() {
+        // Simple fetch-based "stream" for reliability, or use Binance WebSockets directly in browser
+        const updatePrice = async () => {
+            try {
+                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+                const data = await res.json();
+                const price = parseFloat(data.lastPrice);
+                const change = parseFloat(data.priceChangePercent);
+                
+                document.getElementById('btc-price').textContent = `;
+                $$;
+                {
+                    price.toLocaleString();
+                }
+                `;
+                const changeEl = document.getElementById('btc-change');
+                changeEl.textContent = `;
+                $;
+                {
+                    change >= 0 ? '+' : '';
+                }
+                $;
+                {
+                    change.toFixed(2);
+                }
+                 % `;
+                changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+
+                candleSeries.update({
+                    time: Math.floor(Date.now() / 1000),
+                    value: price
+                });
+            } catch (e) { console.error('Price fetch fail:', e); }
+        };
+        
+        // Initial history (mocked or fetched if desired)
+        updatePrice();
+        setInterval(updatePrice, 2000); // 2s polling is enough for visual "real-time"
+    }
+
+    function switchTerminalTF(tf) {
+        selectedTF = tf;
+        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('current-tf').textContent = tf === '5m' ? '5 minutos' : '15 minutos';
+        // Logic for refreshing target price or markers could go here
+    }
+
+    function setEntrySide(side) {
+        selectedSide = side;
+        document.getElementById('btn-side-up').classList.toggle('active', side === 'UP');
+        document.getElementById('btn-side-down').classList.toggle('active', side === 'DOWN');
+        document.getElementById('side-label').textContent = side;
+    }
+
+    function addAmount(val) {
+        const el = document.getElementById('manual-amount');
+        el.value = (parseFloat(el.value) || 0) + val;
+    }
+
+    function setMaxAmount() {
+        const balance = parseFloat(document.getElementById('stat-balance').textContent.replace('$', '')) || 0;
+        document.getElementById('manual-amount').value = Math.floor(balance);
+    }
+
+    async function executeManualTrade() {
+        const btn = document.getElementById('btn-buy-now');
+        const amount = parseFloat(document.getElementById('manual-amount').value);
+        
+        if (amount < 1) return showBanner('Mínimo $1.00', 'warning');
+        
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'EXECUTANDO...';
+
+        try {
+            const res = await fetch('/api/trade/manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    side: selectedSide,
+                    amount: amount,
+                    timeframe: selectedTF === '5m' ? '5 minutos' : '15 minutos'
+                })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                showBanner('ORDEM ENVIADA! Verifique o Histórico.', 'success');
+                setTimeout(() => { refreshTrades(); refreshStats(); }, 2000);
+            } else {
+                showBanner(data.error || 'Falha na execução', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conexão', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    async function updateTerminalMarketData() {
+        if (currentUser?.config?.mode !== 'ARBITRAGE') return;
+        try {
+            const res = await fetch('/api/arbitrage/active-markets');
+            const data = await res.json();
+            const timeframeStr = selectedTF === '5m' ? '5 minutos' : '15 minutos';
+            const m = data.find(item => item.question.toLowerCase().includes(timeframeStr));
+            
+            if (m) {
+                document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}Â¢\`;
+                document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}Â¢\`;
+                document.getElementById('target-info').textContent = \`Target: BTC above \${m.target}\`;
+            }
+        } catch (e) { /* silent */ }
     }
 
     function showBanner(msg, type = 'success') {
@@ -2750,6 +3023,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     setInterval(refreshStats, 30000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
+    setInterval(updateTerminalMarketData, 5000);
     
     async function refreshPositions() {
         try {
@@ -2787,418 +3061,473 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     loadUser();
   </script>
 </body> </html>`;
-// Enrichen AuthRequest with full User data for all /api/user/ routes
-app.use('/api/user/', (req, _res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) {
-        req.fullUser = yield User.findById(req.user.id).lean();
-    }
-    next();
-}));
-app.get('/api/user/me', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = req.fullUser;
-    res.json(user ? {
-        id: user._id,
-        chatId: user.chatId,
-        username: user.username || user.chatId,
-        role: user.role,
-        wallet: user.wallet,
-        config: user.config,
-        step: user.step
-    } : { error: 'Not logged in' });
-}));
-app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    try {
-        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
-        if (!user)
-            return res.status(404).json({ error: 'User not found' });
-        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
-            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
-        }
-        const newWallet = ethers.Wallet.createRandom();
-        const proxyAddress = yield findPolymarketProxy(newWallet.address);
-        user.wallet = {
-            address: newWallet.address,
-            privateKey: newWallet.privateKey,
-            proxyAddress: proxyAddress || newWallet.address
-        };
-        // Only set to setup if not already ready (to allow seamless swaps)
-        if (user.step !== 'ready')
-            user.step = 'setup';
-        yield user.save();
-        console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
-        res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
-    }
-    catch (e) {
-        console.error('[WALLET] Generation error:', e);
-        res.status(500).json({ error: 'Failed to generate wallet' });
-    }
-}));
-app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    try {
-        let { privateKey } = req.body;
-        if (!privateKey)
-            return res.status(400).json({ error: 'Private key required' });
-        // Cleanup key and ensure 0x prefix
-        privateKey = privateKey.trim();
-        if (!privateKey.startsWith('0x'))
-            privateKey = '0x' + privateKey;
-        if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
-        }
-        const wallet = new ethers.Wallet(privateKey);
-        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
-        if (!user)
-            return res.status(404).json({ error: 'User not found' });
-        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
-            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
-        }
-        const proxyAddress = yield findPolymarketProxy(wallet.address);
-        user.wallet = {
-            address: wallet.address,
-            privateKey: wallet.privateKey,
-            proxyAddress: proxyAddress || wallet.address
-        };
-        // Keep ready state if swapping wallet
-        if (user.step !== 'ready')
-            user.step = 'setup';
-        yield user.save();
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
-        res.json({ success: true, address: wallet.address });
-    }
-    catch (e) {
-        console.error('[WALLET] Import error:', e);
-        res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
-    }
-}));
-app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
-    if (!user)
-        return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
-    if (!user.config)
-        user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
-    if (traderAddress !== undefined)
-        user.config.traderAddress = traderAddress;
-    if (enabled !== undefined)
-        user.config.enabled = enabled;
-    if (strategy !== undefined)
-        user.config.strategy = strategy;
-    if (copySize !== undefined)
-        user.config.copySize = copySize;
-    if (proxyAddress !== undefined) {
-        if (!user.wallet)
-            user.wallet = { address: '', privateKey: '' };
-        user.wallet.proxyAddress = proxyAddress;
-    }
-    // Advanced fields
-    if (reverseCopy !== undefined)
-        user.config.reverseCopy = reverseCopy;
-    if (orderType !== undefined)
-        user.config.orderType = orderType;
-    if (slippageBuy !== undefined)
-        user.config.slippageBuy = slippageBuy;
-    if (slippageSell !== undefined)
-        user.config.slippageSell = slippageSell;
-    if (balanceSl !== undefined)
-        user.config.balanceSl = balanceSl;
-    if (triggerDelta !== undefined)
-        user.config.triggerDelta = triggerDelta;
-    if (hedgeCeiling !== undefined)
-        user.config.hedgeCeiling = hedgeCeiling;
-    if (tpPercent !== undefined)
-        user.config.tpPercent = tpPercent;
-    if (slPercent !== undefined)
-        user.config.slPercent = slPercent;
-    if (minPrice !== undefined)
-        user.config.minPrice = minPrice;
-    if (maxPrice !== undefined)
-        user.config.maxPrice = maxPrice;
-    if (minTradeSize !== undefined)
-        user.config.minTradeSize = minTradeSize;
-    if (maxTradeSize !== undefined)
-        user.config.maxTradeSize = maxTradeSize;
-    if (copyBuy !== undefined)
-        user.config.copyBuy = copyBuy;
-    if (copySell !== undefined)
-        user.config.copySell = copySell;
-    if (maxExposure !== undefined)
-        user.config.maxExposure = maxExposure;
-    if (buyAtMin !== undefined)
-        user.config.buyAtMin = buyAtMin;
-    if (maxPerMarket !== undefined)
-        user.config.maxPerMarket = maxPerMarket;
-    if (maxPerToken !== undefined)
-        user.config.maxPerToken = maxPerToken;
-    if (totalSpendLimit !== undefined)
-        user.config.totalSpendLimit = totalSpendLimit;
-    if (sniperModeSec !== undefined)
-        user.config.sniperModeSec = sniperModeSec;
-    if (lastMinuteModeSec !== undefined)
-        user.config.lastMinuteModeSec = lastMinuteModeSec;
-    if (maxMarketCount !== undefined)
-        user.config.maxMarketCount = maxMarketCount;
-    if (minMarketLiquidity !== undefined)
-        user.config.minMarketLiquidity = minMarketLiquidity;
-    if (mode !== undefined)
-        user.config.mode = mode;
-    if (req.body.finalize === true) {
-        user.step = 'ready';
-    }
-    yield user.save();
-    res.json({ success: true });
-}));
-app.post('/api/user/sync-proxy', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    try {
-        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
-        if (!user || !((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.address)) {
-            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
-        }
-        console.log(`[SYNC] Manual proxy scan requested for ${user.username || user.chatId} (${user.wallet.address})`);
-        const currentProxy = user.wallet.proxyAddress;
-        const newProxy = yield findPolymarketProxy(user.wallet.address);
-        if (newProxy && newProxy !== currentProxy) {
-            user.wallet.proxyAddress = newProxy;
-            yield user.save();
-            console.log(`[SYNC] Found NEW proxy for ${user.chatId}: ${newProxy}`);
-            return res.json({ success: true, found: true, address: newProxy });
-        }
-        console.log(`[SYNC] No changes found for ${user.chatId}. Current: ${currentProxy || 'NONE'}`);
-        res.json({ success: true, found: !!currentProxy, address: currentProxy || user.wallet.address });
-    }
-    catch (error) {
-        console.error('[SYNC] Error:', error);
-        res.status(500).json({ error: 'Erro ao sincronizar proxy' });
-    }
-}));
-app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const user = req.fullUser;
-        if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira não configurada' });
-        }
-        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
-        if (!Array.isArray(positionsData)) {
-            return res.json([]);
-        }
-        // Filter valid open positions and calculate live P&L
-        const activePositions = positionsData.filter(p => p.size > 0 && p.currentValue > 0).map(pos => {
-            const entryPrice = pos.avgPrice || 0;
-            const curPrice = pos.currentValue / pos.size;
-            let pnlPercent = 0;
-            if (entryPrice > 0) {
-                pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
-            }
-            return {
-                asset: pos.asset,
-                title: pos.title,
-                slug: pos.slug,
-                size: pos.size,
-                currentValue: pos.currentValue,
-                avgPrice: entryPrice,
-                curPrice: curPrice,
-                pnlPercent: pnlPercent,
-                assetName: pos.outcome || 'Token',
-            };
-        });
-        // Ensure descending order by value
-        activePositions.sort((a, b) => b.currentValue - a.currentValue);
-        res.json(activePositions);
-    }
-    catch (e) {
-        console.error('Error fetching positions:', e);
-        res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
-    }
-}));
-app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
-    try {
-        const { Activity } = yield import('../models/userHistory.js');
-        const user = req.fullUser;
-        const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
-        const traderAddress = (_d = (_c = user === null || user === void 0 ? void 0 : user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) === null || _d === void 0 ? void 0 : _d.toLowerCase();
-        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user AND without a traderAddress.
-        // If in COPY mode, show both the monitored trader's activity and the user's copies.
-        const isArbitrage = ((_e = user === null || user === void 0 ? void 0 : user.config) === null || _e === void 0 ? void 0 : _e.mode) === 'ARBITRAGE';
-        let query;
-        if (isArbitrage) {
-            query = {
-                processedBy: userId,
-                traderAddress: { $exists: false }, // Arbitrage trades don't have a target trader
-                type: 'TRADE'
-            };
-        }
-        else {
-            query = (traderAddress)
-                ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
-                : { processedBy: userId, type: 'TRADE' };
-        }
-        const tradesData = yield Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
-        // Enrich with current market price for P&L calculation
-        const enriched = yield Promise.all(tradesData.map((t) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a, _b, _c;
-            let curPrice = null;
-            let pnlPercent = null;
-            let pnlLabel = '';
-            try {
-                if (t.asset) {
-                    const mktRes = yield fetchData(`https://clob.polymarket.com/markets/${t.conditionId}`);
-                    const token = (_a = mktRes === null || mktRes === void 0 ? void 0 : mktRes.tokens) === null || _a === void 0 ? void 0 : _a.find((tk) => tk.token_id === t.asset);
-                    if (token) {
-                        curPrice = parseFloat(token.price);
-                        if (t.price && curPrice !== null) {
-                            const entryPrice = parseFloat(t.price);
-                            if (t.side === 'BUY') {
+                // Enrichen AuthRequest with full User data for all /api/user/ routes
+                app.use('/api/user/', (req, _res, next) => __awaiter(this, void 0, void 0, function* () {
+                    var _a;
+                    if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) {
+                        req.fullUser = yield User.findById(req.user.id).lean();
+                    }
+                    next();
+                }));
+                app.get('/api/user/me', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    const user = req.fullUser;
+                    res.json(user ? {
+                        id: user._id,
+                        chatId: user.chatId,
+                        username: user.username || user.chatId,
+                        role: user.role,
+                        wallet: user.wallet,
+                        config: user.config,
+                        step: user.step
+                    } : { error: 'Not logged in' });
+                }));
+                app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b;
+                    try {
+                        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+                        if (!user)
+                            return res.status(404).json({ error: 'User not found' });
+                        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
+                            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
+                        }
+                        const newWallet = ethers.Wallet.createRandom();
+                        const proxyAddress = yield findPolymarketProxy(newWallet.address);
+                        user.wallet = {
+                            address: newWallet.address,
+                            privateKey: newWallet.privateKey,
+                            proxyAddress: proxyAddress || newWallet.address
+                        };
+                        // Only set to setup if not already ready (to allow seamless swaps)
+                        if (user.step !== 'ready')
+                            user.step = 'setup';
+                        yield user.save();
+                        console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
+                        res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
+                    }
+                    catch (e) {
+                        console.error('[WALLET] Generation error:', e);
+                        res.status(500).json({ error: 'Failed to generate wallet' });
+                    }
+                }));
+                app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b;
+                    try {
+                        let { privateKey } = req.body;
+                        if (!privateKey)
+                            return res.status(400).json({ error: 'Private key required' });
+                        // Cleanup key and ensure 0x prefix
+                        privateKey = privateKey.trim();
+                        if (!privateKey.startsWith('0x'))
+                            privateKey = '0x' + privateKey;
+                        if (privateKey.length !== 66) {
+                            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
+                        }
+                        const wallet = new ethers.Wallet(privateKey);
+                        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+                        if (!user)
+                            return res.status(404).json({ error: 'User not found' });
+                        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
+                            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
+                        }
+                        const proxyAddress = yield findPolymarketProxy(wallet.address);
+                        user.wallet = {
+                            address: wallet.address,
+                            privateKey: wallet.privateKey,
+                            proxyAddress: proxyAddress || wallet.address
+                        };
+                        // Keep ready state if swapping wallet
+                        if (user.step !== 'ready')
+                            user.step = 'setup';
+                        yield user.save();
+                        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
+                        res.json({ success: true, address: wallet.address });
+                    }
+                    catch (e) {
+                        console.error('[WALLET] Import error:', e);
+                        res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
+                    }
+                }));
+                app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a;
+                    const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+                    if (!user)
+                        return res.status(404).json({ error: 'User not found' });
+                    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
+                    if (!user.config)
+                        user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
+                    if (traderAddress !== undefined)
+                        user.config.traderAddress = traderAddress;
+                    if (enabled !== undefined)
+                        user.config.enabled = enabled;
+                    if (strategy !== undefined)
+                        user.config.strategy = strategy;
+                    if (copySize !== undefined)
+                        user.config.copySize = copySize;
+                    if (proxyAddress !== undefined) {
+                        if (!user.wallet)
+                            user.wallet = { address: '', privateKey: '' };
+                        user.wallet.proxyAddress = proxyAddress;
+                    }
+                    // Advanced fields
+                    if (reverseCopy !== undefined)
+                        user.config.reverseCopy = reverseCopy;
+                    if (orderType !== undefined)
+                        user.config.orderType = orderType;
+                    if (slippageBuy !== undefined)
+                        user.config.slippageBuy = slippageBuy;
+                    if (slippageSell !== undefined)
+                        user.config.slippageSell = slippageSell;
+                    if (balanceSl !== undefined)
+                        user.config.balanceSl = balanceSl;
+                    if (triggerDelta !== undefined)
+                        user.config.triggerDelta = triggerDelta;
+                    if (hedgeCeiling !== undefined)
+                        user.config.hedgeCeiling = hedgeCeiling;
+                    if (tpPercent !== undefined)
+                        user.config.tpPercent = tpPercent;
+                    if (slPercent !== undefined)
+                        user.config.slPercent = slPercent;
+                    if (minPrice !== undefined)
+                        user.config.minPrice = minPrice;
+                    if (maxPrice !== undefined)
+                        user.config.maxPrice = maxPrice;
+                    if (minTradeSize !== undefined)
+                        user.config.minTradeSize = minTradeSize;
+                    if (maxTradeSize !== undefined)
+                        user.config.maxTradeSize = maxTradeSize;
+                    if (copyBuy !== undefined)
+                        user.config.copyBuy = copyBuy;
+                    if (copySell !== undefined)
+                        user.config.copySell = copySell;
+                    if (maxExposure !== undefined)
+                        user.config.maxExposure = maxExposure;
+                    if (buyAtMin !== undefined)
+                        user.config.buyAtMin = buyAtMin;
+                    if (maxPerMarket !== undefined)
+                        user.config.maxPerMarket = maxPerMarket;
+                    if (maxPerToken !== undefined)
+                        user.config.maxPerToken = maxPerToken;
+                    if (totalSpendLimit !== undefined)
+                        user.config.totalSpendLimit = totalSpendLimit;
+                    if (sniperModeSec !== undefined)
+                        user.config.sniperModeSec = sniperModeSec;
+                    if (lastMinuteModeSec !== undefined)
+                        user.config.lastMinuteModeSec = lastMinuteModeSec;
+                    if (maxMarketCount !== undefined)
+                        user.config.maxMarketCount = maxMarketCount;
+                    if (minMarketLiquidity !== undefined)
+                        user.config.minMarketLiquidity = minMarketLiquidity;
+                    if (mode !== undefined)
+                        user.config.mode = mode;
+                    if (req.body.finalize === true) {
+                        user.step = 'ready';
+                    }
+                    yield user.save();
+                    res.json({ success: true });
+                }));
+                app.post('/api/user/sync-proxy', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b;
+                    try {
+                        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+                        if (!user || !((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.address)) {
+                            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
+                        }
+                        console.log(`[SYNC] Manual proxy scan requested for ${user.username || user.chatId} (${user.wallet.address})`);
+                        const currentProxy = user.wallet.proxyAddress;
+                        const newProxy = yield findPolymarketProxy(user.wallet.address);
+                        if (newProxy && newProxy !== currentProxy) {
+                            user.wallet.proxyAddress = newProxy;
+                            yield user.save();
+                            console.log(`[SYNC] Found NEW proxy for ${user.chatId}: ${newProxy}`);
+                            return res.json({ success: true, found: true, address: newProxy });
+                        }
+                        console.log(`[SYNC] No changes found for ${user.chatId}. Current: ${currentProxy || 'NONE'}`);
+                        res.json({ success: true, found: !!currentProxy, address: currentProxy || user.wallet.address });
+                    }
+                    catch (error) {
+                        console.error('[SYNC] Error:', error);
+                        res.status(500).json({ error: 'Erro ao sincronizar proxy' });
+                    }
+                }));
+                app.post('/api/trade/manual', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b, _c;
+                    try {
+                        const { side, amount, timeframe } = req.body; // side: UP (YES) or DOWN (NO), timeframe: '5m' or '15m'
+                        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+                        if (!user || ((_b = user.config) === null || _b === void 0 ? void 0 : _b.mode) !== 'ARBITRAGE') {
+                            return res.status(403).json({ error: 'Acesso negado ou usuário não está em modo Arbitragem' });
+                        }
+                        if (!((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.privateKey)) {
+                            return res.status(400).json({ error: 'Carteira não configurada' });
+                        }
+                        // 1. Identify active market
+                        const markets = yield arbitrageMonitor.getArbitrageMarkets();
+                        const market = markets.find(m => m.question.toLowerCase().includes(timeframe || '5 minutos'));
+                        if (!market) {
+                            return res.status(404).json({ error: `Nenhum mercado de BTC ${timeframe} ativo no momento` });
+                        }
+                        // 2. Execute Manual Trade logic
+                        // We reuse the executeArbitrageTrade logic but flag it as MANUAL
+                        const polymarketSide = side === 'UP' ? 'YES' : 'NO';
+                        // Use a background call to avoid blocking
+                        arbitrageMonitor.executeArbitrageTrade(user, market, polymarketSide, amount, `MANUAL ${side}`)
+                            .catch(err => console.error(`[MANUAL TRADE] Execution error: ${err}`));
+                        res.json({ success: true, message: `Ordem ${side} enviada para o mercado ${timeframe}` });
+                    }
+                    catch (err) {
+                        console.error('[MANUAL TRADE] Route error:', err);
+                        res.status(500).json({ error: 'Erro interno ao processar ordem manual' });
+                    }
+                }));
+                app.get('/api/arbitrage/active-markets', authenticateToken, (_req, res) => __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        const markets = yield arbitrageMonitor.getArbitrageMarkets();
+                        // Return thin objects for the UI
+                        const data = markets.map(m => {
+                            var _a, _b;
+                            return ({
+                                question: m.question,
+                                yesPrice: m.yesPrice,
+                                noPrice: m.noPrice,
+                                target: ((_b = (_a = m.question.split('above')[1]) === null || _a === void 0 ? void 0 : _a.split('at')[0]) === null || _b === void 0 ? void 0 : _b.trim()) || '---'
+                            });
+                        });
+                        res.json(data);
+                    }
+                    catch (err) {
+                        res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
+                    }
+                }));
+                app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        const user = req.fullUser;
+                        if (!user || !user.wallet || !user.wallet.address) {
+                            return res.status(400).json({ error: 'Carteira não configurada' });
+                        }
+                        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
+                        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
+                        if (!Array.isArray(positionsData)) {
+                            return res.json([]);
+                        }
+                        // Filter valid open positions and calculate live P&L
+                        const activePositions = positionsData.filter(p => p.size > 0 && p.currentValue > 0).map(pos => {
+                            const entryPrice = pos.avgPrice || 0;
+                            const curPrice = pos.currentValue / pos.size;
+                            let pnlPercent = 0;
+                            if (entryPrice > 0) {
                                 pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
                             }
-                            else {
-                                pnlPercent = ((entryPrice - curPrice) / entryPrice) * 100;
-                            }
-                            pnlLabel = (pnlPercent >= 0 ? '+' : '') + pnlPercent.toFixed(1) + '%';
-                        }
+                            return {
+                                asset: pos.asset,
+                                title: pos.title,
+                                slug: pos.slug,
+                                size: pos.size,
+                                currentValue: pos.currentValue,
+                                avgPrice: entryPrice,
+                                curPrice: curPrice,
+                                pnlPercent: pnlPercent,
+                                assetName: pos.outcome || 'Token',
+                            };
+                        });
+                        // Ensure descending order by value
+                        activePositions.sort((a, b) => b.currentValue - a.currentValue);
+                        res.json(activePositions);
                     }
-                }
+                    catch (e) {
+                        console.error('Error fetching positions:', e);
+                        res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
+                    }
+                }));
+                app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b, _c, _d, _e;
+                    try {
+                        const { Activity } = yield import('../models/userHistory.js');
+                        const user = req.fullUser;
+                        const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
+                        const traderAddress = (_d = (_c = user === null || user === void 0 ? void 0 : user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) === null || _d === void 0 ? void 0 : _d.toLowerCase();
+                        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user AND without a traderAddress.
+                        // If in COPY mode, show both the monitored trader's activity and the user's copies.
+                        const isArbitrage = ((_e = user === null || user === void 0 ? void 0 : user.config) === null || _e === void 0 ? void 0 : _e.mode) === 'ARBITRAGE';
+                        let query;
+                        if (isArbitrage) {
+                            query = {
+                                processedBy: userId,
+                                traderAddress: { $exists: false }, // Arbitrage trades don't have a target trader
+                                type: 'TRADE'
+                            };
+                        }
+                        else {
+                            query = (traderAddress)
+                                ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
+                                : { processedBy: userId, type: 'TRADE' };
+                        }
+                        const tradesData = yield Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
+                        // Enrich with current market price for P&L calculation
+                        const enriched = yield Promise.all(tradesData.map((t) => __awaiter(this, void 0, void 0, function* () {
+                            var _a, _b, _c;
+                            let curPrice = null;
+                            let pnlPercent = null;
+                            let pnlLabel = '';
+                            try {
+                                if (t.asset) {
+                                    const mktRes = yield fetchData(`https://clob.polymarket.com/markets/${t.conditionId}`);
+                                    const token = (_a = mktRes === null || mktRes === void 0 ? void 0 : mktRes.tokens) === null || _a === void 0 ? void 0 : _a.find((tk) => tk.token_id === t.asset);
+                                    if (token) {
+                                        curPrice = parseFloat(token.price);
+                                        if (t.price && curPrice !== null) {
+                                            const entryPrice = parseFloat(t.price);
+                                            if (t.side === 'BUY') {
+                                                pnlPercent = ((curPrice - entryPrice) / entryPrice) * 100;
+                                            }
+                                            else {
+                                                pnlPercent = ((entryPrice - curPrice) / entryPrice) * 100;
+                                            }
+                                            pnlLabel = (pnlPercent >= 0 ? '+' : '') + pnlPercent.toFixed(1) + '%';
+                                        }
+                                    }
+                                }
+                            }
+                            catch (_) { /* best-effort */ }
+                            // Determine this user's execution status
+                            const userStatus = userId && ((_b = t.followerStatuses) === null || _b === void 0 ? void 0 : _b[userId]);
+                            let executionStatus;
+                            let executionDetails = '';
+                            if (userStatus) {
+                                executionStatus = userStatus.status;
+                                executionDetails = userStatus.details || '';
+                            }
+                            else if ((_c = t.processedBy) === null || _c === void 0 ? void 0 : _c.includes(userId)) {
+                                executionStatus = 'SUCESSO';
+                            }
+                            else {
+                                // Was detected but not attempted for this user yet or not their trader
+                                executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
+                            }
+                            // Extract user's own execution data
+                            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
+                            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
+                            // Calculate user's real P&L in USD
+                            let myPnlUSD = null;
+                            let myPnlLabel = '';
+                            let myCurrentValue = null;
+                            if (myEntryAmount !== null && myEntryPrice !== null && curPrice !== null) {
+                                const myTokens = myEntryAmount / myEntryPrice;
+                                myCurrentValue = myTokens * curPrice;
+                                myPnlUSD = myCurrentValue - myEntryAmount;
+                                myPnlLabel = (myPnlUSD >= 0 ? '+$' : '-$') + Math.abs(myPnlUSD).toFixed(2);
+                            }
+                            return {
+                                _id: t._id,
+                                timestamp: t.timestamp,
+                                title: t.title || t.slug || 'Mercado Desconhecido',
+                                slug: t.slug,
+                                eventSlug: t.eventSlug,
+                                side: t.side,
+                                usdcSize: t.usdcSize,
+                                price: t.price,
+                                curPrice,
+                                pnlPercent,
+                                pnlLabel,
+                                myEntryAmount,
+                                myEntryPrice,
+                                myCurrentValue,
+                                myPnlUSD,
+                                myPnlLabel,
+                                outcome: t.outcome,
+                                transactionHash: t.transactionHash,
+                                executionStatus,
+                                executionDetails,
+                                isChainDetected: t.isChainDetected || false
+                            };
+                        })));
+                        res.json(enriched);
+                    }
+                    catch (e) {
+                        console.error('[TRADES]', e);
+                        res.status(500).json({ error: 'Failed to fetch trades' });
+                    }
+                }));
+                app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b, _c, _d;
+                    try {
+                        const user = req.fullUser;
+                        const mainAddress = ((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || '';
+                        let proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
+                        // Cache Policy: If last update was < 10 mins ago, return cached data
+                        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+                        if (user.stats && user.stats.lastUpdate > tenMinsAgo) {
+                            return res.json({
+                                balance: user.stats.balance,
+                                exposure: user.stats.exposure,
+                                cached: true
+                            });
+                        }
+                        // Otherwise, fetch real data
+                        if (!((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.proxyAddress) && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
+                            proxyAddress = ENV.PROXY_WALLET;
+                        }
+                        const balance = yield getMyBalance(mainAddress, proxyAddress);
+                        // Fetch positions to calculate exposure
+                        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
+                        const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+                        // Update cache in background/DB
+                        yield User.updateOne({ _id: user._id }, {
+                            $set: {
+                                'stats.balance': balance,
+                                'stats.exposure': exposure,
+                                'stats.lastUpdate': new Date()
+                            }
+                        });
+                        res.json({ balance, exposure, cached: false });
+                    }
+                    catch (e) {
+                        console.error('Stats error:', e);
+                        res.status(500).json({ error: 'Failed to fetch stats' });
+                    }
+                }));
+                app.get('/', authenticateToken, (req, res) => {
+                    var _a, _b;
+                    const userRole = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) || 'follower';
+                    console.log(`[DASHBOARD] Routing user ${(_b = req.user) === null || _b === void 0 ? void 0 : _b.username} with role ${userRole}`);
+                    if (userRole === 'admin') {
+                        res.type('html').send(adminDashboardHtml);
+                    }
+                    else {
+                        res.type('html').send(userDashboardHtml);
+                    }
+                });
+                export const startServer = (...args_1) => __awaiter(this, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
+                    // Initialize global proxy if configured
+                    yield setupProxy();
+                    yield bootstrapAdmin();
+                    botStartTime = Date.now();
+                    app.listen(port, '0.0.0.0', () => __awaiter(this, void 0, void 0, function* () {
+                        var _a;
+                        console.log(`\n🌍 Web UI:  http://0.0.0.0:${port}`);
+                        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
+                        console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
+                        yield recoverSystemUsers();
+                        // ONE-TIME FIX: Run in background after port is bound to avoid Railway timeout
+                        try {
+                            const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
+                            if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
+                                console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
+                                if (!userToFix.wallet)
+                                    userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
+                                userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
+                                yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
+                                console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
+                            }
+                        }
+                        catch (e) {
+                            console.error('[FIX] Manual proxy fix failed:', e);
+                        }
+                    }));
+                });
+                export default app;
             }
-            catch (_) { /* best-effort */ }
-            // Determine this user's execution status
-            const userStatus = userId && ((_b = t.followerStatuses) === null || _b === void 0 ? void 0 : _b[userId]);
-            let executionStatus;
-            let executionDetails = '';
-            if (userStatus) {
-                executionStatus = userStatus.status;
-                executionDetails = userStatus.details || '';
-            }
-            else if ((_c = t.processedBy) === null || _c === void 0 ? void 0 : _c.includes(userId)) {
-                executionStatus = 'SUCESSO';
-            }
-            else {
-                // Was detected but not attempted for this user yet or not their trader
-                executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
-            }
-            // Extract user's own execution data
-            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
-            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
-            // Calculate user's real P&L in USD
-            let myPnlUSD = null;
-            let myPnlLabel = '';
-            let myCurrentValue = null;
-            if (myEntryAmount !== null && myEntryPrice !== null && curPrice !== null) {
-                const myTokens = myEntryAmount / myEntryPrice;
-                myCurrentValue = myTokens * curPrice;
-                myPnlUSD = myCurrentValue - myEntryAmount;
-                myPnlLabel = (myPnlUSD >= 0 ? '+$' : '-$') + Math.abs(myPnlUSD).toFixed(2);
-            }
-            return {
-                _id: t._id,
-                timestamp: t.timestamp,
-                title: t.title || t.slug || 'Mercado Desconhecido',
-                slug: t.slug,
-                eventSlug: t.eventSlug,
-                side: t.side,
-                usdcSize: t.usdcSize,
-                price: t.price,
-                curPrice,
-                pnlPercent,
-                pnlLabel,
-                myEntryAmount,
-                myEntryPrice,
-                myCurrentValue,
-                myPnlUSD,
-                myPnlLabel,
-                outcome: t.outcome,
-                transactionHash: t.transactionHash,
-                executionStatus,
-                executionDetails,
-                isChainDetected: t.isChainDetected || false
-            };
-        })));
-        res.json(enriched);
-    }
-    catch (e) {
-        console.error('[TRADES]', e);
-        res.status(500).json({ error: 'Failed to fetch trades' });
-    }
-}));
-app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
-    try {
-        const user = req.fullUser;
-        const mainAddress = ((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || '';
-        let proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
-        // Cache Policy: If last update was < 10 mins ago, return cached data
-        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
-        if (user.stats && user.stats.lastUpdate > tenMinsAgo) {
-            return res.json({
-                balance: user.stats.balance,
-                exposure: user.stats.exposure,
-                cached: true
-            });
         }
-        // Otherwise, fetch real data
-        if (!((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.proxyAddress) && ENV.PROXY_WALLET && mainAddress.toLowerCase() === (process.env.USER_ADDRESSES || '').toLowerCase()) {
-            proxyAddress = ENV.PROXY_WALLET;
+        finally {
         }
-        const balance = yield getMyBalance(mainAddress, proxyAddress);
-        // Fetch positions to calculate exposure
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
-        const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        // Update cache in background/DB
-        yield User.updateOne({ _id: user._id }, {
-            $set: {
-                'stats.balance': balance,
-                'stats.exposure': exposure,
-                'stats.lastUpdate': new Date()
-            }
-        });
-        res.json({ balance, exposure, cached: false });
-    }
-    catch (e) {
-        console.error('Stats error:', e);
-        res.status(500).json({ error: 'Failed to fetch stats' });
-    }
-}));
-app.get('/', authenticateToken, (req, res) => {
-    var _a, _b;
-    const userRole = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) || 'follower';
-    console.log(`[DASHBOARD] Routing user ${(_b = req.user) === null || _b === void 0 ? void 0 : _b.username} with role ${userRole}`);
-    if (userRole === 'admin') {
-        res.type('html').send(adminDashboardHtml);
-    }
-    else {
-        res.type('html').send(userDashboardHtml);
-    }
-});
-export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
-    // Initialize global proxy if configured
-    yield setupProxy();
-    yield bootstrapAdmin();
-    botStartTime = Date.now();
-    app.listen(port, '0.0.0.0', () => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
-        console.log(`\n🌍 Web UI:  http://0.0.0.0:${port}`);
-        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
-        console.log(`🔌 API:     http://0.0.0.0:${port}/api/health\n`);
-        yield recoverSystemUsers();
-        // ONE-TIME FIX: Run in background after port is bound to avoid Railway timeout
-        try {
-            const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
-            if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
-                console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
-                if (!userToFix.wallet)
-                    userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
-                userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
-                yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
-                console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
-            }
-        }
-        catch (e) {
-            console.error('[FIX] Manual proxy fix failed:', e);
-        }
-    }));
-});
-export default app;
+    });
+}
