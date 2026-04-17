@@ -1777,7 +1777,7 @@ const userDashboardHtml = `<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
@@ -2332,8 +2332,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             // Arbitrage Terminal Logic
             const terminal = document.getElementById('arbitrage-terminal');
             if (isArbitrageMode && currentTab === 'bot') {
-                terminal.style.display = 'grid';
-                initTerminalChart();
+                if (terminal) terminal.style.display = 'grid';
+                try {
+                    initTerminalChart();
+                } catch (e) { console.error('Chart init fail:', e); }
             } else {
                 if (terminal) terminal.style.display = 'none';
             }
@@ -3039,7 +3041,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posiÃ§Ã£o ativa encontrada no momento.</td></tr>\`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>`;
                 return;
             }
 

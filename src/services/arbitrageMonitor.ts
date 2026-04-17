@@ -26,13 +26,19 @@ let activeMarkets: ArbitrageMarket[] = [];
 let priceBaselines: Record<string, number> = {}; // Persist baseline across cycles
 
 let refreshInterval: NodeJS.Timeout | null = null;
-let monitorInterval: NodeJS.Timeout | null = null;
+let monitorTimeout: NodeJS.Timeout | null = null;
 let isArbitrageRunning = true;
+let isLoopProcessing = false;
+
+// Cache for API responses to prevent hammering CLOB
+let cachedArbitrageMarkets: any[] = [];
+let lastCacheUpdateTime = 0;
+const MARKET_CACHE_TTL = 2500; // 2.5 seconds
 
 export const stopArbitrageMonitor = () => {
     isArbitrageRunning = false;
     if (refreshInterval) clearInterval(refreshInterval);
-    if (monitorInterval) clearInterval(monitorInterval);
+    if (monitorTimeout) clearTimeout(monitorTimeout);
     Logger.info('Arbitrage monitor stopped');
 };
 
@@ -45,27 +51,42 @@ export const startArbitrageMonitor = async () => {
     
     // Intervals
     refreshInterval = setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
-    monitorInterval = setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
+    
+    // Recursive loop instead of setInterval to prevent overlap
+    const scheduleNext = () => {
+        if (isArbitrageRunning) {
+            monitorTimeout = setTimeout(async () => {
+                await runArbitrageLoop();
+                scheduleNext();
+            }, MONITOR_PRICE_INTERVAL);
+        }
+    };
+    scheduleNext();
 };
 
 /**
  * Returns the currently tracked markets with their current midpoints
  */
 export const getArbitrageMarkets = async () => {
-    // Enrich with current YES/NO prices before returning
+    // Check Cache
+    const now = Date.now();
+    if (cachedArbitrageMarkets.length > 0 && (now - lastCacheUpdateTime < MARKET_CACHE_TTL)) {
+        return cachedArbitrageMarkets;
+    }
+
+    // Enrich with current YES/NO prices 
     const enriched = await Promise.all(activeMarkets.map(async (m) => {
         try {
             const priceData = await fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
             const yesPrice = priceData?.mid ? parseFloat(priceData.mid) : 0;
-            return {
-                ...m,
-                yesPrice,
-                noPrice: 1 - yesPrice
-            };
+            return { ...m, yesPrice, noPrice: 1 - yesPrice, target: m.question.split('above ')[1] || '---' };
         } catch (e) {
-            return { ...m, yesPrice: 0, noPrice: 0 };
+            return { ...m, yesPrice: 0, noPrice: 0, target: '---' };
         }
     }));
+
+    cachedArbitrageMarkets = enriched;
+    lastCacheUpdateTime = Date.now();
     return enriched;
 };
 
@@ -104,8 +125,9 @@ const updateTargetMarkets = async () => {
  * Main loop to check for price movements and execute arbitrage/hedge
  */
 const runArbitrageLoop = async () => {
-    if (!isArbitrageRunning) return;
-
+    if (!isArbitrageRunning || isLoopProcessing) return;
+    
+    isLoopProcessing = true;
     try {
         // Core Guard: Database stability
         const mongoose = (await import('mongoose')).default;
@@ -159,13 +181,14 @@ const runArbitrageLoop = async () => {
                     } catch (userErr) {
                         Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
                     }
+                            } catch (e) { /* user handled */ }
                 }));
-            } catch (marketErr) {
-                // Isolated market failure - Circuit Breaker pattern
-            }
+            } catch (e) { /* market handled */ }
         }));
     } catch (error: any) {
-        Logger.error('Arbitrage loop critical failure: ' + (error.message || error));
+        Logger.error('Error in arbitrage loop: ' + error.message || error);
+    } finally {
+        isLoopProcessing = false;
     }
 };
 

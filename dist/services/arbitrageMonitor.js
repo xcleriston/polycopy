@@ -22,14 +22,19 @@ const MONITOR_PRICE_INTERVAL = 1000; // 1 second (Sniper Mode)
 let activeMarkets = [];
 let priceBaselines = {}; // Persist baseline across cycles
 let refreshInterval = null;
-let monitorInterval = null;
+let monitorTimeout = null;
 let isArbitrageRunning = true;
+let isLoopProcessing = false;
+// Cache for API responses to prevent hammering CLOB
+let cachedArbitrageMarkets = [];
+let lastCacheUpdateTime = 0;
+const MARKET_CACHE_TTL = 2500; // 2.5 seconds
 export const stopArbitrageMonitor = () => {
     isArbitrageRunning = false;
     if (refreshInterval)
         clearInterval(refreshInterval);
-    if (monitorInterval)
-        clearInterval(monitorInterval);
+    if (monitorTimeout)
+        clearTimeout(monitorTimeout);
     Logger.info('Arbitrage monitor stopped');
 };
 export const startArbitrageMonitor = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -39,23 +44,39 @@ export const startArbitrageMonitor = () => __awaiter(void 0, void 0, void 0, fun
     yield updateTargetMarkets();
     // Intervals
     refreshInterval = setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
-    monitorInterval = setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
+    // Recursive loop instead of setInterval to prevent overlap
+    const scheduleNext = () => {
+        if (isArbitrageRunning) {
+            monitorTimeout = setTimeout(() => __awaiter(void 0, void 0, void 0, function* () {
+                yield runArbitrageLoop();
+                scheduleNext();
+            }), MONITOR_PRICE_INTERVAL);
+        }
+    };
+    scheduleNext();
 });
 /**
  * Returns the currently tracked markets with their current midpoints
  */
 export const getArbitrageMarkets = () => __awaiter(void 0, void 0, void 0, function* () {
-    // Enrich with current YES/NO prices before returning
+    // Check Cache
+    const now = Date.now();
+    if (cachedArbitrageMarkets.length > 0 && (now - lastCacheUpdateTime < MARKET_CACHE_TTL)) {
+        return cachedArbitrageMarkets;
+    }
+    // Enrich with current YES/NO prices 
     const enriched = yield Promise.all(activeMarkets.map((m) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const priceData = yield fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
             const yesPrice = (priceData === null || priceData === void 0 ? void 0 : priceData.mid) ? parseFloat(priceData.mid) : 0;
-            return Object.assign(Object.assign({}, m), { yesPrice, noPrice: 1 - yesPrice });
+            return Object.assign(Object.assign({}, m), { yesPrice, noPrice: 1 - yesPrice, target: m.question.split('above ')[1] || '---' });
         }
         catch (e) {
-            return Object.assign(Object.assign({}, m), { yesPrice: 0, noPrice: 0 });
+            return Object.assign(Object.assign({}, m), { yesPrice: 0, noPrice: 0, target: '---' });
         }
     })));
+    cachedArbitrageMarkets = enriched;
+    lastCacheUpdateTime = Date.now();
     return enriched;
 });
 /**
@@ -93,8 +114,9 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
  * Main loop to check for price movements and execute arbitrage/hedge
  */
 const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
-    if (!isArbitrageRunning)
+    if (!isArbitrageRunning || isLoopProcessing)
         return;
+    isLoopProcessing = true;
     try {
         // Core Guard: Database stability
         const mongoose = (yield import('mongoose')).default;
@@ -146,16 +168,22 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
                         Logger.error(`[ARBITRAGE] Error for user ${user.chatId} on market ${market.conditionId}: ${userErr}`);
                     }
                 })));
+                try { }
+                catch (e) { /* user handled */ }
             }
-            catch (marketErr) {
-                // Isolated market failure - Circuit Breaker pattern
-            }
+            finally { }
         })));
     }
-    catch (error) {
-        Logger.error('Arbitrage loop critical failure: ' + (error.message || error));
-    }
+    catch (e) { /* market handled */ }
 });
+try { }
+catch (error) {
+    Logger.error('Error in arbitrage loop: ' + error.message || error);
+}
+finally {
+    isLoopProcessing = false;
+}
+;
 const processUserArbitrage = (user, market, currentPrice, previousPrice) => __awaiter(void 0, void 0, void 0, function* () {
     const triggerDelta = user.config.triggerDelta || 0.005;
     const hedgeCeiling = user.config.hedgeCeiling || 0.95;
