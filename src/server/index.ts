@@ -2988,12 +2988,22 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
         const userId = req.user?.id?.toString();
         const traderAddress = user?.config?.traderAddress?.toLowerCase();
 
-        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user.
+        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user AND without a traderAddress.
         // If in COPY mode, show both the monitored trader's activity and the user's copies.
         const isArbitrage = user?.config?.mode === 'ARBITRAGE';
-        const query = (traderAddress && !isArbitrage)
-            ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
-            : { processedBy: userId, type: 'TRADE' };
+        let query: any;
+        
+        if (isArbitrage) {
+            query = { 
+                processedBy: userId, 
+                traderAddress: { $exists: false }, // Arbitrage trades don't have a target trader
+                type: 'TRADE' 
+            };
+        } else {
+            query = (traderAddress)
+                ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
+                : { processedBy: userId, type: 'TRADE' };
+        }
 
         const tradesData = await Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
 

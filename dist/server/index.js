@@ -2970,12 +2970,22 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
         const user = req.fullUser;
         const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
         const traderAddress = (_d = (_c = user === null || user === void 0 ? void 0 : user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) === null || _d === void 0 ? void 0 : _d.toLowerCase();
-        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user.
+        // Build query: if in ARBITRAGE mode, ONLY show trades processed by this user AND without a traderAddress.
         // If in COPY mode, show both the monitored trader's activity and the user's copies.
         const isArbitrage = ((_e = user === null || user === void 0 ? void 0 : user.config) === null || _e === void 0 ? void 0 : _e.mode) === 'ARBITRAGE';
-        const query = (traderAddress && !isArbitrage)
-            ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
-            : { processedBy: userId, type: 'TRADE' };
+        let query;
+        if (isArbitrage) {
+            query = {
+                processedBy: userId,
+                traderAddress: { $exists: false }, // Arbitrage trades don't have a target trader
+                type: 'TRADE'
+            };
+        }
+        else {
+            query = (traderAddress)
+                ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
+                : { processedBy: userId, type: 'TRADE' };
+        }
         const tradesData = yield Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
         // Enrich with current market price for P&L calculation
         const enriched = yield Promise.all(tradesData.map((t) => __awaiter(void 0, void 0, void 0, function* () {
