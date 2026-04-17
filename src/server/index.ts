@@ -2687,6 +2687,120 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         } catch (err) { console.error('Render dashboard crash:', err); }
     }
 
+    async function toggleBotMain() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-master-btn');
+        const isCurrentlyEnabled = !!currentUser.config?.enabled;
+        
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'AGUARDE...';
+        
+        try {
+            const res = await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: !isCurrentlyEnabled })
+            });
+            
+            if (res.ok) {
+                showBanner('BOT ' + (!isCurrentlyEnabled ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyEnabled ? 'success' : 'warning');
+                await loadUser();
+            } else {
+                showBanner('Erro ao alterar estado do bot', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conexão', 'danger');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function toggleBypass() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-bypass-btn');
+        const isCurrentlyActive = !!currentUser.config?.bypassFilters;
+        
+        btn.disabled = true;
+        btn.textContent = 'PROCESSANDO...';
+        
+        try {
+            const res = await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bypassFilters: !isCurrentlyActive })
+            });
+            
+            if (res.ok) {
+                showBanner('MODO BYPASS ' + (!isCurrentlyActive ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyActive ? 'danger' : 'success');
+                await loadUser();
+            } else {
+                showBanner('Falha ao alterar Modo Bypass', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conexão', 'danger');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function updateBotConfig() {
+        const btn = event.target;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'SALVANDO...';
+        
+        const config = {
+            mode: document.getElementById('bot-mode').value,
+            traderAddress: document.getElementById('bot-trader').value,
+            strategy: document.getElementById('bot-strategy').value,
+            copySize: parseFloat(document.getElementById('bot-size').value),
+            maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
+            orderType: document.getElementById('bot-orderType').value,
+            slippageBuy: parseFloat(document.getElementById('bot-slippageBuy').value),
+            slippageSell: parseFloat(document.getElementById('bot-slippageSell').value),
+            tpPercent: parseFloat(document.getElementById('bot-tpPercent').value),
+            slPercent: parseFloat(document.getElementById('bot-slPercent').value),
+            minPrice: parseFloat(document.getElementById('bot-minPrice').value),
+            maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
+            minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
+            maxTradeSize: parseFloat(document.getElementById('bot-maxTrade').value),
+            maxPerMarket: parseFloat(document.getElementById('bot-maxPerMarket').value),
+            maxPerToken: parseFloat(document.getElementById('bot-maxPerToken').value),
+            totalSpendLimit: parseFloat(document.getElementById('bot-totalSpendLimit').value),
+            sniperModeSec: parseInt(document.getElementById('bot-sniperModeSec').value),
+            lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value),
+            maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value),
+            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value),
+            balanceSl: parseFloat(document.getElementById('bot-balanceSl').value),
+            triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value),
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value),
+            buyAtMin: document.getElementById('bot-buyAtMin').checked,
+            reverseCopy: document.getElementById('bot-reverse').checked,
+            copyBuy: document.getElementById('bot-copyBuy').checked,
+            copySell: document.getElementById('bot-copySell').checked
+        };
+
+        try {
+            const res = await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (res.ok) {
+                showBanner('CONFIGURAÇÕES SALVAS!', 'success');
+                await loadUser();
+            } else {
+                showBanner('Erro ao salvar configurações', 'danger');
+            }
+        } catch (e) {
+            showBanner('Erro de conexão', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
         if (!pk) return showBanner('Chave Privada Necess\u00E1ria', 'warning');
@@ -3235,7 +3349,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
         minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell,
         maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit,
         sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity,
-        mode, proxyAddress
+        mode, proxyAddress, bypassFilters
     } = req.body;
     
     if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
@@ -3276,6 +3390,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (maxMarketCount !== undefined) user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined) user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined) user.config.mode = mode;
+    if (bypassFilters !== undefined) user.config.bypassFilters = bypassFilters;
     
     if (req.body.finalize === true) {
         user.step = 'ready';
