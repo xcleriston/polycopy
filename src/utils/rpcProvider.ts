@@ -29,7 +29,7 @@ export const getProvider = (): ethers.providers.StaticJsonRpcProvider => {
         const rpcUrl = PUBLIC_RPCS[currentIndex];
         const isPremium = currentIndex === 0 && rpcUrl.includes('alchemy');
         
-        Logger.info(\`[RPC] Initializing \${isPremium ? "\uD83D\uDC8E PREMIUM" : "Node"} (Slot \${currentIndex}): \${rpcUrl.split('/v2/')[0]}\`);
+        Logger.info(`[RPC] Initializing ${isPremium ? "💎 PREMIUM" : "Node"} (Slot ${currentIndex}): ${rpcUrl.split('/v2/')[0]}`);
         
         const network = {
             name: 'polygon',
@@ -49,7 +49,7 @@ export const rotateProvider = () => {
     currentIndex = (currentIndex + 1) % PUBLIC_RPCS.length;
     lastRotationTime = Date.now();
     providerInstance = null;
-    Logger.warning(\`[RPC] Rotated to provider slot \${currentIndex}: \${PUBLIC_RPCS[currentIndex].split('/v2/')[0]}\`);
+    Logger.warning(`[RPC] Rotated to provider slot ${currentIndex}: ${PUBLIC_RPCS[currentIndex].split('/v2/')[0]}`);
     return getProvider();
 };
 

@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 const PUBLIC_RPCS = [
@@ -23,19 +24,15 @@ export const getProvider = () => {
     if (!providerInstance) {
         const rpcUrl = PUBLIC_RPCS[currentIndex];
         const isPremium = currentIndex === 0 && rpcUrl.includes('alchemy');
-        Logger.info(`[RPC] Initializing \${isPremium ? "\uD83D\uDC8E PREMIUM" : "Node"} (Slot \${currentIndex}): \${rpcUrl.split('/v2/')[0]}\`);
-        
+        Logger.info(`[RPC] Initializing ${isPremium ? "💎 PREMIUM" : "Node"} (Slot ${currentIndex}): ${rpcUrl.split('/v2/')[0]}`);
         const network = {
             name: 'polygon',
             chainId: 137
         };
-
         providerInstance = new ethers.providers.StaticJsonRpcProvider(rpcUrl, network);
     }
-    
     return providerInstance;
 };
-
 /**
  * Handle provider errors by rotating to the next RPC
  */
@@ -43,17 +40,13 @@ export const rotateProvider = () => {
     currentIndex = (currentIndex + 1) % PUBLIC_RPCS.length;
     lastRotationTime = Date.now();
     providerInstance = null;
-    Logger.warning(\`[RPC] Rotated to provider slot \${currentIndex}: \${PUBLIC_RPCS[currentIndex].split('/v2/')[0]}\`);
+    Logger.warning(`[RPC] Rotated to provider slot ${currentIndex}: ${PUBLIC_RPCS[currentIndex].split('/v2/')[0]}`);
     return getProvider();
 };
-
 /**
  * Reset the provider instance
  */
 export const resetProvider = () => {
     providerInstance = null;
-    Logger.warning(`[RPC], Provider, instance, has, been, reset `);
-};
-        );
-    }
+    Logger.warning(`[RPC] Provider instance has been reset`);
 };
