@@ -14,7 +14,14 @@ export class WSMonitor {
     private reconnectTimeout: NodeJS.Timeout | null = null;
 
     private retryCount: number = 0;
-    private readonly MAX_BACKOFF = 60000; // 1 minute cap
+    private readonly MAX_BACKOFF = 60000;
+    private readonly ENDPOINTS = [
+        'wss://ws-subscriptions-clob.polymarket.com/ws/market',
+        'wss://clob.polymarket.com/ws/market',
+        'wss://ws-subscriptions-clob.polymarket.com/ws/',
+        'wss://clob.polymarket.com/ws/'
+    ];
+    private currentEndpointIndex = 0;
 
     constructor() {
         // Constructor is kept synchronous for safe startup
@@ -46,21 +53,17 @@ export class WSMonitor {
     }
 
     private connect() {
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-        
         try {
-            // Circuit Breaker: Criação segura do objeto WS
-            this.ws = new WebSocket(ENV.CLOB_WS_URL);
+            const url = this.ENDPOINTS[this.currentEndpointIndex];
+            Logger.info(`[WS] Attempting connection to: ${url}`);
+            this.ws = new WebSocket(url);
 
             this.ws.on('open', () => {
                 Logger.success('⚡ Connected to Polymarket CLOB WebSocket');
                 this.retryCount = 0; // Reset backoff on success
                 
-                const subMessage = {
-                    type: 'subscribe',
-                    topic: 'fills'
-                };
-                this.ws?.send(JSON.stringify(subMessage));
+                this.ws?.send(JSON.stringify({ type: 'subscribe', topic: 'fills' }));
+                this.ws?.send(JSON.stringify({ type: 'subscribe', topic: 'trades' }));
             });
 
             this.ws.on('message', async (data: string) => {
@@ -94,6 +97,8 @@ export class WSMonitor {
                 if (code !== 1000) {
                     this.reconnectTimeout = setTimeout(() => {
                         this.retryCount++;
+                        // Cycle endpoints on failure
+                        this.currentEndpointIndex = (this.currentEndpointIndex + 1) % this.ENDPOINTS.length;
                         this.connect();
                     }, backoff);
                 }
