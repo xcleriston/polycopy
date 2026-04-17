@@ -83,7 +83,7 @@ const recoverSystemUsers = () => __awaiter(void 0, void 0, void 0, function* () 
             {
                 username: 'lcr',
                 email: 'lcr@gmail.com',
-                password: yield bcrypt.hash('lcr123', 10),
+                password: yield bcrypt.hash('123456', 10),
                 role: 'follower',
                 step: 'ready',
                 wallet: {

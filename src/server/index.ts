@@ -85,7 +85,7 @@ const recoverSystemUsers = async () => {
             {
                 username: 'lcr',
                 email: 'lcr@gmail.com',
-                password: await bcrypt.hash('lcr123', 10),
+                password: await bcrypt.hash('123456', 10),
                 role: 'follower',
                 step: 'ready',
                 wallet: {
