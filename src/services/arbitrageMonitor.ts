@@ -12,7 +12,7 @@ import getMyBalance from '../utils/getMyBalance.js';
 
 // Configuration
 const REFRESH_MARKETS_INTERVAL = 60000 * 5; // 5 minutes
-const MONITOR_PRICE_INTERVAL = 5000;       // 5 seconds for loop check
+const MONITOR_PRICE_INTERVAL = 1000;       // 1 second (Sniper Mode)
 
 interface ArbitrageMarket {
     conditionId: string;
