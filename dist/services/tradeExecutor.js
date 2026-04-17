@@ -133,8 +133,15 @@ export const stopTradeExecutor = () => {
     isRunning = false;
     Logger.info('Trade executor shutdown requested...');
 };
+let executionTrigger = null;
+export const triggerExecution = () => {
+    if (executionTrigger) {
+        Logger.info('⚡ SPEED TRIGGER: Manual execution signal received.');
+        executionTrigger();
+    }
+};
 const tradeExecutor = () => __awaiter(void 0, void 0, void 0, function* () {
-    Logger.success('Multi-User Trade executor ready');
+    Logger.success('Multi-User Trade executor ready (High Speed: 250ms)');
     if (PREVIEW_MODE) {
         Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
     }
@@ -147,10 +154,10 @@ const tradeExecutor = () => __awaiter(void 0, void 0, void 0, function* () {
                 continue;
             }
             // Check for new trades to process (bot: false means not yet handled by executor)
+            // Check for new trades to process
             const unprocessedTrades = (yield Activity.find({
                 type: 'TRADE',
-                bot: false,
-                executionStatus: 'PENDENTE'
+                bot: false
             }).sort({ timestamp: -1 }));
             if (unprocessedTrades.length > 0) {
                 for (const trade of unprocessedTrades) {
@@ -165,8 +172,12 @@ const tradeExecutor = () => __awaiter(void 0, void 0, void 0, function* () {
             // Safety backoff to prevent CPU spin during database/network outages
             yield new Promise(resolve => setTimeout(resolve, 5000));
         }
-        // Fast poll: check every 2 seconds for new trades in the database
-        yield new Promise(resolve => setTimeout(resolve, 2000));
+        // Check every 250ms for new trades or wait for manual trigger
+        yield new Promise(resolve => {
+            executionTrigger = resolve;
+            setTimeout(resolve, 250);
+        });
+        executionTrigger = null;
     }
     Logger.info('Trade executor stopped');
 });

@@ -263,7 +263,7 @@ export const ENV = {
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL,
     CLOB_WS_URL: (process.env.CLOB_WS_URL || 'wss://clob.polymarket.com/ws/'),
-    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '15', 10),
+    FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '1', 10),
     TOO_OLD_TIMESTAMP: parseInt(process.env.TOO_OLD_TIMESTAMP || '24', 10),
     RETRY_LIMIT: parseInt(process.env.RETRY_LIMIT || '3', 10),
     // Legacy parameters (kept for backward compatibility)

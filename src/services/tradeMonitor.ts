@@ -3,6 +3,7 @@ import { getUserActivityModel, getUserPositionModel } from '../models/userHistor
 import User from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import Logger from '../utils/logger.js';
+import { triggerExecution } from './tradeExecutor.js';
 
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
@@ -89,9 +90,11 @@ const fetchTradeDataForTrader = async (address: string) => {
                 profileImageOptimized: activity.profileImageOptimized,
                 traderAddress: address.toLowerCase(),
                 bot: false,
+                executionStatus: 'PENDENTE',
                 botExcutedTime: 0,
             }).save();
             Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
+            triggerExecution();
         }
 
         // Also fetch and update positions

@@ -12,6 +12,7 @@ import { ENV } from '../config/env.js';
 import { Activity } from '../models/userHistory.js';
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
+import { triggerExecution } from './tradeExecutor.js';
 /**
  * High-Speed Polymarket CLOB WebSocket Monitor
  * Provides sub-second trade detection by listening directly to CLOB fills.
@@ -136,10 +137,12 @@ export class WSMonitor {
                         side: ((_a = fill.side) === null || _a === void 0 ? void 0 : _a.toUpperCase()) || 'BUY',
                         usdcSize: Number(fill.size) * Number(fill.price),
                         bot: false,
+                        executionStatus: 'PENDENTE',
                         processedBy: [],
                         isWSDetected: true
                     });
-                    Logger.success(`Trade recorded via Ultra-Fast WebSocket (${fill.side})`);
+                    Logger.success(`Trade recorded via Ultra-Fast WebSocket (\${fill.side})`);
+                    triggerExecution();
                 }
             }
             catch (err) {

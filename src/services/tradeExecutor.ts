@@ -169,8 +169,16 @@ export const stopTradeExecutor = () => {
     Logger.info('Trade executor shutdown requested...');
 };
 
+let executionTrigger: (() => void) | null = null;
+export const triggerExecution = () => {
+    if (executionTrigger) {
+        Logger.info('⚡ SPEED TRIGGER: Manual execution signal received.');
+        executionTrigger();
+    }
+};
+
 const tradeExecutor = async () => {
-    Logger.success('Multi-User Trade executor ready');
+    Logger.success('Multi-User Trade executor ready (High Speed: 250ms)');
     
     if (PREVIEW_MODE) {
         Logger.warning('🔍 PREVIEW MODE ACTIVE — trades will be logged but NOT executed');
@@ -186,10 +194,10 @@ const tradeExecutor = async () => {
             }
 
             // Check for new trades to process (bot: false means not yet handled by executor)
+            // Check for new trades to process
             const unprocessedTrades = (await Activity.find({
                 type: 'TRADE',
-                bot: false,
-                executionStatus: 'PENDENTE'
+                bot: false
             }).sort({ timestamp: -1 })) as unknown as IUserActivity[];
 
             if (unprocessedTrades.length > 0) {
@@ -204,8 +212,12 @@ const tradeExecutor = async () => {
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
 
-        // Fast poll: check every 2 seconds for new trades in the database
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Check every 250ms for new trades or wait for manual trigger
+        await new Promise(resolve => {
+            executionTrigger = resolve as any;
+            setTimeout(resolve, 250);
+        });
+        executionTrigger = null;
     }
 
     Logger.info('Trade executor stopped');
