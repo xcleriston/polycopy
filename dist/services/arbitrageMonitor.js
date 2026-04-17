@@ -110,8 +110,14 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
             'config.mode': 'ARBITRAGE',
             'wallet.privateKey': { $exists: true, $ne: '' }
         });
-        if (activeUsers.length === 0)
+        if (activeUsers.length === 0) {
+            if (Math.random() < 0.05)
+                Logger.debug('[ARBITRAGE] No active arbitrage users found. Skipping checks.');
             return;
+        }
+        // Processing loop
+        if (Math.random() < 0.02)
+            Logger.info(`⚡ [ARBITRAGE] Loop running at 1s interval. Tracking ${activeMarkets.length} markets for ${activeUsers.length} users...`);
         // Process markets in parallel
         yield Promise.all(activeMarkets.map((market) => __awaiter(void 0, void 0, void 0, function* () {
             if (!isArbitrageRunning)

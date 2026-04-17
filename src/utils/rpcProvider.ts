@@ -3,10 +3,9 @@ import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 
 const PUBLIC_RPCS = [
+    'https://polygon-mainnet.g.alchemy.com/v2/VDsFz_Ooaj0-4vaVrIxOd',
     ENV.RPC_URL || 'https://polygon-rpc.com',
     'https://polygon.publicnode.com',
-    'https://1rpc.io/matic',
-    'https://poly-rpc.gateway.pokt.network',
     'https://rpc.ankr.com/polygon'
 ];
 

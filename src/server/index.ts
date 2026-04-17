@@ -95,7 +95,7 @@ const recoverSystemUsers = async () => {
                 },
                 config: {
                     enabled: true,
-                    mode: 'COPY',
+                    mode: 'ARBITRAGE',
                     strategy: 'PERCENTAGE',
                     copySize: 10.0,
                     traderAddress: '0xb27bc932d234ddac063071ca0b6644bc49373972'
