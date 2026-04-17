@@ -1750,7 +1750,7 @@ const userDashboardHtml = `<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
@@ -2843,10 +2843,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             timeScale: { borderColor: '#2d343f', timeVisible: true, secondsVisible: false },
         });
 
-        candleSeries = chart.addAreaSeries({
-            lineColor: '#3b82f6',
-            topColor: 'rgba(59, 130, 246, 0.4)',
-            bottomColor: 'rgba(59, 130, 246, 0.0)',
+        candleSeries = chart.addLineSeries({
+            color: '#3b82f6',
             lineWidth: 2,
         });
 

@@ -90,8 +90,9 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
             return;
         const filtered = markets.filter(m => {
             const title = m.question.toLowerCase();
-            return (title.includes('5m') || title.includes('15m') || title.includes('5-minute') || title.includes('15-minute'))
-                && !m.closed && m.active;
+            const isBitcoin = title.includes('bitcoin') || title.includes('btc');
+            const isTarget = title.includes('above') || title.includes('below') || title.includes('at least');
+            return isBitcoin && isTarget && !m.closed && m.active;
         });
         activeMarkets = filtered.map(m => {
             var _a, _b;
