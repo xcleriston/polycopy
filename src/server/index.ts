@@ -27,9 +27,10 @@ app.use((req, res, next) => {
     // Relaxed CSP for high-latency/arbitrage needs - explicitly authorizing inline scripts/styles
     const csp = [
         "default-src 'self' https:;",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://*.tradingview.com;",
         "style-src 'self' 'unsafe-inline' https:;",
         "img-src 'self' data: https:;",
+        "frame-src 'self' https://s3.tradingview.com https://*.tradingview.com;",
         "connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws;"
     ].join(' ');
     res.setHeader("Content-Security-Policy", csp);
@@ -3155,9 +3156,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 // Use our internal proxy (V11.1) to avoid CORS
                 const res = await fetch('/api/price/btc');
                 const data = await res.json();
+                console.log('[DEBUG] Preço recebido no front:', data);
                 
                 const btcPriceEl = document.getElementById('btc-price');
-                if (btcPriceEl) btcPriceEl.textContent = \`$\${data.price.toLocaleString()}\`;
+                if (btcPriceEl) {
+                    btcPriceEl.textContent = \`\$\${data.price.toLocaleString()}\`;
+                    console.log('[DEBUG] Elemento btc-price atualizado:', data.price);
+                } else {
+                    console.warn('[DEBUG] Elemento btc-price nao encontrado!');
+                }
                 
                 const changeEl = document.getElementById('btc-change');
                 if (changeEl) {

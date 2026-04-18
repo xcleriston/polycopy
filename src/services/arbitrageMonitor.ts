@@ -84,8 +84,8 @@ export const getArbitrageMarkets = async () => {
             // Safety: if the midpoint is exactly 0 but initial exists, use initial
             if (yesPrice === 0 && (m as any).initialYesPrice > 0) yesPrice = (m as any).initialYesPrice;
 
-            // Robust target capture (V11.1): matches numbers after multiple keywords
-            const targetMatch = m.question.match(/(?:above|reach|hit|higher than|at least)\s+([\d,.]+)/i);
+            // Robust target capture (V12): matches numbers, optionally prefixed with $, after various keywords
+            const targetMatch = m.question.match(/(?:above|reach|hit|higher than|at least|price of)\s+[$]?([\d,.]+)/i);
             const target = targetMatch ? targetMatch[1] : '---';
 
             return { ...m, yesPrice, noPrice: 1 - yesPrice, target };
