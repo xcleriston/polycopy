@@ -84,9 +84,21 @@ export const getArbitrageMarkets = async () => {
             // Safety: if the midpoint is exactly 0 but initial exists, use initial
             if (yesPrice === 0 && (m as any).initialYesPrice > 0) yesPrice = (m as any).initialYesPrice;
 
-            // Robust target capture (V12): matches numbers, optionally prefixed with $, after various keywords
-            const targetMatch = m.question.match(/(?:above|reach|hit|higher than|at least|price of)\s+[$]?([\d,.]+)/i);
-            const target = targetMatch ? targetMatch[1] : '---';
+            // Robust target capture (V13): matches numbers, optionally prefixed with $, after various keywords
+            let targetMatch = m.question.match(/(?:above|reach|hit|higher than|at least|price of)\s+[$]?([\d,.]+)/i);
+            let target = targetMatch ? targetMatch[1] : '---';
+
+            // Magnitude Fallback (V13): If no keyword match, find any number > 10,000 (BTC context)
+            if (target === '---') {
+                const numbers = m.question.replace(/,/g, '').match(/\d+/g);
+                if (numbers) {
+                    const potential = numbers.map(Number).filter(n => n > 10000).sort((a,b) => b-a)[0];
+                    if (potential) {
+                        target = potential.toLocaleString();
+                        Logger.info(`[V13] Target Fallback used for: ${m.question} -> ${target}`);
+                    }
+                }
+            }
 
             return { ...m, yesPrice, noPrice: 1 - yesPrice, target };
         } catch (e) {

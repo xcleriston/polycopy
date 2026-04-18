@@ -21,10 +21,8 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
-// --- Security Headers (Fix for Production Outage) ---
-app.use((req, res, next) => {
-    res.removeHeader("Content-Security-Policy");
-    // Relaxed CSP for high-latency/arbitrage needs - explicitly authorizing inline scripts/styles
+// --- Security Utility (V13) ---
+function setPremiumCSP(res: Response) {
     const csp = [
         "default-src 'self' https:;",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://*.tradingview.com;",
@@ -35,6 +33,10 @@ app.use((req, res, next) => {
     ].join(' ');
     res.setHeader("Content-Security-Policy", csp);
     res.setHeader("X-Content-Type-Options", "nosniff");
+}
+
+app.use((req, res, next) => {
+    // Only basic headers here, specific routes get the premium CSP (V13)
     next();
 });
 
@@ -1793,11 +1795,13 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
 app.get('/login', (req: Request, res: Response) => {
     if (req.cookies.auth_token) return res.redirect('/');
+    setPremiumCSP(res);
     res.type('html').send(loginHtml);
 });
 
 app.get('/signup', (req: Request, res: Response) => {
     if (req.cookies.auth_token) return res.redirect('/');
+    setPremiumCSP(res);
     res.type('html').send(signupHtml);
 });
 
@@ -3151,30 +3155,29 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function startPriceStream() {
+        // Redundant with unified markets fetch but keeps header alive if terminal is hidden
         const updatePrice = async () => {
             try {
-                // Use our internal proxy (V11.1) to avoid CORS
                 const res = await fetch('/api/price/btc');
+                if (!res.ok) throw new Error('Proxy fail');
                 const data = await res.json();
-                console.log('[DEBUG] Preço recebido no front:', data);
-                
-                const btcPriceEl = document.getElementById('btc-price');
-                if (btcPriceEl) {
-                    btcPriceEl.textContent = \`\$\${data.price.toLocaleString()}\`;
-                    console.log('[DEBUG] Elemento btc-price atualizado:', data.price);
-                } else {
-                    console.warn('[DEBUG] Elemento btc-price nao encontrado!');
-                }
-                
-                const changeEl = document.getElementById('btc-change');
-                if (changeEl) {
-                    changeEl.textContent = \`\${data.change >= 0 ? '+' : ''}\${data.change.toFixed(2)}%\`;
-                    changeEl.style.color = data.change >= 0 ? 'var(--success)' : 'var(--danger)';
-                }
-            } catch (e) { console.error('Price sync fail:', e); }
+                updateHeaderPrice(data.price, data.change);
+            } catch (e) { /* Fallback to last known handled in updateHeaderPrice */ }
         };
         updatePrice();
-        setInterval(updatePrice, 4000); 
+        setInterval(updatePrice, 10000); 
+    }
+
+    function updateHeaderPrice(price, change) {
+        if (!price || price <= 0) return;
+        const btcPriceEl = document.getElementById('btc-price');
+        const btcChangeEl = document.getElementById('btc-change');
+        
+        if (btcPriceEl) btcPriceEl.textContent = `\$${price.toLocaleString(undefined, { minimumFractionDigits: 1 })}`;
+        if (btcChangeEl) {
+            btcChangeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+            btcChangeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+        }
     }
 
     function switchTerminalTF(tf) {
@@ -3258,17 +3261,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         binanceWS.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                const price = parseFloat(data.c); // last price
-                const change = parseFloat(data.P); // price change percent
+                const price = parseFloat(data.c);
+                const change = parseFloat(data.P);
                 
-                const btcPriceEl = document.getElementById('btc-price');
-                const btcChangeEl = document.getElementById('btc-change');
-                
-                if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString(undefined, { minimumFractionDigits: 1 })}\`;
-                if (btcChangeEl) {
-                    btcChangeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
-                    btcChangeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
-                }
+                // Unified Header Update (V13)
+                updateHeaderPrice(price, change);
 
                 if (candleSeries) {
                     candleSeries.update({
@@ -3347,22 +3344,29 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/arbitrage/active-markets');
             if (!res.ok) return;
             const data = await res.json();
-            const timeframeStr = selectedTF === '5m' ? '5 minutos' : '15 minutos';
             
-            const m = data.find(item => {
+            // Sync Header Price from Unified Package (V13)
+            if (data.btc) {
+                updateHeaderPrice(data.btc.price, data.btc.change);
+            }
+
+            const timeframeStr = selectedTF === '5m' ? '5 minutos' : '15 minutos';
+            const m = data.markets.find(item => {
                 const q = item.question.toLowerCase();
-                // Flexible filter: any Bitcoin market with a prediction pattern
-                return q.includes('bitcoin') && (q.includes('above') || q.includes('reach') || q.includes('hit'));
+                return q.includes('bitcoin') && (q.includes('above') || q.includes('reach') || q.includes('hit') || q.includes('at least'));
             });
             
             if (m) {
                 activeMarketData = m;
-                document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}¢\`;
-                document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}¢\`;
-                document.getElementById('target-info').textContent = \`Target: BTC above \${m.target}\`;
-                subscribePolymarket(); // Ensure sub matches current metadata
+                document.getElementById('price-up').textContent = `${(m.yesPrice * 100).toFixed(1)}¢`;
+                document.getElementById('price-down').textContent = `${(m.noPrice * 100).toFixed(1)}¢`;
+                document.getElementById('btn-side-up').querySelector('.side-btn-price').textContent = `${(m.yesPrice * 100).toFixed(1)}¢`;
+                document.getElementById('btn-side-down').querySelector('.side-btn-price').textContent = `${(m.noPrice * 100).toFixed(1)}¢`;
+                
+                document.getElementById('target-info').textContent = `Target: BTC above ${m.target}`;
+                subscribePolymarket(); 
             } else {
-                document.getElementById('target-info').textContent = \`Procurando mercado \${timeframeStr}...\`;
+                document.getElementById('target-info').textContent = `Procurando mercado ${timeframeStr}...`;
             }
         } catch (e) { console.error('Market metadata fetch fail:', e); }
     }
@@ -3666,19 +3670,22 @@ app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res: R
 
 app.get('/api/arbitrage/active-markets', authenticateToken, async (_req: AuthRequest, res: Response) => {
     try {
-        const markets = await arbitrageMonitor.getArbitrageMarkets();
-        // Return thin objects for the UI
-        const data = markets.map((m: any) => ({
-            question: m.question,
-            yesPrice: m.yesPrice,
-            noPrice: m.noPrice,
-            yesTokenId: m.yesTokenId,
-            noTokenId: m.noTokenId,
-            target: m.target || '---'
-        }));
-        res.json(data);
+        const state = await arbitrageMonitor.getTerminalState();
+        res.json({
+            success: true,
+            btc: state.btc,
+            markets: state.markets.map((m: any) => ({
+                id: m.id,
+                question: m.question,
+                yesTokenId: m.yesTokenId,
+                yesPrice: m.yesPrice,
+                noPrice: m.noPrice,
+                target: m.target || '---'
+            }))
+        });
     } catch (err: any) {
-        res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
+        console.error('[API] Active markets fetch error:', err);
+        res.status(500).json({ success: false, error: 'Failed to fetch arbitrage markets' });
     }
 });
 
@@ -3890,6 +3897,9 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
 app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     const userRole = req.user?.role || 'follower';
     console.log(`[DASHBOARD] Routing user ${req.user?.username} with role ${userRole}`);
+    
+    // Inject Premium CSP for the Dashboard (V13)
+    setPremiumCSP(res);
     
     if (userRole === 'admin') {
         res.type('html').send(adminDashboardHtml);
