@@ -9,7 +9,7 @@
         "setup": "ts-node src/scripts/setup.ts",
         "build": "tsc",
         "prestart": "npm audit --omit=dev || true",
-        "start": "node dist/index.js",
+        "start": "node dist/server/index.js",
         "dev": "ts-node src/index.ts",
         "telegram": "node dist/telegram/index.js",
         "telegram-standalone": "node dist/telegram/standalone-index.js",
