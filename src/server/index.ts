@@ -37,6 +37,14 @@ app.use((req, res, next) => {
     next();
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        uptime: Math.floor(process.uptime()), 
+        timestamp: new Date().toISOString() 
+    });
+});
+
 let botStartTime = Date.now();
 
 // --- Swagger API Docs ---
