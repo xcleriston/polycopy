@@ -115,7 +115,10 @@ const updateTargetMarkets = async () => {
         })).filter(m => m.yesTokenId && m.noTokenId);
 
         if (activeMarkets.length > 0) {
-            Logger.info(`🔍 Arbitrage Bot tracking ${activeMarkets.length} BTC markets.`);
+            Logger.info(`🔍 [DEBUG] Arbitrage Bot encontrou ${activeMarkets.length} mercados de BTC.`);
+            Logger.info(`🎯 [DEBUG] Mercados detectados: ${activeMarkets.map(m => m.question.slice(0, 40)).join(' | ')}`);
+        } else {
+            Logger.warning(`⚠️ [DEBUG] Nenhum mercado de BTC encontrado com os filtros atuais.`);
         }
     } catch (error: any) {
         Logger.error('Error updating arbitrage markets: ' + error.message || error);

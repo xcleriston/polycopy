@@ -3225,8 +3225,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     function initBinanceWS() {
         if (binanceWS) return;
-        console.log('[WS] Connecting to Binance...');
+        console.log('[DEBUG] Tentando conectar WebSocket da Binance...');
         binanceWS = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
+        
+        binanceWS.onopen = () => console.log('[DEBUG] Binance WebSocket Conectado ✅');
         
         binanceWS.onmessage = (event) => {
             try {
@@ -3261,12 +3263,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
     function initPolymarketWS() {
         if (polyWS) return;
-        console.log('[WS] Connecting to Polymarket CLOB...');
+        console.log('[DEBUG] Tentando conectar WebSocket da Polymarket (sem barra final)...');
         polyWS = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws');
         
         polyWS.onopen = () => {
+            console.log('[DEBUG] Polymarket WebSocket Conectado ✅');
             document.getElementById('ws-status-dot').style.background = 'var(--success)';
             subscribePolymarket();
+        };
+
+        polyWS.onerror = (e) => {
+            console.error('[DEBUG] ERRO no WebSocket da Polymarket:', e);
+            document.getElementById('ws-status-dot').style.background = 'var(--danger)';
         };
 
         polyWS.onmessage = (event) => {
