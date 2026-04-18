@@ -24,7 +24,7 @@ app.use(cookieParser());
 // --- Security Headers (Fix for Production Outage) ---
 app.use((req, res, next) => {
     res.removeHeader("Content-Security-Policy");
-    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https:;");
+    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws/;");
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
 });
@@ -2411,10 +2411,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 if (terminal && currentTab === 'bot') {
                     terminal.style.display = 'grid';
                     setTimeout(() => {
-                        initTerminalChart();
-                        if (chart) chart.timeScale().fitContent();
-                        initBinanceWS();
-                        initPolymarketWS();
+                        try {
+                            initTerminalChart();
+                            if (chart) chart.timeScale().fitContent();
+                            initBinanceWS();
+                            initPolymarketWS();
+                        } catch (wsErr) {
+                            console.error('WebSocket Load Failure:', wsErr);
+                        }
                     }, 100);
                 }
             } else {
@@ -3199,25 +3203,27 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         binanceWS = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
         
         binanceWS.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const price = parseFloat(data.c); // last price
-            const change = parseFloat(data.P); // price change percent
-            
-            const btcPriceEl = document.getElementById('btc-price');
-            const btcChangeEl = document.getElementById('btc-change');
-            
-            if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString(undefined, { minimumFractionDigits: 1 })}\`;
-            if (btcChangeEl) {
-                btcChangeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
-                btcChangeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
-            }
+            try {
+                const data = JSON.parse(event.data);
+                const price = parseFloat(data.c); // last price
+                const change = parseFloat(data.P); // price change percent
+                
+                const btcPriceEl = document.getElementById('btc-price');
+                const btcChangeEl = document.getElementById('btc-change');
+                
+                if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString(undefined, { minimumFractionDigits: 1 })}\`;
+                if (btcChangeEl) {
+                    btcChangeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
+                    btcChangeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+                }
 
-            if (candleSeries) {
-                candleSeries.update({
-                    time: Math.floor(Date.now() / 1000),
-                    value: price
-                });
-            }
+                if (candleSeries) {
+                    candleSeries.update({
+                        time: Math.floor(Date.now() / 1000),
+                        value: price
+                    });
+                }
+            } catch (err) { console.error('[BINANCE WS] Process Error:', err); }
         };
 
         binanceWS.onclose = () => {
@@ -3238,17 +3244,20 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         };
 
         polyWS.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            // Polymarket WS usually returns price updates for subscribed tokens
-            if (msg.event === 'price' && activeMarketData) {
-                if (msg.asset === activeMarketData.yesTokenId) {
-                    const p = parseFloat(msg.price);
-                    document.getElementById('price-up').textContent = \`\${(p * 100).toFixed(1)}¢\`;
-                } else if (msg.asset === activeMarketData.noTokenId) {
-                    const p = parseFloat(msg.price);
-                    document.getElementById('price-down').textContent = \`\${(p * 100).toFixed(1)}¢\`;
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.event === 'price' && activeMarketData) {
+                    if (msg.asset === activeMarketData.yesTokenId) {
+                        const p = parseFloat(msg.price);
+                        const el = document.getElementById('price-up');
+                        if (el) el.textContent = \`\${(p * 100).toFixed(1)}¢\`;
+                    } else if (msg.asset === activeMarketData.noTokenId) {
+                        const p = parseFloat(msg.price);
+                        const el = document.getElementById('price-down');
+                        if (el) el.textContent = \`\${(p * 100).toFixed(1)}¢\`;
+                    }
                 }
-            }
+            } catch (err) { console.error('[POLY WS] Process Error:', err); }
         };
 
         polyWS.onclose = () => {
