@@ -2685,6 +2685,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             refreshTrades();
             refreshStats();
         } catch (err) { console.error('Render dashboard crash:', err); }
+    }
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
