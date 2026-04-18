@@ -45,6 +45,19 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// --- Proxy de Preço Global (V11.1) ---
+app.get('/api/price/btc', async (_req, res) => {
+    try {
+        const data = await fetchData('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+        res.json({
+            price: parseFloat(data.lastPrice),
+            change: parseFloat(data.priceChangePercent)
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Binance API unreachable' });
+    }
+});
+
 let botStartTime = Date.now();
 
 // --- Swagger API Docs ---
@@ -1793,7 +1806,7 @@ const userDashboardHtml = `<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+<!-- Removing legacy chart lib for TradingView (V11.1) -->
 <style>
 :root {
   --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
@@ -1988,7 +2001,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </div>
                     </div>
                 </div>
-                <div id="chart-main" style="flex:1"></div>
+                <!-- TradingView Widget Container (V11.1) -->
+                <div id="tradingview_btc_container" style="flex:1; border-top:1px solid var(--border)">
+                    <div id="tradingview_btc" style="height:100%; width:100%"></div>
+                </div>
             </div>
 
             <div class="order-panel">
@@ -3101,59 +3117,57 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     function initTerminalChart() {
-        if (chart) return;
-        const container = document.getElementById('chart-main');
+        if (window.tvWidget) return;
+        const container = document.getElementById('tradingview_btc');
         if (!container) return;
 
-        chart = LightweightCharts.createChart(container, {
-            layout: { background: { color: '#0c0f16' }, textColor: '#94a3b8' },
-            grid: { vertLines: { color: '#1a1f26' }, horzLines: { color: '#1a1f26' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-            rightPriceScale: { borderColor: '#2d343f' },
-            timeScale: { borderColor: '#2d343f', timeVisible: true, secondsVisible: false },
-        });
-
-        candleSeries = chart.addLineSeries({
-            color: '#3b82f6',
-            lineWidth: 2,
-        });
-
-        window.addEventListener('resize', () => {
-             chart.resize(container.clientWidth, container.clientHeight);
-        });
+        console.log('[TV] Initializing TradingView Widget (V11.1)...');
+        const script = document.createElement('script');
+        script.src = 'https://s3.tradingview.com/tv.js';
+        script.async = true;
+        script.onload = () => {
+            window.tvWidget = new TradingView.widget({
+                "autosize": true,
+                "symbol": "BINANCE:BTCUSDT",
+                "interval": selectedTF === '5m' ? "5" : "15",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "br",
+                "toolbar_bg": "#151921",
+                "enable_publishing": false,
+                "hide_top_toolbar": false,
+                "hide_legend": false,
+                "save_image": false,
+                "container_id": "tradingview_btc"
+            });
+            console.log('[TV] Widget Loaded.');
+        };
+        document.head.appendChild(script);
         
-        // Start Binance Data Stream
+        // Start Top Header Price Sync
         startPriceStream();
     }
 
     async function startPriceStream() {
         const updatePrice = async () => {
             try {
-                // Use our internal proxy to avoid CORS
+                // Use our internal proxy (V11.1) to avoid CORS
                 const res = await fetch('/api/price/btc');
                 const data = await res.json();
-                const price = data.price;
-                const change = data.change;
                 
                 const btcPriceEl = document.getElementById('btc-price');
-                if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString()}\`;
+                if (btcPriceEl) btcPriceEl.textContent = \`$\${data.price.toLocaleString()}\`;
                 
                 const changeEl = document.getElementById('btc-change');
                 if (changeEl) {
-                    changeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
-                    changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+                    changeEl.textContent = \`\${data.change >= 0 ? '+' : ''}\${data.change.toFixed(2)}%\`;
+                    changeEl.style.color = data.change >= 0 ? 'var(--success)' : 'var(--danger)';
                 }
-
-                candleSeries.update({
-                    time: Math.floor(Date.now() / 1000),
-                    value: price
-                });
-            } catch (e) { console.error('Price fetch fail:', e); }
+            } catch (e) { console.error('Price sync fail:', e); }
         };
-        
-        // Initial history (mocked or fetched if desired)
         updatePrice();
-        setInterval(updatePrice, 2000); // 2s polling is enough for visual "real-time"
+        setInterval(updatePrice, 4000); 
     }
 
     function switchTerminalTF(tf) {
@@ -3658,19 +3672,6 @@ app.get('/api/arbitrage/active-markets', authenticateToken, async (_req: AuthReq
         res.json(data);
     } catch (err: any) {
         res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
-    }
-});
-
-// Proxy route to Binance to avoid CORS on frontend
-app.get('/api/price/btc', async (_req, res) => {
-    try {
-        const data = await fetchData('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
-        res.json({
-            price: parseFloat(data.lastPrice),
-            change: parseFloat(data.priceChangePercent)
-        });
-    } catch (e) {
-        res.status(500).json({ error: 'Binance API unreachable' });
     }
 });
 
