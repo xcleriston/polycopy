@@ -2410,16 +2410,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 }
                 if (terminal && currentTab === 'bot') {
                     terminal.style.display = 'grid';
-                    setTimeout(() => {
-                        try {
-                            initTerminalChart();
-                            if (chart) chart.timeScale().fitContent();
-                            initBinanceWS();
-                            initPolymarketWS();
-                        } catch (wsErr) {
-                            console.error('WebSocket Load Failure:', wsErr);
-                        }
-                    }, 100);
+                    // The actual terminal chart and WS are initialized 
+                    // in the isolated script block below
                 }
             } else {
                 if (bypassBtn) bypassBtn.style.display = 'block';
@@ -3061,6 +3053,24 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     let binanceWS = null;
     let polyWS = null;
     let activeMarketData = null; // Store full market info
+
+    // Global Error Guard to prevent UI freezing
+    window.onerror = function(msg, url, line) {
+        console.error('[GLOBAL GUARD] Error caught:', msg, 'at', url, ':', line);
+        return true; // Prevent the error from crashing the script execution
+    };
+
+    window.addEventListener('load', function() {
+        console.log('[BOOT] Dashboard loaded, checking terminal...');
+        if (currentUser?.config?.mode === 'ARBITRAGE' && currentTab === 'bot') {
+            try {
+                initTerminalChart();
+                initBinanceWS();
+                initPolymarketWS();
+                updateTerminalMarketData();
+            } catch (e) { console.error('[BOOT] Terminal init failed:', e); }
+        }
+    });
 
     function switchOrderTab(action) {
         selectedAction = action;
