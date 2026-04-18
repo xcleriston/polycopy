@@ -103,8 +103,8 @@ const updateTargetMarkets = async () => {
         const filtered = markets.filter(m => {
             const title = m.question.toLowerCase();
             const isBitcoin = title.includes('bitcoin') || title.includes('btc');
-            const isTarget = title.includes('above') || title.includes('below') || title.includes('at least');
-            return isBitcoin && isTarget && !m.closed && m.active;
+            const isPrediction = title.includes('above') || title.includes('below') || title.includes('at least') || title.includes('reach') || title.includes('hit');
+            return isBitcoin && isPrediction && !m.closed && m.active;
         });
 
         activeMarkets = filtered.map(m => ({

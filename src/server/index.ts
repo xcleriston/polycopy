@@ -30,7 +30,7 @@ app.use((req, res, next) => {
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
         "style-src 'self' 'unsafe-inline' https:;",
         "img-src 'self' data: https:;",
-        "connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws/;"
+        "connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws;"
     ].join(' ');
     res.setHeader("Content-Security-Policy", csp);
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -3262,7 +3262,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     function initPolymarketWS() {
         if (polyWS) return;
         console.log('[WS] Connecting to Polymarket CLOB...');
-        polyWS = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/');
+        polyWS = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws');
         
         polyWS.onopen = () => {
             document.getElementById('ws-status-dot').style.background = 'var(--success)';
