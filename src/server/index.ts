@@ -3001,7 +3001,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         // If mode is changing, force bot to be disabled first for safety
         const newMode = document.getElementById('bot-mode').value;
         const currentMode = currentUser.config?.mode || 'COPY';
-        const config: any = {
+        const config = {
             traderAddress: document.getElementById('bot-trader').value,
             strategy: document.getElementById('bot-strategy').value,
             copySize: parseFloat(document.getElementById('bot-size').value),
@@ -3630,6 +3630,8 @@ app.get('/api/arbitrage/active-markets', authenticateToken, async (_req: AuthReq
             question: m.question,
             yesPrice: m.yesPrice,
             noPrice: m.noPrice,
+            yesTokenId: m.yesTokenId,
+            noTokenId: m.noTokenId,
             target: m.question.split('above')[1]?.split('at')[0]?.trim() || '---'
         }));
         res.json(data);
