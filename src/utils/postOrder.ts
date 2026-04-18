@@ -230,47 +230,49 @@ const postOrder = async (
             orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
         }
 
-        if (orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+        if (!config.bypassFilters && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
             await recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
         }
 
-        // 3. Exposure and Spend Checks
-        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
-            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
+        // 3. Exposure and Spend Checks (Skipped in Bypass Mode)
+        if (!config.bypassFilters) {
+            const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
+                const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
 
-        // F1.2 Max Per Market
-        const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
-            const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
+            // F1.2 Max Per Market
+            const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
+                const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
 
-        // F1.3 Max Per Token
-        const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
-            const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
+            // F1.3 Max Per Token
+            const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
+                const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
 
-        // F1.5 Total Spend Limit
-        const userRec = await User.findById(followerId);
-        const totalSpent = userRec?.totalSpentUSD || 0;
-        if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
-            const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
+            // F1.5 Total Spend Limit
+            const userRec = await User.findById(followerId);
+            const totalSpent = userRec?.totalSpentUSD || 0;
+            if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
+                const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
         }
 
         let remaining = orderCalc.finalAmount;
@@ -288,7 +290,7 @@ const postOrder = async (
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
 
-            if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
+            if (!config.bypassFilters && (parseFloat(minPriceAsk.price) - slippage > trade.price)) {
                 const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
                 Logger.warning(`[${followerId}] ${reason} - skipping trade`);
                 await recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);

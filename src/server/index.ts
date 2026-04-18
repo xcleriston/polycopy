@@ -2685,121 +2685,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             refreshTrades();
             refreshStats();
         } catch (err) { console.error('Render dashboard crash:', err); }
-    }
-
-    async function toggleBotMain() {
-        if (!currentUser) return;
-        const btn = document.getElementById('bot-master-btn');
-        const isCurrentlyEnabled = !!currentUser.config?.enabled;
-        
-        btn.disabled = true;
-        const originalText = btn.textContent;
-        btn.textContent = 'AGUARDE...';
-        
-        try {
-            const res = await fetch('/api/user/update-config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !isCurrentlyEnabled })
-            });
-            
-            if (res.ok) {
-                showBanner('BOT ' + (!isCurrentlyEnabled ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyEnabled ? 'success' : 'warning');
-                await loadUser();
-            } else {
-                showBanner('Erro ao alterar estado do bot', 'danger');
-            }
-        } catch (e) {
-            showBanner('Erro de conexão', 'danger');
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    async function toggleBypass() {
-        if (!currentUser) return;
-        const btn = document.getElementById('bot-bypass-btn');
-        const isCurrentlyActive = !!currentUser.config?.bypassFilters;
-        
-        btn.disabled = true;
-        btn.textContent = 'PROCESSANDO...';
-        
-        try {
-            const res = await fetch('/api/user/update-config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bypassFilters: !isCurrentlyActive })
-            });
-            
-            if (res.ok) {
-                showBanner('MODO BYPASS ' + (!isCurrentlyActive ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyActive ? 'danger' : 'success');
-                await loadUser();
-            } else {
-                showBanner('Falha ao alterar Modo Bypass', 'danger');
-            }
-        } catch (e) {
-            showBanner('Erro de conexão', 'danger');
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    async function updateBotConfig() {
-        const btn = event.target;
-        btn.disabled = true;
-        const originalText = btn.textContent;
-        btn.textContent = 'SALVANDO...';
-        
-        const config = {
-            mode: document.getElementById('bot-mode').value,
-            traderAddress: document.getElementById('bot-trader').value,
-            strategy: document.getElementById('bot-strategy').value,
-            copySize: parseFloat(document.getElementById('bot-size').value),
-            maxExposure: parseFloat(document.getElementById('bot-maxExposure').value),
-            orderType: document.getElementById('bot-orderType').value,
-            slippageBuy: parseFloat(document.getElementById('bot-slippageBuy').value),
-            slippageSell: parseFloat(document.getElementById('bot-slippageSell').value),
-            tpPercent: parseFloat(document.getElementById('bot-tpPercent').value),
-            slPercent: parseFloat(document.getElementById('bot-slPercent').value),
-            minPrice: parseFloat(document.getElementById('bot-minPrice').value),
-            maxPrice: parseFloat(document.getElementById('bot-maxPrice').value),
-            minTradeSize: parseFloat(document.getElementById('bot-minTrade').value),
-            maxTradeSize: parseFloat(document.getElementById('bot-maxTrade').value),
-            maxPerMarket: parseFloat(document.getElementById('bot-maxPerMarket').value),
-            maxPerToken: parseFloat(document.getElementById('bot-maxPerToken').value),
-            totalSpendLimit: parseFloat(document.getElementById('bot-totalSpendLimit').value),
-            sniperModeSec: parseInt(document.getElementById('bot-sniperModeSec').value),
-            lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value),
-            maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value),
-            minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value),
-            balanceSl: parseFloat(document.getElementById('bot-balanceSl').value),
-            triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value),
-            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value),
-            buyAtMin: document.getElementById('bot-buyAtMin').checked,
-            reverseCopy: document.getElementById('bot-reverse').checked,
-            copyBuy: document.getElementById('bot-copyBuy').checked,
-            copySell: document.getElementById('bot-copySell').checked
-        };
-
-        try {
-            const res = await fetch('/api/user/update-config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            if (res.ok) {
-                showBanner('CONFIGURAÇÕES SALVAS!', 'success');
-                await loadUser();
-            } else {
-                showBanner('Erro ao salvar configurações', 'danger');
-            }
-        } catch (e) {
-            showBanner('Erro de conexão', 'danger');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = originalText;
-        }
-    }
 
     async function importWalletSettings(btn) {
         const pk = document.getElementById('settings-import-pk').value;
@@ -2891,7 +2776,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                if (tbody.innerHTML.trim() === "" || tbody.innerHTML.includes("Monitorando")) {
+                    tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                }
                 return;
             }
 
@@ -2969,33 +2856,52 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function toggleBotMain() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-master-btn');
+        const isCurrentlyEnabled = !!currentUser.config?.enabled;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'AGUARDE...';
         try {
-            const nextState = !(currentUser.config?.enabled);
-            await fetch('/api/user/update-config', {
+            const res = await fetch('/api/user/update-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: nextState })
+                body: JSON.stringify({ enabled: !isCurrentlyEnabled })
             });
-            loadUser();
+            if (res.ok) {
+                showBanner('BOT ' + (!isCurrentlyEnabled ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyEnabled ? 'success' : 'warning');
+                await loadUser();
+            }
         } catch (e) { console.error('Toggle bot fail:', e); }
+        finally { btn.disabled = false; btn.textContent = originalText; }
     }
 
     async function toggleBypass() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-bypass-btn');
+        const isCurrentlyActive = !!currentUser.config?.bypassFilters;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'AGUARDE...';
         try {
-            const nextState = !(currentUser.config?.bypassFilters);
-            const btn = document.getElementById('bot-bypass-btn');
-            btn.disabled = true;
-            await fetch('/api/user/update-config', {
+            const res = await fetch('/api/user/update-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bypassFilters: nextState })
+                body: JSON.stringify({ bypassFilters: !isCurrentlyActive })
             });
-            loadUser();
-            showBanner(nextState ? 'MODO BYPASS ATIVADO!' : 'MODO BYPASS DESATIVADO', nextState ? 'danger' : 'success');
+            if (res.ok) {
+                showBanner('MODO BYPASS ' + (!isCurrentlyActive ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyActive ? 'danger' : 'success');
+                await loadUser();
+            }
         } catch (e) { console.error('Toggle bypass fail:', e); }
+        finally { btn.disabled = false; btn.textContent = originalText; }
     }
 
-    async function updateBotConfig() {
+    async function updateBotConfig(event) {
+        if (event) event.preventDefault();
+        const btn = document.getElementById('btn-save-config');
+        if (btn) { btn.disabled = true; btn.textContent = 'SALVANDO...'; }
+        
         const config = {
             traderAddress: document.getElementById('bot-trader').value,
             strategy: document.getElementById('bot-strategy').value,
@@ -3025,15 +2931,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             mode: document.getElementById('bot-mode').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
             hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
-            bypassFilters: document.getElementById('bot-bypass-config').checked,
+            bypassFilters: document.getElementById('bot-bypass-config')?.checked || false,
             proxyAddress: document.getElementById('bot-proxyAddress').value
         };
-        const res = await fetch('/api/user/update-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
-        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+
+        try {
+            const res = await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (res.ok) { 
+                showBanner('Configurações Salvas', 'success'); 
+                await loadUser(); 
+            }
+        } catch (e) { console.error('Save config fail:', e); }
+        finally { if (btn) { btn.disabled = false; btn.textContent = 'SALVAR CONFIGURAÇÃO'; } }
     }
 
     /* --- ARBITRAGE TERMINAL LOGIC --- */
