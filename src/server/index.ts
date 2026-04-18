@@ -3488,8 +3488,11 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 }
             } catch (_) { /* best-effort */ }
 
-            // Determine this user's execution status
             const userStatus = userId && t.followerStatuses?.[userId];
+            const myEntryAmount: number | null = userStatus?.myEntryAmount || null;
+            const myEntryPrice: number | null = userStatus?.myEntryPrice || null;
+
+            // Determine this user's execution status
             let executionStatus: string;
             let executionDetails = '';
 
@@ -3497,15 +3500,12 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 executionStatus = userStatus.status;
                 executionDetails = userStatus.details || '';
             } else if (t.processedBy?.includes(userId)) {
-                executionStatus = 'SUCESSO';
+                // If in processedBy but no userStatus, it might be an older record or a silent skip
+                executionStatus = (myEntryAmount && myEntryAmount > 0) ? 'SUCESSO' : 'PROCESSADO';
             } else {
                 // Was detected but not attempted for this user yet or not their trader
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
             }
-
-            // Extract user's own execution data
-            const myEntryAmount: number | null = userStatus?.myEntryAmount || null;
-            const myEntryPrice: number | null = userStatus?.myEntryPrice || null;
 
             // Calculate user's real P&L in USD
             let myPnlUSD: number | null = null;

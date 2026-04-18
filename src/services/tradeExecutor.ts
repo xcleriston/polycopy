@@ -83,13 +83,7 @@ const doTrading = async (trade: any) => {
                 return;
             }
 
-            // Mark user as processing immediately (atomic-ish update)
-            await Activity.updateOne(
-                { _id: trade._id }, 
-                { $addToSet: { processedBy: followerId } }
-            );
-
-            // Calculate E2E Latency
+            // Latency calculation
             const polymarketTime = trade.timestamp > 2000000000 ? trade.timestamp / 1000 : trade.timestamp;
             const latencySeconds = (Date.now() / 1000) - (polymarketTime / 1000);
 
@@ -138,12 +132,23 @@ const doTrading = async (trade: any) => {
                     follower.config,
                     my_positions
                 );
+
+                // Now officially mark as processed
+                await Activity.updateOne(
+                    { _id: trade._id }, 
+                    { $addToSet: { processedBy: followerId } }
+                );
                 
                 // Refresh user balance in DB after trade
                 refreshUserStats(follower._id.toString()).catch(() => {});
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
+            // Record critical failure in activity
+            await Activity.updateOne(
+                { _id: trade._id },
+                { $set: { [`followerStatuses.${followerId}`]: { status: 'ERRO CRÍTICO', details: String(error), timestamp: new Date() } } }
+            ).catch(() => {});
         }
     }));
 

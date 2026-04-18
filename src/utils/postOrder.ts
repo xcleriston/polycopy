@@ -209,6 +209,14 @@ const postOrder = async (
                 finalAmount,
                 reasoning: `BYPASS ACTIVE: Cloning 100% of trader's $${targetAmount.toFixed(2)} (Affordable: $${finalAmount.toFixed(2)})`
             };
+
+            // Force minimum for Polymarket compatibility
+            if (orderCalc.finalAmount > 0 && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+                if (affordable >= MIN_ORDER_SIZE_USD) {
+                    orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
+                    orderCalc.reasoning += ` -> Forced to $${MIN_ORDER_SIZE_USD} for Polymarket min`;
+                }
+            }
         } else {
             // Standard Strategy
             // Get current position size 
@@ -283,6 +291,7 @@ const postOrder = async (
             const orderBook = await clobClient.getOrderBook(trade.asset);
             if (!orderBook.asks || orderBook.asks.length === 0) {
                 Logger.warning(`[${followerId}] No asks available`);
+                await recordStatus(trade._id, followerId, 'FALHA (BOOK)', 'Sem liquidez de venda no momento');
                 break;
             }
 
@@ -351,6 +360,7 @@ const postOrder = async (
         Logger.info(`[${followerId}] Executing SELL strategy...`);
         if (!my_position) {
             Logger.warning(`[${followerId}] No position to sell`);
+            await recordStatus(trade._id, followerId, 'PULADO (VENDA)', 'Nenhuma posição encontrada para vender');
             return;
         }
 
@@ -364,6 +374,7 @@ const postOrder = async (
 
         if (remaining < MIN_ORDER_SIZE_TOKENS) {
             Logger.warning(`[${followerId}] Sell amount too small`);
+            await recordStatus(trade._id, followerId, 'PULADO (MIN)', 'Valor de venda abaixo do mínimo (1 token)');
             return;
         }
 
@@ -372,14 +383,20 @@ const postOrder = async (
 
         while (remaining > 0 && retry < retryLimit) {
             const orderBook = await clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0) break;
+            if (!orderBook.bids || orderBook.bids.length === 0) {
+                await recordStatus(trade._id, followerId, 'FALHA (BOOK)', 'Sem liquidez de compra no momento');
+                break;
+            }
 
             const maxPriceBid = orderBook.bids.reduce((max: any, bid: any) => {
                 return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
             }, orderBook.bids[0]);
 
             const sellAmount = Math.min(remaining, parseFloat(maxPriceBid.size));
-            if (sellAmount < MIN_ORDER_SIZE_TOKENS) break;
+            if (sellAmount < MIN_ORDER_SIZE_TOKENS) {
+                await recordStatus(trade._id, followerId, 'PULADO (MIN)', 'Restante muito pequeno');
+                break;
+            }
 
             const order_arges = {
                 side: Side.SELL,
@@ -396,8 +413,15 @@ const postOrder = async (
                 Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
                 telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
+                await recordStatus(trade._id, followerId, 'SUCESSO', `Vendido ${totalSoldTokens} tokens`, {
+                     myEntryAmount: totalSoldTokens * order_arges.price,
+                     myEntryPrice: order_arges.price
+                });
             } else {
                 retry += 1;
+                if (retry >= retryLimit) {
+                    await recordStatus(trade._id, followerId, 'ERRO', extractOrderError(resp) || 'Falha após retentativas');
+                }
             }
         }
     }
