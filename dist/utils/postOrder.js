@@ -182,6 +182,13 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 finalAmount,
                 reasoning: `BYPASS ACTIVE: Cloning 100% of trader's $${targetAmount.toFixed(2)} (Affordable: $${finalAmount.toFixed(2)})`
             };
+            // Force minimum for Polymarket compatibility
+            if (orderCalc.finalAmount > 0 && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+                if (affordable >= MIN_ORDER_SIZE_USD) {
+                    orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
+                    orderCalc.reasoning += ` -> Forced to $${MIN_ORDER_SIZE_USD} for Polymarket min`;
+                }
+            }
         }
         else {
             // Standard Strategy
@@ -195,43 +202,45 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
             orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
         }
-        if (orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+        if (!config.bypassFilters && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
             yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
         }
-        // 3. Exposure and Spend Checks
-        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
-            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.2 Max Per Market
-        const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
-            const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.3 Max Per Token
-        const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
-            const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.5 Total Spend Limit
-        const userRec = yield User.findById(followerId);
-        const totalSpent = (userRec === null || userRec === void 0 ? void 0 : userRec.totalSpentUSD) || 0;
-        if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
-            const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
+        // 3. Exposure and Spend Checks (Skipped in Bypass Mode)
+        if (!config.bypassFilters) {
+            const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
+                const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.2 Max Per Market
+            const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
+                const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.3 Max Per Token
+            const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
+                const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.5 Total Spend Limit
+            const userRec = yield User.findById(followerId);
+            const totalSpent = (userRec === null || userRec === void 0 ? void 0 : userRec.totalSpentUSD) || 0;
+            if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
+                const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
         }
         let remaining = orderCalc.finalAmount;
         let retry = 0;
@@ -240,12 +249,13 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             const orderBook = yield clobClient.getOrderBook(trade.asset);
             if (!orderBook.asks || orderBook.asks.length === 0) {
                 Logger.warning(`[${followerId}] No asks available`);
+                yield recordStatus(trade._id, followerId, 'FALHA (BOOK)', 'Sem liquidez de venda no momento');
                 break;
             }
             const minPriceAsk = orderBook.asks.reduce((min, ask) => {
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
-            if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
+            if (!config.bypassFilters && (parseFloat(minPriceAsk.price) - slippage > trade.price)) {
                 const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
                 Logger.warning(`[${followerId}] ${reason} - skipping trade`);
                 yield recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
@@ -299,6 +309,7 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
         Logger.info(`[${followerId}] Executing SELL strategy...`);
         if (!my_position) {
             Logger.warning(`[${followerId}] No position to sell`);
+            yield recordStatus(trade._id, followerId, 'PULADO (VENDA)', 'Nenhuma posição encontrada para vender');
             return;
         }
         // Simpler sell logic for multi-user: proportional sell based on position size
@@ -309,20 +320,25 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
         let remaining = my_position.size * trader_sell_percent;
         if (remaining < MIN_ORDER_SIZE_TOKENS) {
             Logger.warning(`[${followerId}] Sell amount too small`);
+            yield recordStatus(trade._id, followerId, 'PULADO (MIN)', 'Valor de venda abaixo do mínimo (1 token)');
             return;
         }
         let retry = 0;
         let totalSoldTokens = 0;
         while (remaining > 0 && retry < retryLimit) {
             const orderBook = yield clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0)
+            if (!orderBook.bids || orderBook.bids.length === 0) {
+                yield recordStatus(trade._id, followerId, 'FALHA (BOOK)', 'Sem liquidez de compra no momento');
                 break;
+            }
             const maxPriceBid = orderBook.bids.reduce((max, bid) => {
                 return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
             }, orderBook.bids[0]);
             const sellAmount = Math.min(remaining, parseFloat(maxPriceBid.size));
-            if (sellAmount < MIN_ORDER_SIZE_TOKENS)
+            if (sellAmount < MIN_ORDER_SIZE_TOKENS) {
+                yield recordStatus(trade._id, followerId, 'PULADO (MIN)', 'Restante muito pequeno');
                 break;
+            }
             const order_arges = {
                 side: Side.SELL,
                 tokenID: trade.asset,
@@ -337,9 +353,16 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
                 telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
+                yield recordStatus(trade._id, followerId, 'SUCESSO', `Vendido ${totalSoldTokens} tokens`, {
+                    myEntryAmount: totalSoldTokens * order_arges.price,
+                    myEntryPrice: order_arges.price
+                });
             }
             else {
                 retry += 1;
+                if (retry >= retryLimit) {
+                    yield recordStatus(trade._id, followerId, 'ERRO', extractOrderError(resp) || 'Falha após retentativas');
+                }
             }
         }
     }

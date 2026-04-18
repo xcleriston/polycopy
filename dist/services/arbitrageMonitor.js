@@ -235,65 +235,86 @@ const processUserArbitrage = (user, market, currentPrice, previousPrice) => __aw
         yield executeArbitrageTrade(user, market, side, amount, 'Leg 1 / Trigger');
     }
 });
-export const executeArbitrageTrade = (user, market, side, amount, reason) => __awaiter(void 0, void 0, void 0, function* () {
+export const executeArbitrageTrade = (user_1, market_1, side_1, amount_1, reason_1, ...args_1) => __awaiter(void 0, [user_1, market_1, side_1, amount_1, reason_1, ...args_1], void 0, function* (user, market, side, amount, reason, action = 'BUY') {
     try {
         const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         const pk = user.wallet.privateKey;
         const clobClient = yield createClobClient(pk);
-        Logger.info(`🚀 [${user.chatId}] Arbitrage Action: ${reason} | ${side} on ${market.question.slice(0, 30)}...`);
-        const balance = yield getMyBalance(user.wallet.address);
-        // Enforce exchange minimum floor ($1.00)
-        let finalAmount = amount;
-        if (finalAmount < 1.0) {
-            Logger.info(`[${user.chatId}] Calculated size $${finalAmount.toFixed(2)} is below floor. Adjusting to $1.00.`);
-            finalAmount = 1.0;
-        }
-        if (balance < finalAmount) {
-            Logger.warning(`[${user.chatId}] Insufficient balance for arbitrage: Current $${balance.toFixed(2)} | Required $${finalAmount.toFixed(2)}`);
-            return;
-        }
-        // Check Max Per Market
-        // ... (Omitting for brevity, but recommended in production)
-        const orderArgs = {
-            side: Side.BUY,
-            tokenID: tokenId,
-            amount: finalAmount,
-            // To be fast, we can use a very high price and rely on FOK/Market protection
-            // Or fetch orderbook bids. For arbitrage, we usually want FOK on the Best Ask.
-            price: 0.99
-        };
-        const signedOrder = yield clobClient.createMarketOrder(orderArgs);
-        const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
-        if (resp.success) {
-            Logger.success(`✅ [${user.chatId}] ${reason} Executed: ${finalAmount} tokens of ${side}`);
-            // Save to database for Dashboard display
-            try {
-                yield Activity.create({
-                    chatId: user.chatId,
-                    type: 'TRADE',
-                    side: 'BUY',
-                    usdcSize: finalAmount,
-                    processedBy: [user._id],
-                    title: `${reason} | ${market.question}`,
-                    asset: tokenId,
-                    conditionId: market.conditionId,
-                    executionStatus: 'SUCESSO',
-                    price: (market.currentPrice || 0).toString(),
-                    timestamp: new Date()
-                });
+        const actionStr = action === 'BUY' ? 'COMPRANDO' : 'VENDENDO';
+        Logger.info(`🚀 [${user.chatId}] Arbitrage Action: ${reason} | ${actionStr} ${side} on ${market.question.slice(0, 30)}...`);
+        if (action === 'BUY') {
+            const balance = yield getMyBalance(user.wallet.address);
+            // Enforce exchange minimum floor ($1.00)
+            let finalAmount = amount;
+            if (finalAmount < 1.0) {
+                Logger.info(`[${user.chatId}] Calculated size $${finalAmount.toFixed(2)} is below floor. Adjusting to $1.00.`);
+                finalAmount = 1.0;
             }
-            catch (dbErr) {
-                Logger.error(`[DB] Failed to save arbitrage activity: ${dbErr}`);
+            if (balance < finalAmount) {
+                Logger.warning(`[${user.chatId}] Insufficient balance for arbitrage: Current $${balance.toFixed(2)} | Required $${finalAmount.toFixed(2)}`);
+                return;
             }
-            telegram.tradeExecuted(user.chatId, side, finalAmount, 1.0, market.question);
-            // Refresh balance in DB after arbitrage
-            refreshUserStats(user._id.toString()).catch(() => { });
+            const orderArgs = {
+                side: Side.BUY,
+                tokenID: tokenId,
+                amount: finalAmount,
+                price: 0.99
+            };
+            const signedOrder = yield clobClient.createMarketOrder(orderArgs);
+            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+            if (resp.success) {
+                Logger.success(`✅ [${user.chatId}] ${reason} Executed: BUY ${finalAmount} tokens of ${side}`);
+                yield recordArbitrageActivity(user, market, side, tokenId, finalAmount, 'BUY', reason);
+                telegram.tradeExecuted(user.chatId, side, finalAmount, 1.0, market.question);
+                refreshUserStats(user._id.toString()).catch(() => { });
+            }
+            else {
+                Logger.error(`[${user.chatId}] Arbitrage BUY failed: ${JSON.stringify(resp)}`);
+            }
         }
         else {
-            Logger.error(`[${user.chatId}] Arbitrage execution failed: ${JSON.stringify(resp)}`);
+            // SELL logic
+            // To sell, we specify the amount of tokens
+            const orderArgs = {
+                side: Side.SELL,
+                tokenID: tokenId,
+                amount: amount, // For sell, 'amount' is tokens
+                price: 0.01
+            };
+            const signedOrder = yield clobClient.createMarketOrder(orderArgs);
+            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+            if (resp.success) {
+                Logger.success(`✅ [${user.chatId}] ${reason} Executed: SELL ${amount} tokens of ${side}`);
+                yield recordArbitrageActivity(user, market, side, tokenId, amount * (market.currentPrice || 0.5), 'SELL', reason);
+                telegram.tradeExecuted(user.chatId, side, amount, 0, market.question); // Simple alert
+                refreshUserStats(user._id.toString()).catch(() => { });
+            }
+            else {
+                Logger.error(`[${user.chatId}] Arbitrage SELL failed: ${JSON.stringify(resp)}`);
+            }
         }
     }
     catch (error) {
         Logger.error(`[${user.chatId}] Arbitrage exception: ${error.message || error}`);
+    }
+});
+const recordArbitrageActivity = (user, market, side, asset, usdcSize, action, reason) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield Activity.create({
+            chatId: user.chatId,
+            type: 'TRADE',
+            side: action,
+            usdcSize: usdcSize,
+            processedBy: [user._id],
+            title: `${reason} | ${market.question}`,
+            asset: asset,
+            conditionId: market.conditionId,
+            executionStatus: 'SUCESSO',
+            price: (market.currentPrice || 0).toString(),
+            timestamp: new Date()
+        });
+    }
+    catch (dbErr) {
+        Logger.error(`[DB] Failed to save arbitrage activity: ${dbErr}`);
     }
 });

@@ -75,9 +75,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.warning(`[${followerId}] No wallet configured - skipping`);
                 return;
             }
-            // Mark user as processing immediately (atomic-ish update)
-            yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
-            // Calculate E2E Latency
+            // Latency calculation
             const polymarketTime = trade.timestamp > 2000000000 ? trade.timestamp / 1000 : trade.timestamp;
             const latencySeconds = (Date.now() / 1000) - (polymarketTime / 1000);
             Logger.trade(followerId, trade.side || 'UNKNOWN', {
@@ -107,12 +105,16 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
                 yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, my_positions);
+                // Now officially mark as processed
+                yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
                 // Refresh user balance in DB after trade
                 refreshUserStats(follower._id.toString()).catch(() => { });
             }
         }
         catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
+            // Record critical failure in activity
+            yield Activity.updateOne({ _id: trade._id }, { $set: { [`followerStatuses.${followerId}`]: { status: 'ERRO CRÍTICO', details: String(error), timestamp: new Date() } } }).catch(() => { });
         }
     })));
     // After attempting all followers, check if we should mark the trade as completely processed

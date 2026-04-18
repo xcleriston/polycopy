@@ -1805,6 +1805,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 .ticker-price { font-size: 1.4rem; font-weight: 700; color: #fff; }
 .ticker-change { font-size: 0.85rem; font-weight: 600; }
 
+.mode-copy-only, .mode-arbitrage-only { display: none; }
+.mode-arbitrage .mode-arbitrage-only { display: block; }
+.mode-copy .mode-copy-only { display: block; }
+.mode-arbitrage .mode-arbitrage-grid { display: grid; }
+
 .order-panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; }
 .order-tabs { display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
 .order-tab { font-size: 0.85rem; font-weight: 700; color: var(--text-dim); cursor: pointer; padding-bottom: 8px; position: relative; }
@@ -1828,8 +1833,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 .amount-input:focus { outline: none; }
 
 .shortcut-btns { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 8px; margin-bottom: 20px; }
-.sc-btn { background: var(--bg); border: 1px solid var(--border); padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
-.sc-btn:hover { border-color: var(--text-dim); }
+.sc-btn { background: var(--bg); border: 1px solid var(--border); padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; color: #fff; }
+.sc-btn:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.1); }
 
 .tf-switcher { display: flex; background: var(--bg); border-radius: 8px; padding: 4px; gap: 4px; }
 .tf-btn { padding: 4px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-dim); }
@@ -1862,6 +1867,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
   display: none;
   animation: slideDown 0.3s ease;
 }
+
+/* MODE ISOLATION */
+.tab-view.mode-copy .arbitrage-terminal-only { display: none !important; }
+.tab-view.mode-arbitrage .copy-bot-only { display: none !important; }
+.tab-view.mode-arbitrage .terminal-grid { display: grid !important; }
 
 @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
 </style>
@@ -1896,17 +1906,35 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         </div>
 
         <!-- ARBITRAGE TERMINAL (VISIBLE ONLY IN ARBITRAGE MODE) -->
-        <div id="arbitrage-terminal" class="terminal-grid" style="display: none">
+        <div id="arbitrage-terminal" class="terminal-grid arbitrage-terminal-only" style="display: none">
             <div class="chart-container">
                 <div class="chart-header">
                     <div class="chart-title">
                         <div style="background: #f7931a; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800">₿</div>
                         <div>
-                            <div style="font-weight:700; font-size:0.95rem">Bitcoin Up or Down - <span id="current-tf">5 minutos</span></div>
-                            <div id="target-info" style="font-size:0.7rem; color:var(--text-dim)">Target: Calculating...</div>
+                            <div style="font-weight:700; font-size:0.95rem">Bitcoin Arbitrage - <span id="current-tf">5 minutos</span></div>
+                            <div style="display:flex; align-items:center; gap:6px">
+                                <div id="ws-status-dot" style="width:6px; height:6px; background:var(--success); border-radius:50%; box-shadow:0 0 5px var(--success)"></div>
+                                <div id="target-info" style="font-size:0.7rem; color:var(--text-dim)">Live Sincronizado</div>
+                            </div>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:20px">
+                        <!-- ACTIVE CONFIG SUMMARY -->
+                        <div style="display: flex; gap: 15px; background: rgba(255,255,255,0.03); padding: 5px 15px; border-radius: 8px; border: 1px solid var(--border)">
+                            <div style="text-align: center">
+                                <span style="font-size:0.6rem; color:var(--text-dim); display:block">DELTA</span>
+                                <span id="summary-delta" style="font-size:0.8rem; font-weight:700; color:var(--accent)">0.005</span>
+                            </div>
+                            <div style="text-align: center">
+                                <span style="font-size:0.6rem; color:var(--text-dim); display:block">TETO</span>
+                                <span id="summary-ceiling" style="font-size:0.8rem; font-weight:700; color:var(--success)">0.95</span>
+                            </div>
+                            <div style="text-align: center">
+                                <span style="font-size:0.6rem; color:var(--text-dim); display:block">TAMANHO</span>
+                                <span id="summary-size" style="font-size:0.8rem; font-weight:700; color:#fff">$20</span>
+                            </div>
+                        </div>
                         <div style="text-align:right">
                             <div id="btc-price" class="ticker-price">$0.00</div>
                             <div id="btc-change" class="ticker-change" style="color:var(--success)">+0.00%</div>
@@ -1922,8 +1950,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
             <div class="order-panel">
                 <div class="order-tabs">
-                    <div class="order-tab active">COMPRAR</div>
-                    <div class="order-tab">VENDER</div>
+                    <div id="tab-buy" class="order-tab active" onclick="switchOrderTab('BUY')">COMPRAR</div>
+                    <div id="tab-sell" class="order-tab" onclick="switchOrderTab('SELL')">VENDER</div>
                     <div style="flex:1"></div>
                     <div style="font-size:0.7rem; color:var(--text-dim)">MERCADO ⌄</div>
                 </div>
@@ -1968,7 +1996,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px">
+        <div id="copy-stats-row" class="copy-bot-only" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px">
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
                 <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">💰</div>
                 <div>
@@ -1992,7 +2020,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px">
+        <div id="copy-trader-row" class="copy-bot-only" style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px">
             <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 20px">
                 <div style="display: flex; align-items: center; gap: 15px">
                     <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">👤</div>
@@ -2075,7 +2103,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                             <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group copy-bot-only-config">
                         <label>Endereço do Trader Monitorado</label>
                         <input type="text" id="bot-trader" placeholder="0x...">
                     </div>
@@ -2119,7 +2147,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card arb-bot-only-config">
                     <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
@@ -2241,7 +2269,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
         </div>
 
-        <div class="card" style="margin-top: 24px">
+        <div class="card copy-bot-only-config" style="margin-top: 24px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
                 <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💰</span> Gestão da Carteira</h3>
                 <div style="text-align: right">
@@ -2337,14 +2365,37 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
 
-            // Arbitrage Terminal Logic
+            // Mode Isolation Logic
             const terminal = document.getElementById('arbitrage-terminal');
-            if (isArbitrageMode && currentTab === 'bot') {
-                if (terminal) terminal.style.display = 'grid';
-                try {
-                    initTerminalChart();
-                } catch (e) { console.error('Chart init fail:', e); }
+            const botTab = document.getElementById('tab-bot');
+            const isArbitrageMode = currentUser.config?.mode === 'ARBITRAGE';
+            
+            // Definitively hide bypass in Arbitrage
+            const bypassBtn = document.getElementById('bot-bypass-btn');
+            const bypassBanner = document.getElementById('bypass-alert-banner');
+            
+            if (isArbitrageMode) {
+                if (bypassBtn) bypassBtn.style.display = 'none';
+                if (bypassBanner) bypassBanner.style.display = 'none';
+                if (botTab) {
+                    botTab.classList.add('mode-arbitrage');
+                    botTab.classList.remove('mode-copy');
+                }
+                if (terminal && currentTab === 'bot') {
+                    terminal.style.display = 'grid';
+                    setTimeout(() => {
+                        initTerminalChart();
+                        if (chart) chart.timeScale().fitContent();
+                        initBinanceWS();
+                        initPolymarketWS();
+                    }, 100);
+                }
             } else {
+                if (bypassBtn) bypassBtn.style.display = 'block';
+                if (botTab) {
+                    botTab.classList.add('mode-copy');
+                    botTab.classList.remove('mode-arbitrage');
+                }
                 if (terminal) terminal.style.display = 'none';
             }
 
@@ -2589,18 +2640,24 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const bypassBtn = document.getElementById('bot-bypass-btn');
             const bypassBanner = document.getElementById('bypass-alert-banner');
             if (bypassBtn) {
-                const isActive = !!c.bypassFilters;
-                bypassBtn.textContent = isActive ? '⚡ BYPASS ACTIVE' : 'MODO BYPASS OFF';
-                if (isActive) {
-                    bypassBtn.classList.add('btn-bypass-active');
+                if (isArbitrage) {
+                    bypassBtn.style.display = 'none';
+                    if (bypassBanner) bypassBanner.style.display = 'none';
                 } else {
-                    bypassBtn.classList.remove('btn-bypass-active');
-                    bypassBtn.style.background = 'var(--bg)';
-                    bypassBtn.style.color = 'var(--accent)';
-                    bypassBtn.style.borderColor = 'var(--accent)';
-                    bypassBtn.style.boxShadow = 'none';
+                    bypassBtn.style.display = 'block';
+                    const isActive = !!c.bypassFilters;
+                    bypassBtn.textContent = isActive ? '⚡ BYPASS ACTIVE' : 'MODO BYPASS OFF';
+                    if (isActive) {
+                        bypassBtn.classList.add('btn-bypass-active');
+                    } else {
+                        bypassBtn.classList.remove('btn-bypass-active');
+                        bypassBtn.style.background = 'var(--bg)';
+                        bypassBtn.style.color = 'var(--accent)';
+                        bypassBtn.style.borderColor = 'var(--accent)';
+                        bypassBtn.style.boxShadow = 'none';
+                    }
+                    if (bypassBanner) bypassBanner.style.display = isActive ? 'block' : 'none';
                 }
-                if (bypassBanner) bypassBanner.style.display = isActive ? 'block' : 'none';
             }
 
             // Config Fill
@@ -2631,17 +2688,51 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
             setVal('bot-mode', c.mode || 'COPY');
             
+            // Dynamic Config Visibility
+            const copyCards = document.querySelectorAll('.copy-bot-only-config');
+            const arbCards = document.querySelectorAll('.arb-bot-only-config');
+            
+            if (isArbitrage) {
+                copyCards.forEach(el => (el.style.display = 'none'));
+                arbCards.forEach(el => (el.style.display = 'block'));
+                const sDelta = document.getElementById('summary-delta');
+                const sCeil = document.getElementById('summary-ceiling');
+                const sSize = document.getElementById('summary-size');
+                if (sDelta) sDelta.textContent = (c.triggerDelta || 0.005).toString();
+                if (sCeil) sCeil.textContent = (c.hedgeCeiling || 0.95).toString();
+                if (sSize) sSize.textContent = '$' + (c.copySize || 10).toString();
+            } else {
+                copyCards.forEach(el => (el.style.display = 'block'));
+                arbCards.forEach(el => (el.style.display = 'none'));
+            }
+
             const botBypassConfig = document.getElementById('bot-bypass-config');
-            if (botBypassConfig) botBypassConfig.checked = !!c.bypassFilters;
+            if (botBypassConfig) {
+                botBypassConfig.checked = !!c.bypassFilters;
+                const bypassRow = botBypassConfig.closest('.switch-container');
+                if (bypassRow) bypassRow.style.display = isArbitrage ? 'none' : 'flex';
+            }
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
             const botRev = document.getElementById('bot-reverse');
-            if (botRev) botRev.checked = !!c.reverseCopy;
+            if (botRev) {
+                botRev.checked = !!c.reverseCopy;
+                const revRow = botRev.closest('.switch-container');
+                if (revRow) revRow.style.display = isArbitrage ? 'none' : 'flex';
+            }
             const botBuy = document.getElementById('bot-copyBuy');
-            if (botBuy) botBuy.checked = c.copyBuy !== false;
+            if (botBuy) {
+                botBuy.checked = c.copyBuy !== false;
+                const buyRow = botBuy.closest('.switch-container');
+                if (buyRow) buyRow.style.display = isArbitrage ? 'none' : 'flex';
+            }
             const botSell = document.getElementById('bot-copySell');
-            if (botSell) botSell.checked = c.copySell !== false;
+            if (botSell) {
+                botSell.checked = c.copySell !== false;
+                const sellRow = botSell.closest('.switch-container');
+                if (sellRow) sellRow.style.display = isArbitrage ? 'none' : 'flex';
+            }
 
             // Wallet management safety UI
             const isBotActive = !!c.enabled;
@@ -2750,7 +2841,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                if (tbody.innerHTML.trim() === "" || tbody.innerHTML.includes("Monitorando")) {
+                    tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                }
                 return;
             }
 
@@ -2828,34 +2921,56 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function toggleBotMain() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-master-btn');
+        const isCurrentlyEnabled = !!currentUser.config?.enabled;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'AGUARDE...';
         try {
-            const nextState = !(currentUser.config?.enabled);
-            await fetch('/api/user/update-config', {
+            const res = await fetch('/api/user/update-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: nextState })
+                body: JSON.stringify({ enabled: !isCurrentlyEnabled })
             });
-            loadUser();
+            if (res.ok) {
+                showBanner('BOT ' + (!isCurrentlyEnabled ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyEnabled ? 'success' : 'warning');
+                await loadUser();
+            }
         } catch (e) { console.error('Toggle bot fail:', e); }
+        finally { btn.disabled = false; btn.textContent = originalText; }
     }
 
     async function toggleBypass() {
+        if (!currentUser) return;
+        const btn = document.getElementById('bot-bypass-btn');
+        const isCurrentlyActive = !!currentUser.config?.bypassFilters;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'AGUARDE...';
         try {
-            const nextState = !(currentUser.config?.bypassFilters);
-            const btn = document.getElementById('bot-bypass-btn');
-            btn.disabled = true;
-            await fetch('/api/user/update-config', {
+            const res = await fetch('/api/user/update-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bypassFilters: nextState })
+                body: JSON.stringify({ bypassFilters: !isCurrentlyActive })
             });
-            loadUser();
-            showBanner(nextState ? 'MODO BYPASS ATIVADO!' : 'MODO BYPASS DESATIVADO', nextState ? 'danger' : 'success');
+            if (res.ok) {
+                showBanner('MODO BYPASS ' + (!isCurrentlyActive ? 'ATIVADO' : 'DESATIVADO'), !isCurrentlyActive ? 'danger' : 'success');
+                await loadUser();
+            }
         } catch (e) { console.error('Toggle bypass fail:', e); }
+        finally { btn.disabled = false; btn.textContent = originalText; }
     }
 
-    async function updateBotConfig() {
-        const config = {
+    async function updateBotConfig(event) {
+        if (event) event.preventDefault();
+        const btn = document.getElementById('btn-save-config');
+        if (btn) { btn.disabled = true; btn.textContent = 'SALVANDO...'; }
+        
+        // If mode is changing, force bot to be disabled first for safety
+        const newMode = document.getElementById('bot-mode').value;
+        const currentMode = currentUser.config?.mode || 'COPY';
+        const config: any = {
             traderAddress: document.getElementById('bot-trader').value,
             strategy: document.getElementById('bot-strategy').value,
             copySize: parseFloat(document.getElementById('bot-size').value),
@@ -2881,18 +2996,29 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             lastMinuteModeSec: parseInt(document.getElementById('bot-lastMinuteModeSec').value) || 0,
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
-            mode: document.getElementById('bot-mode').value,
+            mode: newMode,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
             hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
-            bypassFilters: document.getElementById('bot-bypass-config').checked,
+            bypassFilters: document.getElementById('bot-bypass-config')?.checked || false,
             proxyAddress: document.getElementById('bot-proxyAddress').value
         };
-        const res = await fetch('/api/user/update-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
-        if (res.ok) { showBanner('Configurações Salvas', 'success'); loadUser(); }
+
+        if (newMode !== currentMode) {
+            config.enabled = false;
+        }
+
+        try {
+            const res = await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (res.ok) { 
+                showBanner('Configurações Salvas', 'success'); 
+                await loadUser(); 
+            }
+        } catch (e) { console.error('Save config fail:', e); }
+        finally { if (btn) { btn.disabled = false; btn.textContent = 'SALVAR CONFIGURAÇÃO'; } }
     }
 
     /* --- ARBITRAGE TERMINAL LOGIC --- */
@@ -2900,6 +3026,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     let candleSeries = null;
     let selectedSide = 'UP';
     let selectedTF = '5m';
+    let selectedAction = 'BUY';
+    let binanceWS = null;
+    let polyWS = null;
+    let activeMarketData = null; // Store full market info
+
+    function switchOrderTab(action) {
+        selectedAction = action;
+        document.getElementById('tab-buy').classList.toggle('active', action === 'BUY');
+        document.getElementById('tab-sell').classList.toggle('active', action === 'SELL');
+        
+        const btn = document.getElementById('btn-buy-now');
+        if (btn) {
+            btn.innerHTML = \`\${action === 'BUY' ? 'BUY' : 'SELL'} \${selectedSide}\`;
+            btn.style.background = action === 'BUY' ? 'var(--accent)' : 'var(--danger)';
+        }
+    }
 
     function initTerminalChart() {
         if (chart) return;
@@ -2956,9 +3098,15 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     function switchTerminalTF(tf) {
         selectedTF = tf;
         document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-        event.target.classList.add('active');
+        const btn = Array.from(document.querySelectorAll('.tf-btn')).find(b => b.textContent.includes(tf.replace('m', '')));
+        if (btn) btn.classList.add('active');
+        
         document.getElementById('current-tf').textContent = tf === '5m' ? '5 minutos' : '15 minutos';
-        // Logic for refreshing target price or markers could go here
+        
+        // Refresh market metadata then the WS will handle prices
+        updateTerminalMarketData().then(() => {
+            subscribePolymarket();
+        });
     }
 
     function setEntrySide(side) {
@@ -2966,6 +3114,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('btn-side-up').classList.toggle('active', side === 'UP');
         document.getElementById('btn-side-down').classList.toggle('active', side === 'DOWN');
         document.getElementById('side-label').textContent = side;
+        
+        const mainBtn = document.getElementById('btn-buy-now');
+        if (mainBtn) mainBtn.innerHTML = \`\${selectedAction === 'BUY' ? 'BUY' : 'SELL'} \${side}\`;
     }
 
     function addAmount(val) {
@@ -2994,6 +3145,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     side: selectedSide,
+                    action: selectedAction, // BUY or SELL
                     amount: amount,
                     timeframe: selectedTF === '5m' ? '5 minutos' : '15 minutos'
                 })
@@ -3014,20 +3166,109 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         }
     }
 
+    function initBinanceWS() {
+        if (binanceWS) return;
+        console.log('[WS] Connecting to Binance...');
+        binanceWS = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
+        
+        binanceWS.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const price = parseFloat(data.c); // last price
+            const change = parseFloat(data.P); // price change percent
+            
+            const btcPriceEl = document.getElementById('btc-price');
+            const btcChangeEl = document.getElementById('btc-change');
+            
+            if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString(undefined, { minimumFractionDigits: 1 })}\`;
+            if (btcChangeEl) {
+                btcChangeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
+                btcChangeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+            }
+
+            if (candleSeries) {
+                candleSeries.update({
+                    time: Math.floor(Date.now() / 1000),
+                    value: price
+                });
+            }
+        };
+
+        binanceWS.onclose = () => {
+            console.log('[WS] Binance disconnected. Reconnecting...');
+            binanceWS = null;
+            setTimeout(initBinanceWS, 3000);
+        };
+    }
+
+    function initPolymarketWS() {
+        if (polyWS) return;
+        console.log('[WS] Connecting to Polymarket CLOB...');
+        polyWS = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/');
+        
+        polyWS.onopen = () => {
+            document.getElementById('ws-status-dot').style.background = 'var(--success)';
+            subscribePolymarket();
+        };
+
+        polyWS.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            // Polymarket WS usually returns price updates for subscribed tokens
+            if (msg.event === 'price' && activeMarketData) {
+                if (msg.asset === activeMarketData.yesTokenId) {
+                    const p = parseFloat(msg.price);
+                    document.getElementById('price-up').textContent = \`\${(p * 100).toFixed(1)}¢\`;
+                } else if (msg.asset === activeMarketData.noTokenId) {
+                    const p = parseFloat(msg.price);
+                    document.getElementById('price-down').textContent = \`\${(p * 100).toFixed(1)}¢\`;
+                }
+            }
+        };
+
+        polyWS.onclose = () => {
+            console.log('[WS] Polymarket disconnected. Reconnecting...');
+            const dot = document.getElementById('ws-status-dot');
+            if (dot) dot.style.background = 'var(--danger)';
+            polyWS = null;
+            setTimeout(initPolymarketWS, 3000);
+        };
+    }
+
+    function subscribePolymarket() {
+        if (!polyWS || polyWS.readyState !== WebSocket.OPEN || !activeMarketData) return;
+        
+        // Subscribe to YES and NO tokens
+        const subMsg = {
+            type: 'subscribe',
+            channels: ['price'],
+            assets: [activeMarketData.yesTokenId, activeMarketData.noTokenId]
+        };
+        polyWS.send(JSON.stringify(subMsg));
+        console.log('[WS] Subscribed to Polymarket tokens:', activeMarketData.yesTokenId, activeMarketData.noTokenId);
+    }
+
     async function updateTerminalMarketData() {
         if (currentUser?.config?.mode !== 'ARBITRAGE') return;
         try {
             const res = await fetch('/api/arbitrage/active-markets');
+            if (!res.ok) return;
             const data = await res.json();
             const timeframeStr = selectedTF === '5m' ? '5 minutos' : '15 minutos';
-            const m = data.find(item => item.question.toLowerCase().includes(timeframeStr));
+            
+            const m = data.find(item => {
+                const q = item.question.toLowerCase();
+                return q.includes('bitcoin') && q.includes(timeframeStr);
+            });
             
             if (m) {
+                activeMarketData = m;
                 document.getElementById('price-up').textContent = \`\${(m.yesPrice * 100).toFixed(1)}¢\`;
                 document.getElementById('price-down').textContent = \`\${(m.noPrice * 100).toFixed(1)}¢\`;
                 document.getElementById('target-info').textContent = \`Target: BTC above \${m.target}\`;
+                subscribePolymarket(); // Ensure sub matches current metadata
+            } else {
+                document.getElementById('target-info').textContent = \`Procurando mercado \${timeframeStr}...\`;
             }
-        } catch (e) { /* silent */ }
+        } catch (e) { console.error('Market metadata fetch fail:', e); }
     }
 
     function showBanner(msg, type = 'success') {
@@ -3201,7 +3442,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress, bypassFilters } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -3266,8 +3507,13 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined)
         user.config.minMarketLiquidity = minMarketLiquidity;
-    if (mode !== undefined)
+    // Safety Lock: Disable bot if mode is changing
+    if (mode !== undefined && mode !== user.config.mode) {
+        user.config.enabled = false;
         user.config.mode = mode;
+    }
+    if (bypassFilters !== undefined)
+        user.config.bypassFilters = bypassFilters;
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
@@ -3318,10 +3564,11 @@ app.post('/api/trade/manual', authenticateToken, (req, res) => __awaiter(void 0,
         // 2. Execute Manual Trade logic
         // We reuse the executeArbitrageTrade logic but flag it as MANUAL
         const polymarketSide = side === 'UP' ? 'YES' : 'NO';
+        const tradeAction = req.body.action || 'BUY';
         // Use a background call to avoid blocking
-        arbitrageMonitor.executeArbitrageTrade(user, market, polymarketSide, amount, `MANUAL ${side}`)
+        arbitrageMonitor.executeArbitrageTrade(user, market, polymarketSide, amount, `MANUAL ${side}`, tradeAction)
             .catch((err) => console.error(`[MANUAL TRADE] Execution error: ${err}`));
-        res.json({ success: true, message: `Ordem ${side} enviada para o mercado ${timeframe}` });
+        res.json({ success: true, message: `Ordem ${tradeAction} ${side} enviada para o mercado ${timeframe}` });
     }
     catch (err) {
         console.error('[MANUAL TRADE] Route error:', err);
@@ -3437,8 +3684,10 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 }
             }
             catch (_) { /* best-effort */ }
-            // Determine this user's execution status
             const userStatus = userId && ((_b = t.followerStatuses) === null || _b === void 0 ? void 0 : _b[userId]);
+            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
+            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
+            // Determine this user's execution status
             let executionStatus;
             let executionDetails = '';
             if (userStatus) {
@@ -3446,15 +3695,13 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 executionDetails = userStatus.details || '';
             }
             else if ((_c = t.processedBy) === null || _c === void 0 ? void 0 : _c.includes(userId)) {
-                executionStatus = 'SUCESSO';
+                // If in processedBy but no userStatus, it might be an older record or a silent skip
+                executionStatus = (myEntryAmount && myEntryAmount > 0) ? 'SUCESSO' : 'PROCESSADO';
             }
             else {
                 // Was detected but not attempted for this user yet or not their trader
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
             }
-            // Extract user's own execution data
-            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
-            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
             // Calculate user's real P&L in USD
             let myPnlUSD = null;
             let myPnlLabel = '';
