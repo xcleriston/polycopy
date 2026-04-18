@@ -3866,8 +3866,7 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     console.log(`[DASHBOARD] Routing user ${req.user?.username} with role ${userRole}`);
     
     if (userRole === 'admin') {
-        // Temporarily showing user dash to admin for verification
-        res.type('html').send(userDashboardHtml);
+        res.type('html').send(adminDashboardHtml);
     } else {
         res.type('html').send(userDashboardHtml);
     }
