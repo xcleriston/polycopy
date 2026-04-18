@@ -3127,18 +3127,22 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function startPriceStream() {
-        // Simple fetch-based "stream" for reliability, or use Binance WebSockets directly in browser
         const updatePrice = async () => {
             try {
-                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+                // Use our internal proxy to avoid CORS
+                const res = await fetch('/api/price/btc');
                 const data = await res.json();
-                const price = parseFloat(data.lastPrice);
-                const change = parseFloat(data.priceChangePercent);
+                const price = data.price;
+                const change = data.change;
                 
-                document.getElementById('btc-price').textContent = \`$\${price.toLocaleString()}\`;
+                const btcPriceEl = document.getElementById('btc-price');
+                if (btcPriceEl) btcPriceEl.textContent = \`$\${price.toLocaleString()}\`;
+                
                 const changeEl = document.getElementById('btc-change');
-                changeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
-                changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+                if (changeEl) {
+                    changeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
+                    changeEl.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
+                }
 
                 candleSeries.update({
                     time: Math.floor(Date.now() / 1000),
@@ -3649,11 +3653,24 @@ app.get('/api/arbitrage/active-markets', authenticateToken, async (_req: AuthReq
             noPrice: m.noPrice,
             yesTokenId: m.yesTokenId,
             noTokenId: m.noTokenId,
-            target: m.question.split('above')[1]?.split('at')[0]?.trim() || '---'
+            target: m.target || '---'
         }));
         res.json(data);
     } catch (err: any) {
         res.status(500).json({ error: 'Failed to fetch arbitrage markets' });
+    }
+});
+
+// Proxy route to Binance to avoid CORS on frontend
+app.get('/api/price/btc', async (_req, res) => {
+    try {
+        const data = await fetchData('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+        res.json({
+            price: parseFloat(data.lastPrice),
+            change: parseFloat(data.priceChangePercent)
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Binance API unreachable' });
     }
 });
 

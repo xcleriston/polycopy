@@ -76,15 +76,11 @@ export const getArbitrageMarkets = async () => {
 
     // Enrich with current YES/NO prices 
     const enriched = await Promise.all(activeMarkets.map(async (m) => {
-        try {
-            const priceData = await fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
-            // Use midpoint if available, otherwise fallback to the initial prices from Gamma API
-            let yesPrice = priceData?.mid ? parseFloat(priceData.mid) : (m as any).initialYesPrice || 0;
-            
-            // Safety: if the midpoint is exactly 0 but initial exists, use initial
-            if (yesPrice === 0 && (m as any).initialYesPrice > 0) yesPrice = (m as any).initialYesPrice;
+            // Robust target capture: matches any number after 'above', 'reach', or 'hit' (case-insensitive)
+            const targetMatch = m.question.match(/(?:above|reach|hit)\s+([\d,.]+)/i);
+            const target = targetMatch ? targetMatch[1] : '---';
 
-            return { ...m, yesPrice, noPrice: 1 - yesPrice, target: m.question.split('above ')[1] || '---' };
+            return { ...m, yesPrice, noPrice: 1 - yesPrice, target };
         } catch (e) {
             return { ...m, yesPrice: (m as any).initialYesPrice || 0, noPrice: (m as any).initialNoPrice || 0, target: '---' };
         }
