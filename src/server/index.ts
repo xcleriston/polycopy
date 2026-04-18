@@ -3326,7 +3326,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             
             const m = data.find(item => {
                 const q = item.question.toLowerCase();
-                return q.includes('bitcoin') && q.includes(timeframeStr);
+                // Flexible filter: any Bitcoin market with a prediction pattern
+                return q.includes('bitcoin') && (q.includes('above') || q.includes('reach') || q.includes('hit'));
             });
             
             if (m) {
@@ -3614,9 +3615,9 @@ app.post('/api/trade/manual', authenticateToken, async (req: AuthRequest, res: R
             return res.status(400).json({ error: 'Carteira não configurada' });
         }
 
-        // 1. Identify active market
+        // 1. Identify active market (Flexible search)
         const markets = await arbitrageMonitor.getArbitrageMarkets();
-        const market = markets.find((m: any) => m.question.toLowerCase().includes(timeframe || '5 minutos'));
+        const market = markets.find((m: any) => m.question.toLowerCase().includes('bitcoin'));
         
         if (!market) {
             return res.status(404).json({ error: `Nenhum mercado de BTC ${timeframe} ativo no momento` });
