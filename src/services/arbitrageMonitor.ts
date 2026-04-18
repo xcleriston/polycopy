@@ -78,10 +78,15 @@ export const getArbitrageMarkets = async () => {
     const enriched = await Promise.all(activeMarkets.map(async (m) => {
         try {
             const priceData = await fetchData(`https://clob.polymarket.com/midpoint?token_id=${m.yesTokenId}`);
-            const yesPrice = priceData?.mid ? parseFloat(priceData.mid) : 0;
+            // Use midpoint if available, otherwise fallback to the initial prices from Gamma API
+            let yesPrice = priceData?.mid ? parseFloat(priceData.mid) : (m as any).initialYesPrice || 0;
+            
+            // Safety: if the midpoint is exactly 0 but initial exists, use initial
+            if (yesPrice === 0 && (m as any).initialYesPrice > 0) yesPrice = (m as any).initialYesPrice;
+
             return { ...m, yesPrice, noPrice: 1 - yesPrice, target: m.question.split('above ')[1] || '---' };
         } catch (e) {
-            return { ...m, yesPrice: 0, noPrice: 0, target: '---' };
+            return { ...m, yesPrice: (m as any).initialYesPrice || 0, noPrice: (m as any).initialNoPrice || 0, target: '---' };
         }
     }));
 
@@ -107,12 +112,17 @@ const updateTargetMarkets = async () => {
             return isBitcoin && isPrediction && !m.closed && m.active;
         });
 
-        activeMarkets = filtered.map(m => ({
-            conditionId: m.conditionId,
-            question: m.question,
-            yesTokenId: m.clobTokenIds?.[0] || '',
-            noTokenId: m.clobTokenIds?.[1] || ''
-        })).filter(m => m.yesTokenId && m.noTokenId);
+        activeMarkets = filtered.map(m => {
+            const prices = JSON.parse(m.outcomePrices || '["0.5", "0.5"]');
+            return {
+                conditionId: m.conditionId,
+                question: m.question,
+                yesTokenId: m.clobTokenIds?.[0] || '',
+                noTokenId: m.clobTokenIds?.[1] || '',
+                initialYesPrice: parseFloat(prices[0] || '0.5'),
+                initialNoPrice: parseFloat(prices[1] || '0.5')
+            };
+        }).filter(m => m.yesTokenId && m.noTokenId);
 
         if (activeMarkets.length > 0) {
             Logger.info(`🔍 [DEBUG] Arbitrage Bot encontrou ${activeMarkets.length} mercados de BTC.`);
