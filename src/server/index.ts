@@ -24,7 +24,15 @@ app.use(cookieParser());
 // --- Security Headers (Fix for Production Outage) ---
 app.use((req, res, next) => {
     res.removeHeader("Content-Security-Policy");
-    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws/;");
+    // Relaxed CSP for high-latency/arbitrage needs - explicitly authorizing inline scripts/styles
+    const csp = [
+        "default-src 'self' https:;",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+        "style-src 'self' 'unsafe-inline' https:;",
+        "img-src 'self' data: https:;",
+        "connect-src 'self' https: wss://stream.binance.com:9443 wss://ws-subscriptions-clob.polymarket.com/ws/;"
+    ].join(' ');
+    res.setHeader("Content-Security-Policy", csp);
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
 });
