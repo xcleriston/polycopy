@@ -14,25 +14,10 @@ import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import postOrder from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
-import createClobClient from '../utils/createClobClient.js';
 import { broadcastTrade } from '../utils/push.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
-// Cache for CLOB clients to avoid repeated instantiation
-const clobClientCache = new Map();
-const getClobClientForUser = (user) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!user.wallet) {
-        Logger.warning(`No wallet configured for user \${user.username || user.chatId || user._id}`);
-        return null;
-    }
-    const cacheKey = user.wallet.address.toLowerCase();
-    if (clobClientCache.has(cacheKey)) {
-        return clobClientCache.get(cacheKey);
-    }
-    const client = yield createClobClient(user.wallet.privateKey, user.wallet.address);
-    clobClientCache.set(cacheKey, client);
-    return client;
-});
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 // Check daily loss per user (wallet)
 const checkDailyLoss = (proxyWallet, chatId) => __awaiter(void 0, void 0, void 0, function* () {
     // Legacy logic simplified for multi-user
@@ -43,7 +28,7 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
     return yield Activity.find({ bot: false, type: 'TRADE' }).lean();
 });
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const traderAddress = trade.traderAddress.toLowerCase();
     // Find all users following this trader in COPY mode
     const followers = yield User.find({
@@ -91,7 +76,8 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             }
             else {
-                const my_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyWallet}`);
+                const targetAddr = (yield findProxyWallet(((_b = follower.wallet) === null || _b === void 0 ? void 0 : _b.address) || '')) || ((_c = follower.wallet) === null || _c === void 0 ? void 0 : _c.address) || '';
+                const my_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
                 const user_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
                 const my_position = my_positions.find((position) => position.conditionId === trade.conditionId);
                 const user_position = user_positions.find((position) => position.conditionId === trade.conditionId);
@@ -117,7 +103,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
         const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId || f._id.toString()));
         if (stillMissing.length === 0) {
             yield Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
-            Logger.info(`✅ Trade ${(_b = trade.transactionHash) === null || _b === void 0 ? void 0 : _b.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+            Logger.info(`✅ Trade ${(_d = trade.transactionHash) === null || _d === void 0 ? void 0 : _d.slice(0, 8)} fully processed for all ${followers.length} followers.`);
             // Notify web followers via Push
             yield broadcastTrade(traderAddress, trade);
         }

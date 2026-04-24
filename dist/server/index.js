@@ -17,6 +17,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -2976,15 +2977,17 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
     }
 }));
 app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     try {
         const user = req.fullUser;
-        if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
-            return res.json({ balance: 0, exposure: 0 });
-        const balance = yield getMyBalance(user.wallet.address);
+        const clobClient = yield getClobClientForUser(user);
+        let balance = 0;
+        if (clobClient) {
+            balance = yield getMyBalance(clobClient);
+        }
         console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
-        // Fetch positions to calculate exposure
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        // Use detected proxy or EOA for positions
+        const targetAddr = (yield findProxyWallet(user.wallet.address)) || user.wallet.address;
+        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
         res.json({ balance, exposure });
     }

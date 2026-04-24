@@ -11,6 +11,7 @@ import telegram from '../utils/telegram.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 
 const app = express();
 app.use(express.json());
@@ -2996,13 +2997,16 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
-        if (!user || !user.wallet?.address) return res.json({ balance: 0, exposure: 0 });
-
-        const balance = await getMyBalance(user.wallet.address);
+        const clobClient = await getClobClientForUser(user);
+        let balance = 0;
+        if (clobClient) {
+            balance = await getMyBalance(clobClient);
+        }
         console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
         
-        // Fetch positions to calculate exposure
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        // Use detected proxy or EOA for positions
+        const targetAddr = (await findProxyWallet(user.wallet.address)) || user.wallet.address;
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
         res.json({ balance, exposure });

@@ -14,22 +14,7 @@ import { broadcastTrade } from '../utils/push.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 
-// Cache for CLOB clients to avoid repeated instantiation
-const clobClientCache: Map<string, ClobClient> = new Map();
-
-const getClobClientForUser = async (user: IUser): Promise<ClobClient | null> => {
-    if (!user.wallet) {
-        Logger.warning(`No wallet configured for user \${user.username || user.chatId || user._id}`);
-        return null;
-    }
-    const cacheKey = user.wallet.address.toLowerCase();
-    if (clobClientCache.has(cacheKey)) {
-        return clobClientCache.get(cacheKey)!;
-    }
-    const client = await createClobClient(user.wallet.privateKey, user.wallet.address);
-    clobClientCache.set(cacheKey, client);
-    return client;
-};
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 
 // Check daily loss per user (wallet)
 const checkDailyLoss = async (proxyWallet: string, chatId: string): Promise<boolean> => {
@@ -105,8 +90,9 @@ const doTrading = async (trade: any) => {
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             } else {
+                const targetAddr = (await findProxyWallet(follower.wallet?.address || '')) || follower.wallet?.address || '';
                 const my_positions: UserPositionInterface[] = await fetchData(
-                    `https://data-api.polymarket.com/positions?user=${proxyWallet}`
+                    `https://data-api.polymarket.com/positions?user=${targetAddr}`
                 );
                 const user_positions: UserPositionInterface[] = await fetchData(
                     `https://data-api.polymarket.com/positions?user=${traderAddress}`
