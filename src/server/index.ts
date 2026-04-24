@@ -94,6 +94,18 @@ app.get('/api/health', (_req, res) => {
 // --- Protect all other /api routes ---
 app.use('/api', authenticateToken);
 
+// Middleware to populate fullUser for API routes
+app.use('/api', async (req: any, res, next) => {
+    if (req.user?.id) {
+        try {
+            req.fullUser = await User.findById(req.user.id);
+        } catch (error) {
+            console.error('Error fetching fullUser:', error);
+        }
+    }
+    next();
+});
+
 app.get('/api/status', async (req: AuthRequest, res) => {
     try {
         const mongoose = (await import('mongoose')).default;
@@ -1718,51 +1730,46 @@ const userDashboardHtml = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
-  --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
-  --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; }
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
-.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
+aside { width: 240px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+.logo { padding: 25px; font-size: 1.3rem; font-weight: 800; color: #fff; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
-.nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
+.nav { flex: 1; padding: 15px 0; }
+.nav-item { padding: 12px 25px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; font-size: 0.9rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
-.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
-.nav-item.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
-main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
-.step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
-.step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
-.step.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
-.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
-.form-group { margin-bottom: 20px; }
-label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 0.95rem; }
-input:focus { border-color: var(--accent); outline: none; }
-.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.btn:hover { background: #2563eb; transform: translateY(-1px); }
-.btn-sm { padding: 8px 16px; width: auto; font-size: 0.85rem; }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent); }
+main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; max-width: 700px; margin: 40px auto; }
+.form-group { margin-bottom: 15px; }
+label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; }
+input, select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; outline: none; }
+input:focus { border-color: var(--accent); }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+.btn:hover { background: #2563eb; }
+.btn-sm { padding: 8px 16px; width: auto; font-size: 0.8rem; }
 .btn-outline { background: transparent; border: 1px solid var(--border); }
 .btn-outline:hover { background: rgba(255,255,255,0.05); }
-.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 16px; border-radius: 10px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); margin: 15px 0; word-break: break-all; }
-#message-banner { position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px; font-weight: 600; display: none; z-index: 10000; animation: slideIn 0.3s ease-out; }
-@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-.badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+th { text-align: left; padding: 10px; font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); }
 .status-active { color: var(--success); }
 .status-paused { color: var(--warning); }
-.switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-.switch-container input { width: 18px; height: 18px; cursor: pointer; }
+.step-indicator { display: flex; justify-content: space-between; margin-bottom: 30px; }
+.step { width: 30px; height: 30px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text-dim); }
+.step.active { border-color: var(--accent); color: var(--accent); }
+.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+#message-banner { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; display: none; z-index: 10000; background: var(--accent); color: #fff; }
+.switch-container { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; }
 </style>
 </head>
 <body>
