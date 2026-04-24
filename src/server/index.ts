@@ -1912,7 +1912,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <select id="bot-mode">
                             <option value="COPY">COPY: Cópia Automática</option>
                             <option value="MIRROR_100">MIRROR 100%: Cópia Fiel (Sem Filtros)</option>
-                            <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1959,36 +1958,6 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                 </div>
 
-                <div class="card">
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
-                        <div class="form-group">
-                            <label>Trigger Delta ($)</label>
-                            <input type="number" id="bot-triggerDelta" step="0.001">
-                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hedge Ceiling / Teto Max ($)</label>
-                            <input type="number" id="bot-hedgeCeiling" step="0.01">
-                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
-                        </div>
-                    </div>
-                    
-                    <div style="margin-top: 24px; display: grid; gap: 12px">
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
-                        </label>
-                        <label class="switch-container">
-                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
-                        </label>
-                    </div>
-                </div>
             </div>
 
             <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
@@ -2159,10 +2128,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
-        const isArbitrageMode = currentUser.config?.mode === 'ARBITRAGE';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || (!hasTrader && !isArbitrageMode) || !isReady) {
+        if (!hasWallet || !hasTrader || !isReady) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(i => {
@@ -2170,7 +2138,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             });
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader && !isArbitrageMode) renderStep2();
+            else if (!hasTrader) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
@@ -2292,26 +2260,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                 <label>Endere\u00E7o da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">Pr\u00F3ximo Passo: Estrat\u00E9gia</button>
-            <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
-                <div style="flex:1; height:1px; background:var(--border)"></div>
-                <span style="font-size:0.7rem; font-weight:700">OU</span>
-                <div style="flex:1; height:1px; background:var(--border)"></div>
-            </div>
-            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar rob\u00F4 de Hedge Aut\u00F4nomo com Perna dupla (BTC).</p>
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
         \`;
     }
 
-    async function enterAfkMode(btn) {
-        btn.disabled = true; btn.textContent = 'Configurando...';
-        await fetch('/api/user/update-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'ARBITRAGE', finalize: true })
-        });
-        loadUser();
-    }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
@@ -2385,18 +2337,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const c = currentUser.config || {};
             const walletAddr = document.getElementById('user-wallet-addr');
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
-            
             const addrDisplay = document.getElementById('trader-addr-display');
-            const isArbitrage = c.mode === 'ARBITRAGE';
-            
             if (addrDisplay) {
-                if (isArbitrage) {
-                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
-                    addrDisplay.style.color = 'var(--warning)';
-                } else {
-                    addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
-                    addrDisplay.style.color = 'var(--accent)';
-                }
+                addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+                addrDisplay.style.color = 'var(--accent)';
             }
             
             // Status UI

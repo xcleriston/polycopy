@@ -45,11 +45,11 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d;
     const traderAddress = trade.traderAddress.toLowerCase();
-    // Find all users following this trader in COPY mode
+    // Find all users following this trader in COPY or MIRROR_100 mode
     const followers = yield User.find({
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
         'config.enabled': true,
-        'config.mode': 'COPY'
+        'config.mode': { $in: ['COPY', 'MIRROR_100'] }
     });
     if (followers.length === 0) {
         // No active followers, mark trade as done to stop polling

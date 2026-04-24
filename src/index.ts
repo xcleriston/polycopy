@@ -112,8 +112,8 @@ export const main = async () => {
         Logger.info('Starting trade executor...');
         tradeExecutor();
 
-        Logger.info('Starting arbitrage/hedge bot...');
-        startArbitrageMonitor();
+        // Logger.info('Starting arbitrage/hedge bot...');
+        // startArbitrageMonitor();
 
         // Start web UI + API server
         await startServer(PORT);

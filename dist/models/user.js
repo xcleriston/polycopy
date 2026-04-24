@@ -12,7 +12,7 @@ const UserSchema = new Schema({
         proxyAddress: { type: String },
     },
     config: {
-        mode: { type: String, enum: ['COPY', 'ARBITRAGE'], default: 'COPY' },
+        mode: { type: String, enum: ['COPY', 'MIRROR_100'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },
