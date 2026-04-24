@@ -2043,11 +2043,19 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div>
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Importar carteira existente via Chave Privada:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Configuração de Carteiras:</p>
                     <div class="form-group">
-                        <input type="password" id="settings-import-pk" placeholder="Chave Privada (0x...)">
+                        <label>Chave Privada (0x...)</label>
+                        <input type="password" id="settings-import-pk" placeholder="0x...">
                     </div>
-                    <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label>Proxy Wallet Address (Gnosis Safe)</label>
+                        <input type="text" id="bot-proxyAddress" placeholder="0x... (Opcional se auto-detectado)">
+                        <small style="color:var(--text-dim); display:block; margin-top:4px">Insira manualmente se o saldo não estiver aparecendo.</small>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 16px">
+                        <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    </div>
                 </div>
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
                     <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
@@ -2393,6 +2401,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
             setVal('bot-mode', c.mode || 'COPY');
+            setVal('bot-proxyAddress', user.wallet?.proxyAddress || '');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2470,7 +2479,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                         <button class="btn" style="width:100%" onclick="loadUser(); switchTab('config')">CONCLU\u00CDDO</button>
                     </div>
-                \`;
+                `;
             } else {
                 showBanner(data.error || 'Falha ao gerar', 'danger');
             }
@@ -2485,9 +2494,16 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', `$${(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$${(data.exposure || 0).toFixed(2)}`);
             
+            if (data.proxy) {
+                const pInput = document.getElementById('bot-proxyAddress');
+                if (pInput && !pInput.value) {
+                    pInput.placeholder = data.proxy + ' (Auto-Detectado)';
+                }
+            }
+
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
                 setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
@@ -2614,6 +2630,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
             mode: document.getElementById('bot-mode').value,
+            proxyAddress: document.getElementById('bot-proxyAddress').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
             hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
         };
@@ -2770,7 +2787,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
         minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell,
         maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit,
         sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity,
-        mode
+        mode, proxyAddress
     } = req.body;
     
     if (!user.config) user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
@@ -2806,6 +2823,11 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (maxMarketCount !== undefined) user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined) user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined) user.config.mode = mode;
+
+    // Wallet settings
+    if (proxyAddress !== undefined && user.wallet) {
+        user.wallet.proxyAddress = proxyAddress;
+    }
     
     if (req.body.finalize === true) {
         user.step = 'ready';
@@ -2966,7 +2988,7 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const eoa = user.wallet?.address;
         if (!eoa) return res.json({ balance: 0, exposure: 0 });
 
-        const proxy = await findProxyWallet(eoa);
+        const proxy = await findProxyWallet(user);
         
         // Fetch CLOB balance (if client is available)
         let clobBalance = 0;
@@ -2992,7 +3014,7 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
-        res.json({ balance, exposure });
+        res.json({ balance, exposure, proxy });
     } catch (e) {
         console.error('Stats error:', e);
         res.status(500).json({ error: 'Failed to fetch stats' });

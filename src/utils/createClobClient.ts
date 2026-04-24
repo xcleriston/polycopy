@@ -15,7 +15,15 @@ const clobClientCache: Map<string, ClobClient> = new Map();
  * Attempts to find the Gnosis Safe proxy wallet linked to an EOA
  * by checking past trading activity on Polymarket.
  */
-export const findProxyWallet = async (eoa: string): Promise<string | null> => {
+export const findProxyWallet = async (eoaOrUser: string | any): Promise<string | null> => {
+    const eoa = typeof eoaOrUser === 'string' ? eoaOrUser : eoaOrUser?.wallet?.address;
+    if (!eoa) return null;
+
+    // If it's a user object and has a manual proxy address, use it
+    if (typeof eoaOrUser === 'object' && eoaOrUser?.wallet?.proxyAddress) {
+        return eoaOrUser.wallet.proxyAddress;
+    }
+
     try {
         const url = `https://data-api.polymarket.com/activity?user=${eoa.toLowerCase()}&type=TRADE`;
         const activities = await fetchData(url);

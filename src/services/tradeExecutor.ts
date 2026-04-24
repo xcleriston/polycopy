@@ -90,7 +90,7 @@ const doTrading = async (trade: any) => {
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             } else {
-                const targetAddr = (await findProxyWallet(follower.wallet?.address || '')) || follower.wallet?.address || '';
+                const targetAddr = (await findProxyWallet(follower)) || follower.wallet?.address || '';
                 const my_positions: UserPositionInterface[] = await fetchData(
                     `https://data-api.polymarket.com/positions?user=${targetAddr}`
                 );
