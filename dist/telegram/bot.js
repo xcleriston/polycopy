@@ -341,15 +341,16 @@ Parabéns! Seu bot está pronto para operar! 🚀`;
     }
     sendStatus(chatId) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             const user = yield User.findOne({ chatId });
             if (!user)
                 return;
             const statusMessage = `*📊 STATUS DO SEU BOT*
 
 📍 *Carteira:* ${((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || 'Não configurada'}
-🎯 *Trader:* ${((_b = user.config) === null || _b === void 0 ? void 0 : _b.traderAddress) || 'Não configurado'}
-⚙️ *Estratégia:* ${((_c = user.config) === null || _c === void 0 ? void 0 : _c.strategy) || 'Não configurada'}
+🛰️ *Modo:* ${((_b = user.config) === null || _b === void 0 ? void 0 : _b.mode) || 'COPY'}
+🎯 *Trader:* ${((_c = user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) || 'Não configurado'}
+⚙️ *Estratégia:* ${((_d = user.config) === null || _d === void 0 ? void 0 : _d.strategy) || 'Não configurada'}
 📝 *Step:* ${user.step || 'Não iniciado'}
 
 *🌐 Dashboard:* http://localhost:3000

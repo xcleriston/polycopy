@@ -53,7 +53,9 @@ export const performHealthCheck = () => __awaiter(void 0, void 0, void 0, functi
     }
     // Check USDC balance
     try {
-        const balance = yield getMyBalance(ENV.PROXY_WALLET);
+        const createClobClient = (yield import('./createClobClient.js')).default;
+        const client = yield createClobClient();
+        const balance = yield getMyBalance(client);
         if (balance > 0) {
             checks.balance = balance < 10
                 ? { status: 'warning', message: `Low balance: $${balance.toFixed(2)}`, balance }

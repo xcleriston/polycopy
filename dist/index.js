@@ -49,13 +49,22 @@ const gracefulShutdown = (signal) => __awaiter(void 0, void 0, void 0, function*
 });
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-    Logger.error(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
+    Logger.error(`🌪️ UNHANDLED REJECTION at: ${promise}, reason: ${reason}`);
     // Don't exit immediately, let the application try to recover
 });
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
+    // Check if error is related to network/RPC limits (429 or frame errors)
+    const isNetworkError = error.message.includes('429') ||
+        error.message.includes('Unexpected server response: 429') ||
+        error.message.includes('Invalid WebSocket frame') ||
+        error.message.includes('ECONNRESET');
+    if (isNetworkError) {
+        Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
+        return; // Don't kill the process for network hiccups
+    }
     Logger.error(`Uncaught Exception: ${error.message}`);
-    // Exit immediately for uncaught exceptions as the application is in an undefined state
+    // Exit immediately for other uncaught exceptions as the application is in an undefined state
     gracefulShutdown('uncaughtException').catch(() => {
         process.exit(1);
     });
@@ -67,6 +76,17 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         yield connectDB();
+        // One-time Migration: Convert ARBITRAGE users to COPY
+        try {
+            const User = (yield import('./models/user.js')).default;
+            const migrationResult = yield User.updateMany({ "config.mode": "ARBITRAGE" }, { $set: { "config.mode": "COPY" } });
+            if (migrationResult.modifiedCount > 0) {
+                Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
+            }
+        }
+        catch (err) {
+            Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
+        }
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {
             const telegramServer = new TelegramServer(ENV.TELEGRAM_BOT_TOKEN);
@@ -82,6 +102,8 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
         startTpSlMonitor();
         Logger.info('Starting trade executor...');
         tradeExecutor();
+        // Logger.info('Starting arbitrage/hedge bot...');
+        // startArbitrageMonitor();
         // Start web UI + API server
         yield startServer(PORT);
         Logger.success('All services initialized 🚀');

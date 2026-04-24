@@ -41,7 +41,9 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Balance
         try {
-            const balance1 = yield getMyBalance(ADDRESS_1);
+            const createClobClient = (yield import('../utils/createClobClient')).default;
+            const client = yield createClobClient();
+            const balance1 = yield getMyBalance(client);
             console.log(`   • USDC Balance: $${balance1.toFixed(2)}`);
         }
         catch (e) {
@@ -79,7 +81,9 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Balance
         try {
-            const balance2 = yield getMyBalance(ADDRESS_2);
+            const createClobClient = (yield import('../utils/createClobClient')).default;
+            const client = yield createClobClient();
+            const balance2 = yield getMyBalance(client);
             console.log(`\n   • USDC Balance: $${balance2.toFixed(2)}`);
         }
         catch (e) {

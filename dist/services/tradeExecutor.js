@@ -45,10 +45,11 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const traderAddress = trade.traderAddress.toLowerCase();
-    // Find all users following this trader
+    // Find all users following this trader in COPY mode
     const followers = yield User.find({
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
-        'config.enabled': true
+        'config.enabled': true,
+        'config.mode': 'COPY'
     });
     if (followers.length === 0) {
         // No active followers, mark trade as done to stop polling
@@ -94,7 +95,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 const user_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
                 const my_position = my_positions.find((position) => position.conditionId === trade.conditionId);
                 const user_position = user_positions.find((position) => position.conditionId === trade.conditionId);
-                const my_balance = yield getMyBalance(proxyWallet);
+                const my_balance = yield getMyBalance(clobClient);
                 const user_balance = user_positions.reduce((total, pos) => {
                     return total + (pos.currentValue || 0);
                 }, 0);

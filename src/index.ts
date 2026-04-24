@@ -85,6 +85,20 @@ export const main = async () => {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         
         await connectDB();
+
+        // One-time Migration: Convert ARBITRAGE users to COPY
+        try {
+            const User = (await import('./models/user.js')).default;
+            const migrationResult = await User.updateMany(
+                { "config.mode": "ARBITRAGE" },
+                { $set: { "config.mode": "COPY" } }
+            );
+            if (migrationResult.modifiedCount > 0) {
+                Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
+            }
+        } catch (err) {
+            Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
+        }
         
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {
@@ -106,8 +120,8 @@ export const main = async () => {
         Logger.info('Starting trade executor...');
         tradeExecutor();
 
-        Logger.info('Starting arbitrage/hedge bot...');
-        startArbitrageMonitor();
+        // Logger.info('Starting arbitrage/hedge bot...');
+        // startArbitrageMonitor();
 
         // Start web UI + API server
         await startServer(PORT);

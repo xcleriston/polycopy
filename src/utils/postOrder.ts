@@ -65,9 +65,12 @@ const postOrder = async (
         ...userConfig
     };
 
-    // 1. Pre-execution Filters
+    // 1. Pre-execution Filters (Bypassed in MIRROR_100)
+    const isMirror100 = config.mode === 'MIRROR_100';
     const tradePrice = trade.price;
     const tradeSizeUSD = trade.usdcSize;
+
+    if (!isMirror100) {
 
     // Side filter
     if (condition === 'buy' && config.copyBuy === false) {
@@ -99,10 +102,11 @@ const postOrder = async (
         await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
         return;
     }
-    if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
-        await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
-        return;
+        if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+            await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
+            return;
+        }
     }
 
     // 2. Reverse Copy Logic
@@ -118,11 +122,11 @@ const postOrder = async (
     if (effectiveCondition === 'buy') {
         Logger.info(`[${followerId}] Executing BUY strategy...`);
 
-        // Phase 5 Advanced Filters
-        if ((config.maxMarketCount && config.maxMarketCount > 0) || 
+        // Phase 5 Advanced Filters (Bypassed in MIRROR_100)
+        if (!isMirror100 && ((config.maxMarketCount && config.maxMarketCount > 0) || 
             (config.sniperModeSec && config.sniperModeSec > 0) || 
             (config.lastMinuteModeSec && config.lastMinuteModeSec > 0) || 
-            (config.minMarketLiquidity && config.minMarketLiquidity > 0)) {
+            (config.minMarketLiquidity && config.minMarketLiquidity > 0))) {
             
             // 1. Max Markets check
             if (config.maxMarketCount > 0) {
@@ -213,7 +217,8 @@ const postOrder = async (
             return;
         }
 
-        // 3. Exposure and Spend Checks
+        // 3. Exposure and Spend Checks (Bypassed in MIRROR_100)
+        if (!isMirror100) {
         const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
         if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
             const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
@@ -249,6 +254,7 @@ const postOrder = async (
             await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
             return;
         }
+        }
 
         let remaining = orderCalc.finalAmount;
         let retry = 0;
@@ -265,7 +271,7 @@ const postOrder = async (
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
 
-            if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
+            if (!isMirror100 && parseFloat(minPriceAsk.price) - slippage > trade.price) {
                 const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
                 Logger.warning(`[${followerId}] ${reason} - skipping trade`);
                 await recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);

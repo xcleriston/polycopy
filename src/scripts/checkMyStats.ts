@@ -46,7 +46,9 @@ const checkMyStats = async () => {
     try {
         // 1. USDC Balance
         console.log('💰 USDC BALANCE');
-        const balance = await getMyBalance(PROXY_WALLET);
+        const createClobClient = (await import('../utils/createClobClient')).default;
+        const client = await createClobClient();
+        const balance = await getMyBalance(client);
         console.log(`   Available: $${balance.toFixed(2)}\n`);
 
         // 2. Open Positions

@@ -4,41 +4,21 @@ import { SignatureType } from '@polymarket/order-utils';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 
-const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
-const RPC_URL = ENV.RPC_URL;
-/**
- * Determines if a wallet is a Gnosis Safe by checking if it has contract code
- */
-const isGnosisSafe = async (address: string): Promise<boolean> => {
-    try {
-        // Using ethers v5 syntax
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        const code = await provider.getCode(address);
-        // If code is not "0x", then it's a contract (likely Gnosis Safe)
-        return code !== '0x';
-    } catch (error) {
-        Logger.error(`Error checking wallet type: ${error}`);
-        return false;
-    }
-};
 
 const createClobClient = async (customPk?: string, customProxyWallet?: string): Promise<ClobClient> => {
     const chainId = 137;
     const host = CLOB_HTTP_URL as string;
     const pk = customPk || PRIVATE_KEY;
-    const proxy = customProxyWallet || PROXY_WALLET;
 
     if (!pk) throw new Error('PRIVATE_KEY is required to create CLOB client');
 
     const wallet = new ethers.Wallet(pk as string);
-    // Detect if the proxy wallet is a Gnosis Safe or EOA
-    const isProxySafe = proxy ? await isGnosisSafe(proxy as string) : false;
-    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    const signatureType = SignatureType.EOA;
 
     Logger.info(
-        `[CLOB] Creating client for ${wallet.address.slice(0, 8)}... (${isProxySafe ? 'Gnosis Safe' : 'EOA'})`
+        `[CLOB] Creating EOA client for ${wallet.address.slice(0, 8)}...`
     );
 
     let clobClient = new ClobClient(
@@ -47,7 +27,7 @@ const createClobClient = async (customPk?: string, customProxyWallet?: string): 
         wallet,
         undefined,
         signatureType,
-        isProxySafe ? (proxy as string) : undefined
+        undefined
     );
 
     // Suppress console output during API key creation
@@ -68,7 +48,7 @@ const createClobClient = async (customPk?: string, customProxyWallet?: string): 
             wallet,
             creds,
             signatureType,
-            isProxySafe ? (proxy as string) : undefined
+            undefined
         );
     } finally {
         // Restore console functions

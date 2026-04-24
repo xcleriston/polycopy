@@ -7,16 +7,28 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { ethers } from 'ethers';
-import { ENV } from '../config/env.js';
-const RPC_URL = ENV.RPC_URL;
-const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
-const USDC_ABI = ['function balanceOf(address owner) view returns (uint256)'];
-const getMyBalance = (address) => __awaiter(void 0, void 0, void 0, function* () {
-    const rpcProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
-    const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
-    const balance_usdc = yield usdcContract.balanceOf(address);
-    const balance_usdc_real = ethers.utils.formatUnits(balance_usdc, 6);
-    return parseFloat(balance_usdc_real);
+import Logger from './logger.js';
+/**
+ * Fetches real USDC balance from Polymarket CLOB.
+ * Ensures the dashboard shows accurate funds for trades.
+ */
+const getMyBalance = (client) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        // Force update to sync state
+        yield client.updateBalanceAllowance({
+            asset_type: "COLLATERAL"
+        });
+        // Fetch actual balance from Polymarket CLOB
+        const balanceData = yield client.getBalanceAllowance({
+            asset_type: "COLLATERAL"
+        });
+        const balance = parseFloat(balanceData.balance || "0");
+        Logger.info(`[BALANCE_FIX] Loaded from CLOB: $${balance.toFixed(2)}`);
+        return balance;
+    }
+    catch (e) {
+        Logger.error(`[BALANCE_FIX] FAILED: ${e.message}`);
+        return 0;
+    }
 });
 export default getMyBalance;

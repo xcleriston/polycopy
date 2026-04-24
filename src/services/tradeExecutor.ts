@@ -118,7 +118,7 @@ const doTrading = async (trade: any) => {
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
 
-                const my_balance = await getMyBalance(proxyWallet);
+                const my_balance = await getMyBalance(clobClient);
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);
                 }, 0);

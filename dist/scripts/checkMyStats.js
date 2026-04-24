@@ -18,7 +18,9 @@ const checkMyStats = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         // 1. USDC Balance
         console.log('💰 USDC BALANCE');
-        const balance = yield getMyBalance(PROXY_WALLET);
+        const createClobClient = (yield import('../utils/createClobClient')).default;
+        const client = yield createClobClient();
+        const balance = yield getMyBalance(client);
         console.log(`   Available: $${balance.toFixed(2)}\n`);
         // 2. Open Positions
         console.log('📊 OPEN POSITIONS');

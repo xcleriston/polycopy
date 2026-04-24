@@ -12,39 +12,18 @@ import { ClobClient } from '@polymarket/clob-client';
 import { SignatureType } from '@polymarket/order-utils';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
-const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
-const RPC_URL = ENV.RPC_URL;
-/**
- * Determines if a wallet is a Gnosis Safe by checking if it has contract code
- */
-const isGnosisSafe = (address) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        // Using ethers v5 syntax
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        const code = yield provider.getCode(address);
-        // If code is not "0x", then it's a contract (likely Gnosis Safe)
-        return code !== '0x';
-    }
-    catch (error) {
-        Logger.error(`Error checking wallet type: ${error}`);
-        return false;
-    }
-});
 const createClobClient = (customPk, customProxyWallet) => __awaiter(void 0, void 0, void 0, function* () {
     const chainId = 137;
     const host = CLOB_HTTP_URL;
     const pk = customPk || PRIVATE_KEY;
-    const proxy = customProxyWallet || PROXY_WALLET;
     if (!pk)
         throw new Error('PRIVATE_KEY is required to create CLOB client');
     const wallet = new ethers.Wallet(pk);
-    // Detect if the proxy wallet is a Gnosis Safe or EOA
-    const isProxySafe = proxy ? yield isGnosisSafe(proxy) : false;
-    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
-    Logger.info(`[CLOB] Creating client for ${wallet.address.slice(0, 8)}... (${isProxySafe ? 'Gnosis Safe' : 'EOA'})`);
-    let clobClient = new ClobClient(host, chainId, wallet, undefined, signatureType, isProxySafe ? proxy : undefined);
+    const signatureType = SignatureType.EOA;
+    Logger.info(`[CLOB] Creating EOA client for ${wallet.address.slice(0, 8)}...`);
+    let clobClient = new ClobClient(host, chainId, wallet, undefined, signatureType, undefined);
     // Suppress console output during API key creation
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
@@ -55,7 +34,7 @@ const createClobClient = (customPk, customProxyWallet) => __awaiter(void 0, void
         if (!creds.key) {
             creds = yield clobClient.deriveApiKey();
         }
-        clobClient = new ClobClient(host, chainId, wallet, creds, signatureType, isProxySafe ? proxy : undefined);
+        clobClient = new ClobClient(host, chainId, wallet, creds, signatureType, undefined);
     }
     finally {
         // Restore console functions

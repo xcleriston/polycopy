@@ -12,7 +12,7 @@ export interface IUser extends Document {
         privateKey: string;
     };
     config: {
-        mode?: 'COPY' | 'ARBITRAGE';
+        mode?: 'COPY' | 'ARBITRAGE' | 'MIRROR_100';
         traderAddress: string;
         strategy: string;
         copySize: number;
@@ -66,7 +66,7 @@ const UserSchema: Schema = new Schema({
         privateKey: { type: String },
     },
     config: {
-        mode: { type: String, enum: ['COPY', 'ARBITRAGE'], default: 'COPY' },
+        mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },

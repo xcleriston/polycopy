@@ -54,41 +54,44 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
 ) {
     // Create a complete strategy config using defaults + user overrides
     const config = Object.assign({ strategy: userConfig.strategy || CopyStrategy.PERCENTAGE, copySize: userConfig.copySize || 10.0, maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100'), minOrderSizeUSD: 1.0, tradeMultiplier: 1.0 }, userConfig);
-    // 1. Pre-execution Filters
+    // 1. Pre-execution Filters (Bypassed in MIRROR_100)
+    const isMirror100 = config.mode === 'MIRROR_100';
     const tradePrice = trade.price;
     const tradeSizeUSD = trade.usdcSize;
-    // Side filter
-    if (condition === 'buy' && config.copyBuy === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
-        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
-        return;
-    }
-    if (condition === 'sell' && config.copySell === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
-        yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
-        return;
-    }
-    // Price filter
-    if (config.minPrice > 0 && tradePrice < config.minPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
-        return;
-    }
-    if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
-        return;
-    }
-    // Trade size filter
-    if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
-        return;
-    }
-    if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
-        yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
-        return;
+    if (!isMirror100) {
+        // Side filter
+        if (condition === 'buy' && config.copyBuy === false) {
+            Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
+            yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
+            return;
+        }
+        if (condition === 'sell' && config.copySell === false) {
+            Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
+            yield recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
+            return;
+        }
+        // Price filter
+        if (config.minPrice > 0 && tradePrice < config.minPrice) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
+            return;
+        }
+        if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
+            return;
+        }
+        // Trade size filter
+        if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
+            return;
+        }
+        if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
+            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
+            yield recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
+            return;
+        }
     }
     // 2. Reverse Copy Logic
     let effectiveCondition = condition;
@@ -100,11 +103,11 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
     const retryLimit = parseInt(process.env.RETRY_LIMIT || '3');
     if (effectiveCondition === 'buy') {
         Logger.info(`[${followerId}] Executing BUY strategy...`);
-        // Phase 5 Advanced Filters
-        if ((config.maxMarketCount && config.maxMarketCount > 0) ||
+        // Phase 5 Advanced Filters (Bypassed in MIRROR_100)
+        if (!isMirror100 && ((config.maxMarketCount && config.maxMarketCount > 0) ||
             (config.sniperModeSec && config.sniperModeSec > 0) ||
             (config.lastMinuteModeSec && config.lastMinuteModeSec > 0) ||
-            (config.minMarketLiquidity && config.minMarketLiquidity > 0)) {
+            (config.minMarketLiquidity && config.minMarketLiquidity > 0))) {
             // 1. Max Markets check
             if (config.maxMarketCount > 0) {
                 const uniqueConditionIds = new Set(my_positions.map(p => p.conditionId));
@@ -178,38 +181,40 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
         }
-        // 3. Exposure and Spend Checks
-        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
-            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.2 Max Per Market
-        const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
-            const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.3 Max Per Token
-        const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
-            const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        // F1.5 Total Spend Limit
-        const userRec = yield User.findById(followerId);
-        const totalSpent = (userRec === null || userRec === void 0 ? void 0 : userRec.totalSpentUSD) || 0;
-        if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
-            const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
+        // 3. Exposure and Spend Checks (Bypassed in MIRROR_100)
+        if (!isMirror100) {
+            const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
+                const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.2 Max Per Market
+            const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
+                const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.3 Max Per Token
+            const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+            if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
+                const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
+            // F1.5 Total Spend Limit
+            const userRec = yield User.findById(followerId);
+            const totalSpent = (userRec === null || userRec === void 0 ? void 0 : userRec.totalSpentUSD) || 0;
+            if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
+                const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
+                Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
+                yield recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
+                return;
+            }
         }
         let remaining = orderCalc.finalAmount;
         let retry = 0;
@@ -223,7 +228,7 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             const minPriceAsk = orderBook.asks.reduce((min, ask) => {
                 return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
             }, orderBook.asks[0]);
-            if (parseFloat(minPriceAsk.price) - slippage > trade.price) {
+            if (!isMirror100 && parseFloat(minPriceAsk.price) - slippage > trade.price) {
                 const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
                 Logger.warning(`[${followerId}] ${reason} - skipping trade`);
                 yield recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
