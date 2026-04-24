@@ -94,7 +94,7 @@ export const main = async () => {
             const User = (await import('./models/user.js')).default;
             const migrationResult = await User.updateMany(
                 { "config.mode": "ARBITRAGE" },
-                { $set: { "config.mode": "COPY" } }
+                { $set: { "config.mode": "COPY", "step": "ready" } }
             );
             if (migrationResult.modifiedCount > 0) {
                 Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
