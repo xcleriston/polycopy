@@ -23,8 +23,15 @@ export const startChainMonitor = async () => {
         // Handle provider errors specifically to prevent Uncaught Exceptions
         provider.on("error", (e: any) => {
             const isRateLimit = e.message?.includes('429') || e.code?.toString() === '429';
-            const waitTime = isRateLimit ? 30000 : 15000;
-            Logger.error(`${isRateLimit ? '🚫 RPC Rate Limit (429)' : '❌ WebSocket Error'}: Retrying in ${waitTime/1000}s...`);
+            const isNotFound = e.message?.includes('404') || e.code?.toString() === '404';
+            const waitTime = isRateLimit ? 30000 : (isNotFound ? 60000 : 15000);
+            
+            if (isNotFound) {
+                Logger.error(`🚫 RPC Endpoint Not Found (404): Check your WSS_RPC_URL. Retrying in 60s...`);
+            } else {
+                Logger.error(`${isRateLimit ? '🚫 RPC Rate Limit (429)' : '❌ WebSocket Error'}: Retrying in ${waitTime/1000}s...`);
+            }
+            
             provider.destroy();
             setTimeout(startChainMonitor, waitTime);
         });

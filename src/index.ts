@@ -61,8 +61,11 @@ process.on('uncaughtException', (error: Error) => {
     // Check if error is related to network/RPC limits (429 or frame errors)
     const isNetworkError = error.message.includes('429') || 
                           error.message.includes('Unexpected server response: 429') ||
+                          error.message.includes('Unexpected server response: 404') ||
+                          error.message.includes('Unexpected server response: 409') ||
                           error.message.includes('Invalid WebSocket frame') || 
-                          error.message.includes('ECONNRESET');
+                          error.message.includes('ECONNRESET') ||
+                          error.message.includes('ETIMEDOUT');
 
     if (isNetworkError) {
         Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
