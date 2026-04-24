@@ -103,8 +103,8 @@ export const main = async () => {
             Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
         }
         
-        // Initialize global proxy if configured
-        await setupProxy();
+        // Initialize global proxy if configured (Disabled for Europe Region)
+        // await setupProxy();
         
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {
