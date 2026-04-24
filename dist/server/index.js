@@ -1885,18 +1885,16 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                     </div>
                 </div>
 
-                <div class="card" style="opacity: 0.6; pointer-events: none; filter: grayscale(0.5)">
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Desativado)</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Execução & Filtros de Cópia</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; opacity: 0.5; pointer-events: none; filter: grayscale(1)">
                         <div class="form-group">
-                            <label>Trigger Delta ($)</label>
+                            <label>Trigger Delta ($) [Arbitrage]</label>
                             <input type="number" id="bot-triggerDelta" step="0.001">
-                            <small style="color:var(--text-dim)">Movimento inicial para armar a Perna 1.</small>
                         </div>
                         <div class="form-group">
-                            <label>Hedge Ceiling / Teto Max ($)</label>
+                            <label>Hedge Ceiling ($) [Arbitrage]</label>
                             <input type="number" id="bot-hedgeCeiling" step="0.01">
-                            <small style="color:var(--text-dim)">Teto da soma de Pernas (Ex: 0.95 = lucro garantido)</small>
                         </div>
                     </div>
                     
@@ -1905,13 +1903,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                             <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
                         </label>
                         <label class="switch-container">
-                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra)</span>
+                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra o Trader)</span>
                         </label>
                         <label class="switch-container">
-                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Compras</span>
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Ordens de COMPRA</span>
                         </label>
                         <label class="switch-container">
-                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Vendas</span>
+                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Ordens de VENDA</span>
                         </label>
                     </div>
                 </div>
