@@ -2115,10 +2115,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
-        const isArbitrageMode = currentUser.config?.mode === 'ARBITRAGE';
+        const isMirrorMode = currentUser.config?.mode === 'MIRROR_100';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || (!hasTrader && !isArbitrageMode) || !isReady) {
+        if (!hasWallet || (!hasTrader && !isMirrorMode && !isReady)) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(i => {
@@ -2126,7 +2126,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             });
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader && !isArbitrageMode) renderStep2();
+            else if (!hasTrader && !isMirrorMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
@@ -2237,35 +2237,49 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endere\u00E7o do trader que deseja copiar. O bot monitorar\u00E1 cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endere\u00E7o da Carteira (Polymarket)</label>
+                <label>Endereço da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
-            <button class="btn" onclick="nextToStep3(this)">Pr\u00F3ximo Passo: Estrat\u00E9gia</button>
+            <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
             <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
                 <div style="flex:1; height:1px; background:var(--border)"></div>
-                <span style="font-size:0.7rem; font-weight:700">OU</span>
+                <span style="font-size:0.7rem; font-weight:700">MODO MIRROR</span>
                 <div style="flex:1; height:1px; background:var(--border)"></div>
             </div>
-            <button class="btn btn-outline" onclick="enterAfkMode(this)">Pular: Entrar como Arbitrage / Auto-Bot</button>
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Ativar rob\u00F4 de Hedge Aut\u00F4nomo com Perna dupla (BTC).</p>
+            <button class="btn btn-outline" onclick="enterMirrorMode(this)">Usar Mirror 100% (Sem Filtros)</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Copia exatamente cada trade do alvo, ignorando limites de preço e tamanho.</p>
         \`;
     }
 
-    async function enterAfkMode(btn) {
+    async function enterMirrorMode(btn) {
+        const addr = document.getElementById('setup-trader').value;
+        if (!addr || addr.length < 40) return showBanner('Informe o Trader para Espelhar', 'warning');
         btn.disabled = true; btn.textContent = 'Configurando...';
-        await fetch('/api/user/update-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'ARBITRAGE', finalize: true })
-        });
-        loadUser();
+        try {
+            await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    traderAddress: addr, 
+                    mode: 'MIRROR_100', 
+                    strategy: 'PERCENTAGE', 
+                    copySize: 100, 
+                    enabled: true, 
+                    finalize: true 
+                })
+            });
+            loadUser();
+        } catch (e) {
+            showBanner('Erro ao configurar Mirror', 'danger');
+            btn.disabled = false;
+        }
     }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('Endere\u00E7o Inv\u00E1lido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',

@@ -57,8 +57,11 @@ process.on('uncaughtException', (error) => {
     // Check if error is related to network/RPC limits (429 or frame errors)
     const isNetworkError = error.message.includes('429') ||
         error.message.includes('Unexpected server response: 429') ||
+        error.message.includes('Unexpected server response: 404') ||
+        error.message.includes('Unexpected server response: 409') ||
         error.message.includes('Invalid WebSocket frame') ||
-        error.message.includes('ECONNRESET');
+        error.message.includes('ECONNRESET') ||
+        error.message.includes('ETIMEDOUT');
     if (isNetworkError) {
         Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
         return; // Don't kill the process for network hiccups
@@ -79,7 +82,7 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
         // One-time Migration: Convert ARBITRAGE users to COPY
         try {
             const User = (yield import('./models/user.js')).default;
-            const migrationResult = yield User.updateMany({ "config.mode": "ARBITRAGE" }, { $set: { "config.mode": "COPY" } });
+            const migrationResult = yield User.updateMany({ "config.mode": "ARBITRAGE" }, { $set: { "config.mode": "COPY", "step": "ready" } });
             if (migrationResult.modifiedCount > 0) {
                 Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
             }

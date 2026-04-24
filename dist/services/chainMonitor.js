@@ -26,10 +26,16 @@ export const startChainMonitor = () => __awaiter(void 0, void 0, void 0, functio
         const provider = new ethers.providers.WebSocketProvider(ENV.WSS_RPC_URL);
         // Handle provider errors specifically to prevent Uncaught Exceptions
         provider.on("error", (e) => {
-            var _a, _b;
+            var _a, _b, _c, _d;
             const isRateLimit = ((_a = e.message) === null || _a === void 0 ? void 0 : _a.includes('429')) || ((_b = e.code) === null || _b === void 0 ? void 0 : _b.toString()) === '429';
-            const waitTime = isRateLimit ? 30000 : 15000;
-            Logger.error(`${isRateLimit ? '🚫 RPC Rate Limit (429)' : '❌ WebSocket Error'}: Retrying in ${waitTime / 1000}s...`);
+            const isNotFound = ((_c = e.message) === null || _c === void 0 ? void 0 : _c.includes('404')) || ((_d = e.code) === null || _d === void 0 ? void 0 : _d.toString()) === '404';
+            const waitTime = isRateLimit ? 30000 : (isNotFound ? 60000 : 15000);
+            if (isNotFound) {
+                Logger.error(`🚫 RPC Endpoint Not Found (404): Check your WSS_RPC_URL. Retrying in 60s...`);
+            }
+            else {
+                Logger.error(`${isRateLimit ? '🚫 RPC Rate Limit (429)' : '❌ WebSocket Error'}: Retrying in ${waitTime / 1000}s...`);
+            }
             provider.destroy();
             setTimeout(startChainMonitor, waitTime);
         });

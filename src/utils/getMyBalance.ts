@@ -7,11 +7,6 @@ import Logger from './logger.js';
  */
 const getMyBalance = async (client: ClobClient): Promise<number> => {
     try {
-        // Force update to sync state
-        await client.updateBalanceAllowance({
-            asset_type: "COLLATERAL" as any
-        });
-
         // Fetch actual balance from Polymarket CLOB
         const balanceData = await client.getBalanceAllowance({
             asset_type: "COLLATERAL" as any

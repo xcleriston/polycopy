@@ -14,10 +14,6 @@ import Logger from './logger.js';
  */
 const getMyBalance = (client) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Force update to sync state
-        yield client.updateBalanceAllowance({
-            asset_type: "COLLATERAL"
-        });
         // Fetch actual balance from Polymarket CLOB
         const balanceData = yield client.getBalanceAllowance({
             asset_type: "COLLATERAL"

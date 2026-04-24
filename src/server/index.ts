@@ -2261,11 +2261,11 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s1').className = 'step done';
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
-        document.getElementById('step-content').innerHTML = `
+        document.getElementById('step-content').innerHTML = \`
             <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
                 <label>Endereço da Carteira (Polymarket)</label>
-                <input type="text" id="setup-trader" placeholder="0x..." value="${currentUser.config?.traderAddress || ''}">
+                <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
             <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
             <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
@@ -2275,7 +2275,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             </div>
             <button class="btn btn-outline" onclick="enterMirrorMode(this)">Usar Mirror 100% (Sem Filtros)</button>
             <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Copia exatamente cada trade do alvo, ignorando limites de preço e tamanho.</p>
-        `;
+        \`;
     }
 
     async function enterMirrorMode(btn) {
