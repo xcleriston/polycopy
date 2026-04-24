@@ -49,11 +49,11 @@ const readUnprocessedTrades = async (): Promise<IUserActivity[]> => {
 const doTrading = async (trade: any) => {
     const traderAddress = trade.traderAddress.toLowerCase();
     
-    // Find all users following this trader in COPY mode
+    // Find all users following this trader in COPY or MIRROR_100 mode
     const followers = await User.find({ 
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
         'config.enabled': true,
-        'config.mode': 'COPY'
+        'config.mode': { $in: ['COPY', 'MIRROR_100'] }
     });
 
     if (followers.length === 0) {

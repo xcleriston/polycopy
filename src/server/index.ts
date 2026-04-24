@@ -1784,7 +1784,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
   </aside>
   <main>
-    <div id="setup-wizard" class="wizard-card" style="display:none">
+    <div id="bypass-alert-banner" style="background:var(--danger); color:#fff; padding:8px; text-align:center; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:2px; display:none">⚠️ ATENÇÃO: MODO BYPASS ATIVO - FILTROS DE RISCO DESATIVADOS ⚠️</div>
+    <div id="message-banner"></div>
         <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
         <div class="step-indicator">
@@ -1910,6 +1911,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         <label>Modo de Operação</label>
                         <select id="bot-mode">
                             <option value="COPY">COPY: Cópia Automática</option>
+                            <option value="MIRROR_100">MIRROR 100%: Cópia Fiel (Sem Filtros)</option>
                             <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
                         </select>
                     </div>
@@ -2174,6 +2176,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             document.getElementById('setup-wizard').style.display = 'none';
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
+            
+            const banner = document.getElementById('bypass-alert-banner');
+            if (banner) {
+                banner.style.display = currentUser.config?.mode === 'MIRROR_100' ? 'block' : 'none';
+            }
+
             renderMainDashboard();
         }
     }

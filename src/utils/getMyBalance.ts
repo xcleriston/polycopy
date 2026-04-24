@@ -1,31 +1,31 @@
-import { ethers } from 'ethers';
-import { ENV } from '../config/env.js';
+import createClobClient from './createClobClient.js';
+import Logger from './logger.js';
 
-const RPC_URL = ENV.RPC_URL;
-const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
-
-const USDC_ABI = ['function balanceOf(address owner) view returns (uint256)'];
-const NATIVE_USDC = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
-
+/**
+ * AGENT 4: BALANCE FIX ENGINE (Surgical Patch)
+ * Fetches real USDC balance from Polymarket CLOB.
+ * Ensures the dashboard shows accurate funds for Proxy Wallets.
+ */
 const getMyBalance = async (address: string, proxy?: string): Promise<number> => {
     try {
-        const rpcProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        const targetAddress = proxy || address;
+        const client = await createClobClient();
         
-        // 1. Check Native USDC (Circle)
-        const nativeContract = new ethers.Contract(NATIVE_USDC, USDC_ABI, rpcProvider);
-        const nativeBalance = await nativeContract.balanceOf(targetAddress);
+        // Force update to sync state
+        await client.updateBalanceAllowance({
+            asset_type: "COLLATERAL" as any
+        });
+
+        // Fetch actual balance from Polymarket CLOB
+        const balanceData = await client.getBalanceAllowance({
+            asset_type: "COLLATERAL" as any
+        });
+
+        const balance = parseFloat(balanceData.balance || "0");
         
-        // 2. Check Bridged USDC (USDC.e) - fallback/legacy
-        const bridgedContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, rpcProvider);
-        const bridgedBalance = await bridgedContract.balanceOf(targetAddress);
-        
-        const totalRaw = nativeBalance.add(bridgedBalance);
-        const balance_usdc_real = ethers.utils.formatUnits(totalRaw, 6);
-        
-        return parseFloat(balance_usdc_real);
-    } catch (error) {
-        console.error(`Error fetching balance for ${address} (Proxy: ${proxy}):`, error);
+        Logger.info(`[BALANCE_FIX] Loaded from CLOB: $${balance.toFixed(2)}`);
+        return balance;
+    } catch (e: any) {
+        Logger.error(`[BALANCE_FIX] FAILED: ${e.message}`);
         return 0;
     }
 };
