@@ -2997,15 +2997,21 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
-        const clobClient = await getClobClientForUser(user);
-        let balance = 0;
-        if (clobClient) {
-            balance = await getMyBalance(clobClient);
-        }
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
+        const eoa = user.wallet?.address;
+        if (!eoa) return res.json({ balance: 0, exposure: 0 });
+
+        const proxy = await findProxyWallet(eoa);
         
-        // Use detected proxy or EOA for positions
-        const targetAddr = (await findProxyWallet(user.wallet.address)) || user.wallet.address;
+        // Sum balances of EOA and Proxy via FAST RPC
+        const [balEoa, balProxy] = await Promise.all([
+            getMyBalance(eoa),
+            proxy ? getMyBalance(proxy) : Promise.resolve(0)
+        ]);
+        
+        const balance = balEoa + balProxy;
+        console.log(`[STATS] User ${user.chatId} Total Balance: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy})`);
+        
+        const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 

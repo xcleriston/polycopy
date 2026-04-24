@@ -17,7 +17,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
-import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
+import { findProxyWallet } from '../utils/createClobClient.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -2977,16 +2977,21 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
     }
 }));
 app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const user = req.fullUser;
-        const clobClient = yield getClobClientForUser(user);
-        let balance = 0;
-        if (clobClient) {
-            balance = yield getMyBalance(clobClient);
-        }
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance}`);
-        // Use detected proxy or EOA for positions
-        const targetAddr = (yield findProxyWallet(user.wallet.address)) || user.wallet.address;
+        const eoa = (_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address;
+        if (!eoa)
+            return res.json({ balance: 0, exposure: 0 });
+        const proxy = yield findProxyWallet(eoa);
+        // Sum balances of EOA and Proxy via FAST RPC
+        const [balEoa, balProxy] = yield Promise.all([
+            getMyBalance(eoa),
+            proxy ? getMyBalance(proxy) : Promise.resolve(0)
+        ]);
+        const balance = balEoa + balProxy;
+        console.log(`[STATS] User ${user.chatId} Total Balance: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy})`);
+        const targetAddr = proxy || eoa;
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
         res.json({ balance, exposure });
