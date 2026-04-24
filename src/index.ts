@@ -11,6 +11,7 @@ import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
 import setupProxy from './utils/setupProxy.js';
+import User from './models/user.js';
 
 // Function handles proxy initialization inside main
 
@@ -88,6 +89,19 @@ export const main = async () => {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         
         await connectDB();
+        
+        // Migration: Convert legacy ARBITRAGE users to COPY to prevent UI/Execution confusion
+        try {
+            const migrationResult = await User.updateMany(
+                { "config.mode": "ARBITRAGE" },
+                { $set: { "config.mode": "COPY" } }
+            );
+            if (migrationResult.modifiedCount > 0) {
+                Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
+            }
+        } catch (err) {
+            Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
+        }
         
         // Initialize global proxy if configured
         await setupProxy();

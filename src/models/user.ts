@@ -13,7 +13,7 @@ export interface IUser extends Document {
         proxyAddress?: string;
     };
     config: {
-        mode?: 'COPY' | 'MIRROR_100';
+        mode?: 'COPY' | 'ARBITRAGE' | 'MIRROR_100';
         traderAddress: string;
         strategy: string;
         copySize: number;
@@ -68,7 +68,7 @@ const UserSchema: Schema = new Schema({
         proxyAddress: { type: String },
     },
     config: {
-        mode: { type: String, enum: ['COPY', 'MIRROR_100'], default: 'COPY' },
+        mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },
