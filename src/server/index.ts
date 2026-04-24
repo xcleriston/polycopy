@@ -2968,14 +2968,25 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
 
         const proxy = await findProxyWallet(eoa);
         
+        // Fetch CLOB balance (if client is available)
+        let clobBalance = 0;
+        try {
+            const clobClient = await getClobClientForUser(user);
+            if (clobClient) {
+                clobBalance = await getMyBalance(clobClient);
+            }
+        } catch (clobErr) {
+            console.error(`[STATS] CLOB balance error for ${user.chatId}:`, clobErr);
+        }
+
         // Sum balances of EOA and Proxy via FAST RPC
         const [balEoa, balProxy] = await Promise.all([
             getMyBalance(eoa),
             proxy ? getMyBalance(proxy) : Promise.resolve(0)
         ]);
         
-        const balance = balEoa + balProxy;
-        console.log(`[STATS] User ${user.chatId} Total Balance: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy})`);
+        const balance = balEoa + balProxy + clobBalance;
+        console.log(`[STATS] User ${user.chatId} Total: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
         
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
