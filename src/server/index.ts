@@ -2401,7 +2401,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
             setVal('bot-mode', c.mode || 'COPY');
-            setVal('bot-proxyAddress', user.wallet?.proxyAddress || '');
+            setVal('bot-proxyAddress', currentUser.wallet?.proxyAddress || '');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -3008,7 +3008,8 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         ]);
         
         const balance = balEoa + balProxy + clobBalance;
-        console.log(`[STATS] User ${user.chatId} Total: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
+        const userIdentifier = user.username || user.chatId || user._id;
+        console.log(`[STATS] User ${userIdentifier} Total: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
         
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
