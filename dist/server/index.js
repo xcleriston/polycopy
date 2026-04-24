@@ -1875,8 +1875,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <div class="form-group">
                         <label>Modo de Operação</label>
                         <select id="bot-mode">
-                            <option value="COPY">COPY: Cópia Automática</option>
-                            <option value="ARBITRAGE">ARBITRAGE: Leg-In Hedge Bot</option>
+                            <option value="COPY">COPY: Cópia Inteligente (Com Filtros)</option>
+                            <option value="MIRROR_100">MIRROR: 100% Espelhamento (Sem Filtros)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1915,8 +1915,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                 </div>
 
-                <div class="card">
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Auto-Bot)</h3>
+                <div class="card" style="opacity: 0.6; pointer-events: none; filter: grayscale(0.5)">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span style="color:var(--accent)">⚡</span> Arbitrage & Hedge (Desativado)</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
                             <label>Trigger Delta ($)</label>
