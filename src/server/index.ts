@@ -915,105 +915,89 @@ setInterval(refresh, 5000);
 </script>
 </body></html>`;
 
-const hackerStyles = `
+const authStyles = `
 :root {
-  --bg: #050505;
-  --card: #0a0a0a;
-  --border: #1a1a1a;
-  --text: #e0e0e0;
-  --text-dim: #808080;
-  --accent: #00ff41;
-  --accent-blue: #00d1ff;
-  --accent-glow: rgba(0, 255, 65, 0.2);
-  --danger: #ff003c;
-  --warning: #f59e0b;
-  --hacker-font: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { 
   background: var(--bg); 
   color: var(--text); 
-  font-family: 'Outfit', sans-serif; 
-  overflow-x: hidden; 
-  background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #050505 100%);
+  font-family: var(--font-main); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  min-height: 100vh;
 }
-.scanline {
+.auth-card { 
+  width: 100%; 
+  max-width: 420px; 
+  background: var(--card); 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  padding: 40px; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.logo { font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 30px; text-align: center; }
+.logo span { color: var(--accent); }
+.form-group { margin-bottom: 20px; }
+label { display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+input { 
+  width: 100%; 
+  background: #0d1117; 
+  border: 1px solid var(--border); 
+  padding: 12px 16px; 
+  color: #fff; 
+  border-radius: 6px; 
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s;
+}
+input:focus { border-color: var(--accent); }
+.btn-auth {
   width: 100%;
-  height: 100px;
-  background: linear-gradient(0deg, rgba(0, 255, 65, 0.03), transparent);
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  pointer-events: none;
-  animation: scan 8s linear infinite;
-}
-@keyframes scan { from { transform: translateY(-100px); } to { transform: translateY(100vh); } }
-
-.glass {
-  background: rgba(10, 10, 10, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.hacker-glow { box-shadow: 0 0 15px var(--accent-glow); }
-.text-hacker { font-family: var(--hacker-font); color: var(--accent); }
-.btn-hacker {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-family: var(--hacker-font);
-  cursor: pointer;
-  transition: 0.3s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.btn-hacker:hover {
   background: var(--accent);
-  color: #000;
-  box-shadow: 0 0 20px var(--accent-glow);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: 0.2s;
 }
+.btn-auth:hover { background: #2563eb; transform: translateY(-1px); }
+.footer { margin-top: 25px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+.footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
 `;
 
 const loginHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Entry Point</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; letter-spacing: -1px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent); }
-    input:focus { border-color: var(--accent); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Login</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="loginForm">
       <div class="form-group">
-        <label>ID / EMAIL / USER</label>
-        <input type="text" id="identity" required>
+        <label>Identificação / E-mail</label>
+        <input type="text" id="identity" placeholder="Seu usuário ou e-mail" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="••••••••" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%">Execute_Login</button>
+      <button type="submit" class="btn-auth">Entrar no Sistema</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Não tem acesso? <a href="/signup">Solicitar Credenciais</a>
+      Não tem uma conta? <a href="/signup">Criar Cadastro</a>
     </div>
   </div>
   <script>
@@ -1037,43 +1021,30 @@ const signupHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Register</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent-blue); }
-    input:focus { border-color: var(--accent-blue); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent-blue); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Cadastro</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow" style="box-shadow: 0 0 15px rgba(0, 209, 255, 0.2)">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="signupForm">
       <div class="form-group">
-        <label>USERNAME</label>
-        <input type="text" id="username" required>
+        <label>Nome de Usuário</label>
+        <input type="text" id="username" placeholder="Como deseja ser chamado" required>
       </div>
       <div class="form-group">
-        <label>EMAIL</label>
-        <input type="email" id="email" required>
+        <label>E-mail</label>
+        <input type="email" id="email" placeholder="seu@email.com" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%; border-color: var(--accent-blue); color: var(--accent-blue)">Initialize_Account</button>
+      <button type="submit" class="btn-auth">Finalizar Cadastro</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Já possui acesso? <a href="/login">Conectar</a>
+      Já possui cadastro? <a href="/login">Fazer Login</a>
     </div>
   </div>
   <script>
