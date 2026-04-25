@@ -133,8 +133,10 @@ export function calculateOrderSize(
         }
     }
 
-    // Step 4: Check available balance (with 1% safety buffer)
-    const maxAffordable = availableBalance * 0.99;
+    // Step 4: Check available balance (with 1% safety buffer, except in MIRROR_100 mode)
+    const buffer = config.mode === 'MIRROR_100' ? 1.0 : 0.99;
+    const maxAffordable = availableBalance * buffer;
+    
     if (finalAmount > maxAffordable) {
         finalAmount = maxAffordable;
         reducedByBalance = true;
