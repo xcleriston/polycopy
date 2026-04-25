@@ -38,7 +38,7 @@ const doTrading = async (trade: any) => {
     const followers = await User.find({ 
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
         'config.enabled': true,
-        'config.mode': 'COPY'
+        'config.mode': { $in: ['COPY', 'MIRROR_100'] }
     });
 
     if (followers.length === 0) {

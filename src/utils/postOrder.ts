@@ -55,13 +55,15 @@ const postOrder = async (
     userConfig: any,
     my_positions: UserPositionInterface[] = [] // Optional positions for exposure check
 ) => {
-    // Create a complete strategy config using defaults + user overrides
+    // Force 100% copy if in MIRROR_100 mode
+    const isMirror100 = userConfig.mode === 'MIRROR_100';
     const config = {
-        strategy: (userConfig.strategy as CopyStrategy) || CopyStrategy.PERCENTAGE,
-        copySize: userConfig.copySize || 10.0,
-        maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100'),
+        strategy: isMirror100 ? CopyStrategy.PERCENTAGE : ((userConfig.strategy as CopyStrategy) || CopyStrategy.PERCENTAGE),
+        copySize: isMirror100 ? 100.0 : (userConfig.copySize || 10.0),
+        maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '500'),
         minOrderSizeUSD: 1.0,
         tradeMultiplier: 1.0,
+        buyAtMin: isMirror100 ? true : !!userConfig.buyAtMin, // Always buy at least minimum in mirror mode
         ...userConfig
     };
 
