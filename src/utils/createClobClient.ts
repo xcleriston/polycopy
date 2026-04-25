@@ -62,7 +62,9 @@ const createClobClient = async (customPk?: string, proxyAddress?: string): Promi
     if (!pk) throw new Error('PRIVATE_KEY is required to create CLOB client');
 
     const wallet = new ethers.Wallet(pk as string);
-    const signatureType = proxyAddress ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    const signatureType = proxyAddress ? SignatureType.POLY_PROXY : SignatureType.EOA;
+    
+    Logger.info(`[CLOB] Initializing for ${wallet.address} with SigType: ${signatureType}`);
 
     Logger.info(
         `[CLOB] Creating EOA client for ${wallet.address.slice(0, 8)}${proxyAddress ? ` (Proxy: ${proxyAddress.slice(0, 8)})` : ''}...`
