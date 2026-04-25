@@ -265,6 +265,7 @@ const postOrder = async (
             const orderBook = await clobClient.getOrderBook(trade.asset);
             if (!orderBook.asks || orderBook.asks.length === 0) {
                 Logger.warning(`[${followerId}] No asks available`);
+                await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de venda (asks) no book');
                 break;
             }
 
@@ -354,7 +355,11 @@ const postOrder = async (
 
         while (remaining > 0 && retry < retryLimit) {
             const orderBook = await clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0) break;
+            if (!orderBook.bids || orderBook.bids.length === 0) {
+                Logger.warning(`[${followerId}] No bids available`);
+                await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de compra (bids) no book');
+                break;
+            }
 
             const maxPriceBid = orderBook.bids.reduce((max: any, bid: any) => {
                 return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;

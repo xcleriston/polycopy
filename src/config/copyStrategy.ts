@@ -141,8 +141,8 @@ export function calculateOrderSize(
         reasoning += ` → Reduced to fit balance ($${maxAffordable.toFixed(2)})`;
     }
 
-    // Step 5: Check minimum order size
-    if (finalAmount < config.minOrderSizeUSD) {
+    // Step 5: Check minimum order size (with small epsilon for float precision)
+    if (finalAmount < (config.minOrderSizeUSD - 0.001)) {
         belowMinimum = true;
         reasoning += ` → Below minimum $${config.minOrderSizeUSD}`;
         finalAmount = 0; // Don't execute
