@@ -74,8 +74,8 @@ const createClobClient = async (customPk?: string, proxyAddress?: string): Promi
         wallet,
         undefined,
         signatureType,
-        undefined,
-        proxyAddress // Set proxyAddress if found
+        proxyAddress, // Set funderAddress to proxyAddress
+        proxyAddress  // Set proxyAddress if found
     );
 
     // Suppress console output during API key creation
@@ -96,7 +96,7 @@ const createClobClient = async (customPk?: string, proxyAddress?: string): Promi
             wallet,
             creds,
             signatureType,
-            undefined,
+            proxyAddress, // Set funderAddress to proxyAddress
             proxyAddress
         );
     } finally {
