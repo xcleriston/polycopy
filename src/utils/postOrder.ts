@@ -293,9 +293,10 @@ const postOrder = async (
                 price: parseFloat(minPriceAsk.price),
             };
 
-            // If using a proxy, we MUST specify the proxy as the maker
+            // If using a proxy, we MUST specify the proxy as the maker and correct signature type
             if (proxyAddress) {
                 order_arges.maker = proxyAddress;
+                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
             }
 
             const signedOrder = await clobClient.createMarketOrder(order_arges);
@@ -383,6 +384,7 @@ const postOrder = async (
 
             if (proxyAddress) {
                 order_arges.maker = proxyAddress;
+                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
             }
             
             const signedOrder = await clobClient.createMarketOrder(order_arges);
