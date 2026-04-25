@@ -3,12 +3,16 @@ import { ENV } from '../config/env.js';
 import { Activity } from '../models/userHistory.js';
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
+import fetchData from '../utils/fetchData.js';
 
 const EXCHANGE_ABI = [
     "event OrderFilled(bytes32 indexed orderHash, address indexed maker, address indexed taker, uint256 makerAssetId, uint256 takerAssetId, uint256 makerAmountFilled, uint256 takerAmountFilled, uint256 fee)"
 ];
 
 const POLYMARKET_EXCHANGE_ADDR = ENV.POLYMARKET_EXCHANGE_ADDR;
+
+// Global cache for trader proxy addresses
+const proxyCache = new Map<string, string | null>();
 
 export const startChainMonitor = async () => {
     if (!ENV.WSS_RPC_URL) {
@@ -60,29 +64,51 @@ export const startChainMonitor = async () => {
                 const monitoredTraders = await User.distinct('config.traderAddress', { 'config.enabled': true });
                 const monitoredLower = (monitoredTraders as string[]).map((t: string) => t.toLowerCase());
 
-                const isMakerMonitored = monitoredLower.includes(makerAddr);
-                const isTakerMonitored = monitoredLower.includes(takerAddr);
+                // Fetch Proxy addresses for traders (cached globally in the service)
+                for (const trader of monitoredLower) {
+                    if (!proxyCache.has(trader)) {
+                        try {
+                            const profile = await fetchData(`https://data-api.polymarket.com/user?address=${trader}`);
+                            if (profile?.proxyWallet) {
+                                proxyCache.set(trader, profile.proxyWallet.toLowerCase());
+                                Logger.info(`[CHAIN] Cached Proxy for ${trader}: ${profile.proxyWallet}`);
+                            } else {
+                                proxyCache.set(trader, null);
+                            }
+                        } catch (e) {}
+                    }
+                }
+
+                const allTargets = [...monitoredLower, ...Array.from(proxyCache.values()).filter(v => v !== null) as string[]];
+
+                const isMakerMonitored = allTargets.includes(makerAddr);
+                const isTakerMonitored = allTargets.includes(takerAddr);
 
                 if (isMakerMonitored || isTakerMonitored) {
-                    const targetTrader = isMakerMonitored ? makerAddr : takerAddr;
-                    Logger.header(`⚡ ON-CHAIN TRADE DETECTED: ${targetTrader.slice(0, 6)}...`);
+                    const traderByProxy = Array.from(proxyCache.entries()).find(([t, p]) => p === makerAddr || p === takerAddr);
+                    const finalTrader = traderByProxy ? traderByProxy[0] : (monitoredLower.includes(makerAddr) ? makerAddr : takerAddr);
+                    
+                    Logger.header(`⚡ ON-CHAIN TRADE DETECTED: ${finalTrader.slice(0, 8)}...`);
 
                     // AssetId 0 = USDC. If makerAssetId is 0, maker is sending USDC → buying tokens
-                    const isBuy = isMakerMonitored ? (makerAssetId.toString() === '0') : (takerAssetId.toString() === '0');
-                    const condTokenId = isMakerMonitored
+                    const isBuy = (makerAddr === finalTrader || proxyCache.get(finalTrader) === makerAddr)
+                        ? (makerAssetId.toString() === '0')
+                        : (takerAssetId.toString() === '0');
+                    
+                    const condTokenId = (makerAddr === finalTrader || proxyCache.get(finalTrader) === makerAddr)
                         ? (isBuy ? takerAssetId : makerAssetId)
                         : (isBuy ? makerAssetId : takerAssetId);
 
                     const activityData = {
-                        traderAddress: targetTrader,
+                        traderAddress: finalTrader,
                         timestamp: Date.now(),
                         transactionHash: txHash,
                         conditionId: condTokenId.toString(),
                         type: 'TRADE',
                         side: isBuy ? 'BUY' : 'SELL',
-                        usdcSize: isBuy
-                            ? Number(ethers.utils.formatUnits(isMakerMonitored ? makerAmountFilled : takerAmountFilled, 6))
-                            : Number(ethers.utils.formatUnits(isMakerMonitored ? takerAmountFilled : makerAmountFilled, 6)),
+                        usdcSize: (makerAddr === finalTrader || proxyCache.get(finalTrader) === makerAddr)
+                            ? Number(ethers.utils.formatUnits(isBuy ? makerAmountFilled : takerAmountFilled, 6))
+                            : Number(ethers.utils.formatUnits(isBuy ? takerAmountFilled : makerAmountFilled, 6)),
                         bot: false,
                         processedBy: [],
                         isChainDetected: true
