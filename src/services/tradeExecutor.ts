@@ -104,11 +104,18 @@ const doTrading = async (trade: any) => {
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
 
-                const my_balance = await getMyBalance(clobClient);
+                const [balEoa, balProxy, clobBalance] = await Promise.all([
+                    getMyBalance(follower.wallet?.address || ''),
+                    targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(clobClient)
+                ]);
+                const my_balance = balEoa + balProxy + clobBalance;
+
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
 
+                Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
                 Logger.balance(my_balance, user_balance, followerId);
 
                 // Execute the trade with FOLLOWER'S config
