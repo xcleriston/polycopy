@@ -68,7 +68,6 @@ const postOrder = async (
     };
 
     // 1. Pre-execution Filters (Bypassed in MIRROR_100)
-    const isMirror100 = config.mode === 'MIRROR_100';
     const tradePrice = trade.price;
     const tradeSizeUSD = trade.usdcSize;
 
