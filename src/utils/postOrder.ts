@@ -53,7 +53,8 @@ const postOrder = async (
     my_balance: number,
     followerId: string,
     userConfig: any,
-    my_positions: UserPositionInterface[] = [] // Optional positions for exposure check
+    my_positions: UserPositionInterface[] = [], // Optional positions for exposure check
+    proxyAddress?: string // New argument
 ) => {
     // Force 100% copy if in MIRROR_100 mode
     const isMirror100 = userConfig.mode === 'MIRROR_100';
@@ -285,12 +286,17 @@ const postOrder = async (
             const maxOrderSize = parseFloat(minPriceAsk.size) * parseFloat(minPriceAsk.price);
             const orderSize = Math.min(remaining, maxOrderSize);
 
-            const order_arges = {
+            const order_arges: any = {
                 side: Side.BUY,
                 tokenID: trade.asset,
                 amount: orderSize,
                 price: parseFloat(minPriceAsk.price),
             };
+
+            // If using a proxy, we MUST specify the proxy as the maker
+            if (proxyAddress) {
+                order_arges.maker = proxyAddress;
+            }
 
             const signedOrder = await clobClient.createMarketOrder(order_arges);
             const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
@@ -368,12 +374,16 @@ const postOrder = async (
             const sellAmount = Math.min(remaining, parseFloat(maxPriceBid.size));
             if (sellAmount < MIN_ORDER_SIZE_TOKENS) break;
 
-            const order_arges = {
+            const order_arges: any = {
                 side: Side.SELL,
                 tokenID: trade.asset,
                 amount: sellAmount,
                 price: parseFloat(maxPriceBid.price),
             };
+
+            if (proxyAddress) {
+                order_arges.maker = proxyAddress;
+            }
             
             const signedOrder = await clobClient.createMarketOrder(order_arges);
             const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
