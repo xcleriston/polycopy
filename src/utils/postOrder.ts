@@ -62,7 +62,7 @@ const postOrder = async (
         strategy: isMirror100 ? CopyStrategy.PERCENTAGE : ((userConfig.strategy as CopyStrategy) || CopyStrategy.PERCENTAGE),
         copySize: isMirror100 ? 100.0 : (userConfig.copySize || 10.0),
         maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '500'),
-        minOrderSizeUSD: 1.0,
+        minOrderSizeUSD: isMirror100 ? 0 : 1.0, // Disable internal min check for Mirror
         tradeMultiplier: 1.0,
         buyAtMin: isMirror100 ? true : !!userConfig.buyAtMin, // Always buy at least minimum in mirror mode
         ...userConfig
