@@ -47,7 +47,7 @@ export const getClobClientForUser = async (user: any): Promise<ClobClient | null
     if (clobClientCache.has(cacheKey)) return clobClientCache.get(cacheKey)!;
 
     // Detect proxy wallet for this user
-    const detectedProxy = await findProxyWallet(user.wallet.address);
+    const detectedProxy = await findProxyWallet(user);
     
     const client = await createClobClient(user.wallet.privateKey, detectedProxy || undefined);
     clobClientCache.set(cacheKey, client);
