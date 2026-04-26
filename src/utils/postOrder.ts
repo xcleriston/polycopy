@@ -35,6 +35,7 @@ const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boo
 
 const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
+        console.log(`[RECORD_STATUS] ${followerId} -> ${status}: ${details || ''} ${extra ? JSON.stringify(extra) : ''}`);
         await Activity.updateOne(
             { _id: activityId },
             { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date(), ...extra } } }
