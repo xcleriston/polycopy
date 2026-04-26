@@ -3016,6 +3016,7 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
+        Logger.debug(`[STATS_API] Final Response for ${userIdentifier}: balance=${balance}, exposure=${exposure}`);
         res.json({ balance, exposure, proxy });
     } catch (e) {
         console.error('Stats error:', e);
