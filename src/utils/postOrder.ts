@@ -213,7 +213,7 @@ const postOrder = async (
             orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
         }
 
-        if (orderCalc.finalAmount < (MIN_ORDER_SIZE_USD - 0.001)) {
+        if (orderCalc.finalAmount < (config.minOrderSizeUSD - 0.001)) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
             await recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
