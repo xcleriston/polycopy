@@ -119,8 +119,29 @@ export const startChainMonitor = async () => {
 
                     const exists = await Activity.findOne({ transactionHash: activityData.transactionHash });
                     if (!exists) {
-                        await Activity.create(activityData);
+                        const newActivity = await Activity.create(activityData);
                         Logger.success(`🚀 Instant copy triggered for ${finalTrader.slice(0, 6)} via Blockchain Event`);
+                        
+                        // Async enrichment
+                        (async () => {
+                            try {
+                                const metaUrl = `https://gamma-api.polymarket.com/events?condition_id=${activityData.conditionId}`;
+                                const metadata = await fetchData(metaUrl);
+                                if (Array.isArray(metadata) && metadata.length > 0) {
+                                    const m = metadata[0];
+                                    await Activity.updateOne({ _id: (newActivity as any)._id }, {
+                                        $set: {
+                                            title: m.title,
+                                            slug: m.slug,
+                                            eventSlug: m.eventSlug,
+                                            icon: m.icon
+                                        }
+                                    });
+                                }
+                            } catch (e) {
+                                Logger.debug(`[CHAIN] Metadata enrichment failed for ${activityData.conditionId}: ${e}`);
+                            }
+                        })();
                     }
                 }
             } catch (err) {
