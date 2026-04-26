@@ -291,7 +291,7 @@ const postOrder = async (
                 side: Side.BUY,
                 tokenID: trade.asset,
                 amount: orderSize,
-                price: parseFloat(minPriceAsk.price),
+                price: config.mode === 'MIRROR_100' ? 0.99 : parseFloat(minPriceAsk.price),
             };
 
             // If using a proxy, we MUST specify the proxy as the maker and correct signature type
@@ -311,7 +311,7 @@ const postOrder = async (
                 retry = 0;
                 const tokensBought = order_arges.amount / order_arges.price;
                 totalBoughtTokens += tokensBought;
-                Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
+                Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)} (OrderID: ${resp.orderID || 'N/A'})`);
                 telegram.tradeExecuted(followerId, 'BUY', order_arges.amount, order_arges.price, trade.slug || trade.title || 'Market');
                 remaining -= order_arges.amount;
                 await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
@@ -384,7 +384,7 @@ const postOrder = async (
                 side: Side.SELL,
                 tokenID: trade.asset,
                 amount: sellAmount,
-                price: parseFloat(maxPriceBid.price),
+                price: config.mode === 'MIRROR_100' ? 0.01 : parseFloat(maxPriceBid.price),
             };
 
             if (proxyAddress) {
