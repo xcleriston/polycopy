@@ -117,7 +117,7 @@ export const startChainMonitor = async () => {
                     const exists = await Activity.findOne({ transactionHash: activityData.transactionHash });
                     if (!exists) {
                         await Activity.create(activityData);
-                        Logger.success(`🚀 Instant copy triggered for ${targetTrader.slice(0, 6)} via Blockchain Event`);
+                        Logger.success(`🚀 Instant copy triggered for ${finalTrader.slice(0, 6)} via Blockchain Event`);
                     }
                 }
             } catch (err) {

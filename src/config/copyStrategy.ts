@@ -53,6 +53,7 @@ export interface CopyStrategyConfig {
     minOrderSizeUSD: number; // Minimum size for a single order
     maxPositionSizeUSD?: number; // Maximum total size for a position (optional)
     maxDailyVolumeUSD?: number; // Maximum total volume per day (optional)
+    mode?: string; // Execution mode (e.g., 'MIRROR_100')
 }
 
 export interface OrderSizeCalculation {
