@@ -2378,6 +2378,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             // Config Fill
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
             setVal('bot-trader', c.traderAddress || '');
+            const tName = document.getElementById('trader-name');
+            if (tName) tName.textContent = c.traderAddress ? (c.traderAddress.slice(0,10) + '...') : 'Nenhum';
             setVal('bot-strategy', c.strategy || 'PERCENTAGE');
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
@@ -2654,7 +2656,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
     
     // Auto refresh stats e trades em tempo real
-    setInterval(refreshStats, 30000);
+    setInterval(refreshStats, 5000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
     
@@ -3008,17 +3010,22 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
             proxy ? getMyBalance(proxy) : Promise.resolve(0)
         ]);
         
-        const balance = balEoa + balProxy + clobBalance;
         const userIdentifier = user.username || user.chatId || user._id;
-        console.log(`[STATS] User ${userIdentifier} Total: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
         
+        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
+        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
+        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
+        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
+        
+        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
-        Logger.debug(`[STATS_API] Final Response for ${userIdentifier}: balance=${balance}, exposure=${exposure}`);
+        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy}, CLOB=${clobBalance} -> Total=${totalBalance}`);
         res.json({ 
-            balance: parseFloat(balance.toFixed(4)), 
+            balance: parseFloat(totalBalance.toFixed(4)), 
             exposure: parseFloat(exposure.toFixed(2)), 
             proxy 
         });

@@ -47,7 +47,7 @@ const doTrading = async (trade: any) => {
         return;
     }
     for (const follower of followers) {
-        const followerId = (follower.chatId || (follower._id as any).toString());
+        const followerId = (follower._id as any).toString();
 
         // Skip if this follower already processed this trade
         if (trade.processedBy && trade.processedBy.includes(followerId)) {
