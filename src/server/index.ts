@@ -2494,8 +2494,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', `$${Number(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$${Number(data.exposure || 0).toFixed(2)}`);
             
             if (data.proxy) {
                 const pInput = document.getElementById('bot-proxyAddress');
@@ -3017,7 +3017,11 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
         Logger.debug(`[STATS_API] Final Response for ${userIdentifier}: balance=${balance}, exposure=${exposure}`);
-        res.json({ balance, exposure, proxy });
+        res.json({ 
+            balance: parseFloat(balance.toFixed(4)), 
+            exposure: parseFloat(exposure.toFixed(2)), 
+            proxy 
+        });
     } catch (e) {
         console.error('Stats error:', e);
         res.status(500).json({ error: 'Failed to fetch stats' });

@@ -145,9 +145,10 @@ export function calculateOrderSize(
     }
 
     // Step 5: Check minimum order size (with small epsilon for float precision)
-    if (finalAmount < (config.minOrderSizeUSD - 0.001)) {
+    const minCheck = config.mode === 'MIRROR_100' ? 0 : config.minOrderSizeUSD;
+    if (finalAmount < (minCheck - 0.001)) {
         belowMinimum = true;
-        reasoning += ` → Below minimum $${config.minOrderSizeUSD}`;
+        reasoning += ` → Below minimum $${minCheck}`;
         finalAmount = 0; // Don't execute
     }
 
