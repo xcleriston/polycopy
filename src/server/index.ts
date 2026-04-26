@@ -2560,35 +2560,35 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? `<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
                 const marketLink = t.slug
-                    ? `<a href="https://polymarket.com/event/${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="${t.title}">${(t.title || t.slug).slice(0,35)}...${sourceBadge}</a>`
-                    : `<span style="font-size:0.85rem">${(t.title || 'Detectando...').slice(0,35)}${sourceBadge}</span>`;
+                    ? \`<a href="https://polymarket.com/event/\${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="\${t.title}">\${(t.title || t.slug).slice(0,35)}...\${sourceBadge}</a>\`
+                    : \`<span style="font-size:0.85rem">\${(t.title || 'Detectando...').slice(0,35)}\${sourceBadge}</span>\`;
 
                 const tooltipContent = [
                     status,
-                    t.executionDetails ? `Detalhes: ${t.executionDetails}` : '',
-                    t.myEntryAmount ? `Entrada: $${t.myEntryAmount.toFixed(2)}` : '',
-                    t.myEntryPrice ? `Preço: ${(t.myEntryPrice*100).toFixed(1)}c` : '',
-                    t.myExecutedAt ? `Hora: ${new Date(t.myExecutedAt).toLocaleTimeString()}` : ''
+                    t.executionDetails ? \`Detalhes: \${t.executionDetails}\` : '',
+                    t.myEntryAmount ? \`Entrada: $\${t.myEntryAmount.toFixed(2)}\` : '',
+                    t.myEntryPrice ? \`Preço: \${(t.myEntryPrice*100).toFixed(1)}c\` : '',
+                    t.myExecutedAt ? \`Hora: \${new Date(t.myExecutedAt).toLocaleTimeString()}\` : ''
                 ].filter(Boolean).join(' | ');
 
-                return `
+                return \`
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
-                    <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
-                    <td>${marketLink}</td>
-                    <td><span style="color:${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
-                    <td style="font-weight:700; color:#fff">$${(t.usdcSize||0).toFixed(2)}</td>
-                    <td style="font-family:var(--font-mono); font-size:0.8rem">${entryPrice}</td>
-                    <td style="font-family:var(--font-mono); font-size:0.8rem">${curPrice}</td>
-                    <td>${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
-                    <td>${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
-                    <td><span class="badge" title="${tooltipContent}" style="background:${style.bg}; color:${style.color}; cursor:help">${style.icon} ${status}</span></td>
-                </tr>`;
+                    <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
+                    <td>\${marketLink}</td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
+                    <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
+                    <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
+                    <td>\${pnlHtml}</td>
+                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td><span class="badge" title="\${tooltipContent}" style="background:\${style.bg}; color:\${style.color}; cursor:help">\${style.icon} \${status}</span></td>
+                </tr>\`;
             }).join('');
 
             // Update Trader Info
@@ -2599,7 +2599,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 
                 const avatarEl = document.getElementById('trader-avatar');
                 if (avatarEl && first.profileImage) {
-                    avatarEl.innerHTML = `<img src="${first.profileImage}" style="width:100%; height:100%; border-radius:50%; object-fit:cover">`;
+                    avatarEl.innerHTML = \`<img src="\${first.profileImage}" style="width:100%; height:100%; border-radius:50%; object-fit:cover">\`;
                 }
             }
         } catch(e) { console.error('Trades refresh fail:', e); }
