@@ -299,8 +299,12 @@ const postOrder = async (
                 order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
             }
 
-            const signedOrder = await clobClient.createMarketOrder(order_arges);
-            const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
+            const isLimit = (trade as any).orderType === 'LIMIT' || orderSize < 1.0;
+            const signedOrder = isLimit 
+                ? await clobClient.createOrder(order_arges)
+                : await clobClient.createMarketOrder(order_arges);
+                
+            const resp = await clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
             
             if (resp.success === true) {
                 retry = 0;
@@ -387,8 +391,12 @@ const postOrder = async (
                 order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
             }
             
-            const signedOrder = await clobClient.createMarketOrder(order_arges);
-            const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
+            const isLimit = (trade as any).orderType === 'LIMIT' || order_arges.amount < 1.0;
+            const signedOrder = isLimit 
+                ? await clobClient.createOrder(order_arges)
+                : await clobClient.createMarketOrder(order_arges);
+                
+            const resp = await clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
             if (resp.success === true) {
                 retry = 0;
                 totalSoldTokens += order_arges.amount;

@@ -99,12 +99,15 @@ export const startChainMonitor = async () => {
                         ? (isBuy ? takerAssetId : makerAssetId)
                         : (isBuy ? makerAssetId : takerAssetId);
 
+                    const isLimit = (makerAddr === finalTrader || proxyCache.get(finalTrader) === makerAddr);
+
                     const activityData = {
                         traderAddress: finalTrader,
                         timestamp: Date.now(),
                         transactionHash: txHash,
                         conditionId: condTokenId.toString(),
                         type: 'TRADE',
+                        orderType: isLimit ? 'LIMIT' : 'MARKET',
                         side: isBuy ? 'BUY' : 'SELL',
                         usdcSize: (makerAddr === finalTrader || proxyCache.get(finalTrader) === makerAddr)
                             ? Number(ethers.utils.formatUnits(isBuy ? makerAmountFilled : takerAmountFilled, 6))
