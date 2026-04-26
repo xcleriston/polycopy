@@ -2494,8 +2494,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', `$${Number(data.balance || 0).toFixed(2)}`);
-            setTxt('stat-exposure', `$${Number(data.exposure || 0).toFixed(2)}`);
+            setTxt('stat-balance', `$\${Number(data.balance || 0).toFixed(2)}`);
+            setTxt('stat-exposure', `$\${Number(data.exposure || 0).toFixed(2)}`);
             
             if (data.proxy) {
                 const pInput = document.getElementById('bot-proxyAddress');
