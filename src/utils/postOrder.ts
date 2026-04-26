@@ -403,9 +403,15 @@ const postOrder = async (
                 totalSoldTokens += order_arges.amount;
                 Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
                 telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
+                await recordStatus(trade._id, followerId, 'SUCESSO', `Vendido $${(order_arges.amount * order_arges.price).toFixed(2)}`, {
+                    myEntryAmount: order_arges.amount,
+                    myEntryPrice: order_arges.price,
+                    myExecutedAt: new Date(),
+                });
                 remaining -= order_arges.amount;
             } else {
                 retry += 1;
+                await recordStatus(trade._id, followerId, 'ERRO (API)', extractOrderError(resp) || 'Falha ao vender tokens');
             }
         }
     }
