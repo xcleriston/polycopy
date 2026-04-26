@@ -36,7 +36,13 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
                     
                     const usdc = new ethers.Contract(usdcAddr, USDC_ABI, provider);
                     const balance = await usdc.balanceOf(address);
-                    const finalBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
+                    let finalBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
+                    
+                    // PARANOID CHECK: If formatted balance is > 100M USD, something is wrong with the decimal shift
+                    if (finalBalance > 100000000) {
+                        Logger.warning(`[BALANCE] Suspiciously high balance ($${finalBalance}) for ${address.slice(0,6)}. Applying emergency 10^6 division.`);
+                        finalBalance /= 1000000;
+                    }
                     
                     if (finalBalance > 0) {
                         Logger.info(`[BALANCE] Successfully fetched $${finalBalance} for ${address.slice(0,6)} via ${rpc}`);
@@ -53,7 +59,10 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
             const balanceData = await clientOrAddress.getBalanceAllowance({
                 asset_type: "COLLATERAL" as any
             });
-            return parseFloat(balanceData.balance || "0");
+            const val = parseFloat(balanceData.balance || "0");
+            // If balance is suspiciously high (e.g. > 100M), it's likely raw units (6 decimals)
+            if (val > 100000000) return val / 1000000;
+            return val;
         }
     } catch (e: any) {
         Logger.error(`[BALANCE] Critical failure for ${typeof clientOrAddress === 'string' ? clientOrAddress : 'Client'}: ${e.message}`);
