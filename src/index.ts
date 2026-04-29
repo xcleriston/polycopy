@@ -1,4 +1,3 @@
-console.log('🚀 [INDEX] Starting main entry point...');
 import connectDB, { closeDB } from './config/db.js';
 import { ENV } from './config/env.js';
 import createClobClient from './utils/createClobClient.js';

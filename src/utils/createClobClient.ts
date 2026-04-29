@@ -14,17 +14,19 @@ const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
 
 // Setup global fetch proxy for the entire process (affects @polymarket/clob-client-v2)
-const socksAgent = new SocksProxyAgent('socks5h://127.0.0.1:40000');
-const originalFetch = global.fetch;
-
-// @ts-ignore
-global.fetch = (url, options = {}) => {
+if (process.env.USE_PROXY === 'true') {
+    console.log('🛡️ [NETWORK] Enabling SOCKS5 Proxy Tunnel...');
+    const socksAgent = new SocksProxyAgent('socks5h://127.0.0.1:40000');
+    
     // @ts-ignore
-    return undiciFetch(url, {
-        ...options,
-        dispatcher: socksAgent
-    } as any);
-};
+    global.fetch = (url, options = {}) => {
+        // @ts-ignore
+        return undiciFetch(url, {
+            ...options,
+            dispatcher: socksAgent
+        } as any);
+    };
+}
 
 const clobClientCache: Map<string, ClobClient> = new Map();
 
