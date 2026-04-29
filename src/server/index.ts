@@ -2885,12 +2885,12 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
         let detectedProxy = proxyAddress || null;
         let walletType = proxyAddress ? 'MetaMask (proxy manual)' : 'EOA';
 
-        // Try to detect proxy wallet from Polymarket activity if not provided
+        // Try to detect proxy wallet from Polymarket public-profile if not provided
         if (!detectedProxy) {
             try {
-                const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
-                if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
-                    detectedProxy = activity[0].proxyWallet;
+                const profile = await fetchData(`https://gamma-api.polymarket.com/public-profile?address=${eoaAddress}`);
+                if (profile && profile.proxyWallet && profile.proxyWallet.toLowerCase() !== eoaAddress.toLowerCase()) {
+                    detectedProxy = profile.proxyWallet;
                     walletType = 'MetaMask (proxy wallet)';
                 }
             } catch (_) { /* ignore */ }
@@ -2945,9 +2945,9 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         let detectedProxy = proxyAddress || undefined;
         if (!detectedProxy) {
             try {
-                const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
-                if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
-                    detectedProxy = activity[0].proxyWallet;
+                const profile = await fetchData(`https://gamma-api.polymarket.com/public-profile?address=${eoaAddress}`);
+                if (profile && profile.proxyWallet && profile.proxyWallet.toLowerCase() !== eoaAddress.toLowerCase()) {
+                    detectedProxy = profile.proxyWallet;
                 }
             } catch (_) { /* ignore */ }
         }
