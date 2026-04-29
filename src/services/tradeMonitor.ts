@@ -30,12 +30,16 @@ const fetchTradeDataForTrader = async (address: string) => {
         // Note: 'userAddress' is the real-time endpoint, 'user' is often stale.
         const apiUrl = `https://data-api.polymarket.com/trades?userAddress=${address.toLowerCase()}&limit=5&t=${Date.now()}`;
         const activities = await fetchData(apiUrl);
-
         if (!Array.isArray(activities) || activities.length === 0) {
             return;
         }
 
         const cutoffTimestamp = Date.now() / 1000 - TOO_OLD_TIMESTAMP * 3600;
+        
+        console.log(`[DEBUG] Fetched ${activities?.length || 0} activities for ${address.slice(0,6)}`);
+        if (activities?.length > 0) {
+            console.log(`[DEBUG] Latest activity timestamp: ${activities[0].timestamp} vs cutoff: ${cutoffTimestamp}`);
+        }
         
         // Process activities in reverse (oldest first) to ensure correct sequence
         for (const activity of [...activities].reverse()) {
