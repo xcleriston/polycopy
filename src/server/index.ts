@@ -2233,7 +2233,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const safeProxy = preview.proxyWallet || preview.address;
             const safeBal = '$' + Number(preview.onchainBalance || 0).toFixed(2);
             const safePos = String(preview.openPositions);
-            const safePk = pk.replace(/'/g, "\\'");
             const infoCard = '<div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); border-radius:12px; padding:20px; margin-top:16px; animation:fadeIn 0.3s ease">'
                 + '<table style="width:100%; font-size:0.82rem; border-collapse:collapse">'
                 + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Wallet Type:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + preview.walletType + '</td></tr>'
@@ -2243,7 +2242,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 + '<tr><td style="padding:8px 0; color:var(--text-dim)">Open Positions:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safePos + '</td></tr>'
                 + '</table>'
                 + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Key validated successfully.</strong> Click Continue to proceed.</div>'
-                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWallet(\'' + safePk + '\')">Continuar →</button>'
+                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWallet(&quot;' + pk + '&quot;)">Continuar →</button>'
                 + '</div>';
             const previewEl = document.getElementById('import-wallet-preview');
             if (previewEl) previewEl.innerHTML = infoCard;
