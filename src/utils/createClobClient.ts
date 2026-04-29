@@ -125,14 +125,6 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
         signatureType,
     });
 
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-    
-    // We only silence if NOT in debug mode
-    if (process.env.DEBUG !== 'true') {
-        console.log = function () {};
-        console.error = function () {};
-    }
 
     try {
         // Use Builder credentials ONLY if explicitly requested and available
@@ -169,9 +161,6 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
             throw new Error(`Invalid Signature: The derived key does not match. Signer: ${account.address}, Proxy: ${proxyAddress || 'None'}, Type: ${signatureType}. Check if your Proxy is correctly linked on Polymarket.`);
         }
         throw err;
-    } finally {
-        console.log = originalConsoleLog;
-        console.error = originalConsoleError;
     }
 };
 
