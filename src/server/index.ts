@@ -1,19 +1,32 @@
 console.log('🚀 [SYSTEM] Starting Polycopy Server...');
+console.log('📦 Importing Express...');
 import express, { Request, Response } from 'express';
+console.log('📦 Importing Ethers...');
 import { ethers } from 'ethers';
+console.log('📦 Importing Swagger...');
 import swaggerUi from 'swagger-ui-express';
+console.log('📦 Importing Setup...');
 import { setupNewUser } from './setup.js';
+console.log('📦 Importing CookieParser...');
 import cookieParser from 'cookie-parser';
+console.log('📦 Importing Auth...');
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
+console.log('📦 Importing Bcrypt...');
 import bcrypt from 'bcryptjs';
+console.log('📦 Importing Logger...');
 import Logger from '../utils/logger.js';
+console.log('📦 Importing Telegram...');
 import telegram from '../utils/telegram.js';
-
+console.log('📦 Importing Models...');
 import User from '../models/user.js';
+console.log('📦 Importing Balance Utils...');
 import getMyBalance from '../utils/getMyBalance.js';
+console.log('📦 Importing FetchData...');
 import fetchData from '../utils/fetchData.js';
+console.log('📦 Importing ClobClient...');
 import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 
+console.log('✅ All imports completed!');
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
