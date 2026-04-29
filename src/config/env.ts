@@ -344,4 +344,8 @@ export const ENV = {
     WSS_RPC_URL: process.env.WSS_RPC_URL as string,
     // Proxy settings (optional - for geoblocking bypass)
     HTTPS_PROXY: process.env.HTTPS_PROXY as string,
+    // Builder credentials (optional - for high-performance relayer access)
+    POLY_BUILDER_API_KEY: process.env.POLY_BUILDER_API_KEY as string,
+    POLY_BUILDER_SECRET: process.env.POLY_BUILDER_SECRET as string,
+    POLY_BUILDER_PASSPHRASE: process.env.POLY_BUILDER_PASSPHRASE as string,
 };

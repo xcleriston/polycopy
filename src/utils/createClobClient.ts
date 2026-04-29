@@ -138,6 +138,25 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
     }
 
     try {
+        // Use Builder credentials if provided (matching roxmarket's high-performance approach)
+        if (ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
+            Logger.info(`[CLOB] Using Builder credentials for ${account.address.slice(0,6)}`);
+            const builderCreds = {
+                apiKey: ENV.POLY_BUILDER_API_KEY,
+                apiSecret: ENV.POLY_BUILDER_SECRET,
+                apiPassphrase: ENV.POLY_BUILDER_PASSPHRASE,
+            };
+            client = new ClobClient({
+                host,
+                chain: Chain.POLYGON,
+                signer: walletClient,
+                creds: builderCreds,
+                signatureType,
+            });
+            return client;
+        }
+
+        // Standard path: Derive or use existing credentials
         const creds = await client.createOrDeriveApiKey();
         
         client = new ClobClient({
