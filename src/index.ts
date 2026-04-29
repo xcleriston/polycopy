@@ -84,6 +84,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export const main = async () => {
+    console.log('🚀 [MAIN] Starting application logic...');
     try {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         
