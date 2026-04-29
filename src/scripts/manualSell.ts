@@ -1,11 +1,10 @@
 import { ethers } from 'ethers';
-import { AssetType, ClobClient, OrderType, Side } from '@polymarket/clob-client';
-import { SignatureType } from '@polymarket/order-utils';
+import { ClobClient, Chain, SignatureTypeV2, OrderType, Side, AssetType } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env';
 
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
-const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
+const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
 const RPC_URL = ENV.RPC_URL;
 const POLYGON_CHAIN_ID = 137;
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
@@ -42,7 +41,7 @@ const createClobClient = async (
 ): Promise<ClobClient> => {
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     const isProxySafe = await isGnosisSafe(PROXY_WALLET, provider);
-    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    const signatureType = isProxySafe ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA;
 
     console.log(`Wallet type: ${isProxySafe ? 'Gnosis Safe' : 'EOA'}`);
 
@@ -51,28 +50,25 @@ const createClobClient = async (
     console.log = function () {};
     console.error = function () {};
 
-    let clobClient = new ClobClient(
-        CLOB_HTTP_URL,
-        POLYGON_CHAIN_ID,
-        wallet,
-        undefined,
+    let clobClient = new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet as any,
         signatureType,
-        isProxySafe ? PROXY_WALLET : undefined
-    );
+    });
 
     let creds = await clobClient.createApiKey();
     if (!creds.key) {
         creds = await clobClient.deriveApiKey();
     }
 
-    clobClient = new ClobClient(
-        CLOB_HTTP_URL,
-        POLYGON_CHAIN_ID,
-        wallet,
+    clobClient = new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet as any,
         creds,
         signatureType,
-        isProxySafe ? PROXY_WALLET : undefined
-    );
+    });
 
     console.log = originalConsoleLog;
     console.error = originalConsoleError;

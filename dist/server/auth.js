@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
@@ -36,16 +27,15 @@ export const authenticateToken = (req, res, next) => {
     }
 };
 export const authorizeAdmin = (req, res, next) => {
-    var _a;
-    if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) !== 'admin') {
+    if (req.user?.role !== 'admin') {
         return res.status(403).json({ error: 'Acesso restrito a administradores.' });
     }
     next();
 };
-export const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+export const login = async (req, res) => {
     const { identity, password } = req.body; // identity can be email, username or chatId
     try {
-        const user = yield User.findOne({
+        const user = await User.findOne({
             $or: [
                 { email: identity },
                 { username: identity },
@@ -55,7 +45,7 @@ export const login = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         if (!user || !user.password) {
             return res.status(401).json({ error: 'Credenciais inválidas.' });
         }
-        const isMatch = yield bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ error: 'Credenciais inválidas.' });
         }
@@ -74,16 +64,16 @@ export const login = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     catch (error) {
         res.status(500).json({ error: 'Erro no servidor durante o login.' });
     }
-});
-export const signup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+};
+export const signup = async (req, res) => {
     const { username, email, password } = req.body;
     try {
         // Check if user exists
-        const existing = yield User.findOne({ $or: [{ email }, { username }] });
+        const existing = await User.findOne({ $or: [{ email }, { username }] });
         if (existing) {
             return res.status(400).json({ error: 'Usuário ou e-mail já cadastrado.' });
         }
-        const hashedPassword = yield bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({
             username,
             email,
@@ -97,7 +87,7 @@ export const signup = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 traderAddress: ''
             }
         });
-        yield newUser.save();
+        await newUser.save();
         const token = generateToken(newUser);
         res.cookie('auth_token', token, {
             httpOnly: true,
@@ -109,4 +99,4 @@ export const signup = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     catch (error) {
         res.status(500).json({ error: 'Erro ao criar usuário.' });
     }
-});
+};

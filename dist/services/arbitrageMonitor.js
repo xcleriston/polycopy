@@ -1,38 +1,29 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
-import { Side, OrderType } from '@polymarket/clob-client';
+import { Side, OrderType } from '@polymarket/clob-client-v2';
 import telegram from '../utils/telegram.js';
 import getMyBalance from '../utils/getMyBalance.js';
 // Configuration
 const REFRESH_MARKETS_INTERVAL = 60000 * 5; // 5 minutes
 const MONITOR_PRICE_INTERVAL = 5000; // 5 seconds for loop check
 let activeMarkets = [];
-export const startArbitrageMonitor = () => __awaiter(void 0, void 0, void 0, function* () {
+export const startArbitrageMonitor = async () => {
     Logger.info('⚡ Starting Autonomous Arbitrage/Hedge Bot...');
     // Initial fetch
-    yield updateTargetMarkets();
+    await updateTargetMarkets();
     // Intervals
     setInterval(updateTargetMarkets, REFRESH_MARKETS_INTERVAL);
     setInterval(runArbitrageLoop, MONITOR_PRICE_INTERVAL);
-});
+};
 /**
  * Fetches BTC 5m and 15m markets from Polymarket
  */
-const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* () {
+const updateTargetMarkets = async () => {
     try {
         const url = `https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&query=BTC`;
-        const markets = yield fetchData(url);
+        const markets = await fetchData(url);
         if (!Array.isArray(markets))
             return;
         const filtered = markets.filter(m => {
@@ -40,15 +31,12 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
             return (title.includes('5m') || title.includes('15m') || title.includes('5-minute') || title.includes('15-minute'))
                 && !m.closed && m.active;
         });
-        activeMarkets = filtered.map(m => {
-            var _a, _b;
-            return ({
-                conditionId: m.conditionId,
-                question: m.question,
-                yesTokenId: ((_a = m.clobTokenIds) === null || _a === void 0 ? void 0 : _a[0]) || '',
-                noTokenId: ((_b = m.clobTokenIds) === null || _b === void 0 ? void 0 : _b[1]) || ''
-            });
-        }).filter(m => m.yesTokenId && m.noTokenId);
+        activeMarkets = filtered.map(m => ({
+            conditionId: m.conditionId,
+            question: m.question,
+            yesTokenId: m.clobTokenIds?.[0] || '',
+            noTokenId: m.clobTokenIds?.[1] || ''
+        })).filter(m => m.yesTokenId && m.noTokenId);
         if (activeMarkets.length > 0) {
             Logger.info(`🔍 Arbitrage Bot tracking ${activeMarkets.length} BTC markets.`);
         }
@@ -56,13 +44,13 @@ const updateTargetMarkets = () => __awaiter(void 0, void 0, void 0, function* ()
     catch (error) {
         Logger.error('Error updating arbitrage markets: ' + error.message || error);
     }
-});
+};
 /**
  * Main loop to check for price movements and execute arbitrage/hedge
  */
-const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
+const runArbitrageLoop = async () => {
     try {
-        const users = yield User.find({
+        const users = await User.find({
             'config.mode': 'ARBITRAGE',
             'config.enabled': true,
             'wallet.privateKey': { $exists: true, $ne: '' }
@@ -73,31 +61,31 @@ const runArbitrageLoop = () => __awaiter(void 0, void 0, void 0, function* () {
             // Get current prices for Yes and No
             // We use the last trade price (prob) for simplicity, 
             // but in high frequency we should ideally check the orderbook.
-            const marketData = yield fetchData(`https://data-api.polymarket.com/markets/${market.conditionId}`);
+            const marketData = await fetchData(`https://data-api.polymarket.com/markets/${market.conditionId}`);
             if (!marketData || marketData.lastTradePrice === undefined)
                 continue;
             const currentPrice = marketData.lastTradePrice; // Usually probability of YES
             const previousPrice = market.currentPrice || currentPrice;
             market.currentPrice = currentPrice;
             for (const user of users) {
-                yield processUserArbitrage(user, market, currentPrice, previousPrice);
+                await processUserArbitrage(user, market, currentPrice, previousPrice);
             }
         }
     }
     catch (error) {
         // Suppress noisy logs, but kept for critical errors
-        const errMsg = (error === null || error === void 0 ? void 0 : error.toString()) || '';
+        const errMsg = error?.toString() || '';
         if (!errMsg.includes('fetch')) {
             Logger.error('Arbitrage loop inner error: ' + errMsg);
         }
     }
-});
-const processUserArbitrage = (user, market, currentPrice, previousPrice) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const processUserArbitrage = async (user, market, currentPrice, previousPrice) => {
     const triggerDelta = user.config.triggerDelta || 0.005;
     const hedgeCeiling = user.config.hedgeCeiling || 0.95;
     // 1. Fetch current positions for this user in this market
     const address = user.wallet.address;
-    const positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${address}`);
+    const positions = await fetchData(`https://data-api.polymarket.com/positions?user=${address}`);
     if (!Array.isArray(positions))
         return;
     // Find positions in this specific market
@@ -134,7 +122,7 @@ const processUserArbitrage = (user, market, currentPrice, previousPrice) => __aw
             // Better: If we have an existing position, we wait for a price where the total set cost < hedgeCeiling.
             // Since we use probability (last trade), we check:
             if (1.0 < hedgeCeiling) { // Basically if floor price is cheap
-                yield executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
+                await executeArbitrageTrade(user, market, tokenId, 'BUY', balanceAbs, 'Leg 2 / Balance');
                 return;
             }
         }
@@ -152,15 +140,15 @@ const processUserArbitrage = (user, market, currentPrice, previousPrice) => __aw
         const side = currentPrice > previousPrice ? 'YES' : 'NO';
         const tokenId = side === 'YES' ? market.yesTokenId : market.noTokenId;
         const amount = user.config.copySize || 20; // Use copySize as initial leg size
-        yield executeArbitrageTrade(user, market, tokenId, 'BUY', amount, 'Leg 1 / Trigger');
+        await executeArbitrageTrade(user, market, tokenId, 'BUY', amount, 'Leg 1 / Trigger');
     }
-});
-const executeArbitrageTrade = (user, market, tokenId, side, amount, reason) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const executeArbitrageTrade = async (user, market, tokenId, side, amount, reason) => {
     try {
         const pk = user.wallet.privateKey;
-        const clobClient = yield createClobClient(pk);
+        const clobClient = await createClobClient(pk);
         Logger.info(`🚀 [${user.chatId}] Arbitrage Action: ${reason} | ${side} on ${market.question.slice(0, 30)}...`);
-        const balance = yield getMyBalance(user.wallet.address);
+        const balance = await getMyBalance(user.wallet.address);
         if (balance < amount) {
             Logger.warning(`[${user.chatId}] Insufficient balance for arbitrage: $${balance.toFixed(2)}`);
             return;
@@ -175,8 +163,8 @@ const executeArbitrageTrade = (user, market, tokenId, side, amount, reason) => _
             // Or fetch orderbook bids. For arbitrage, we usually want FOK on the Best Ask.
             price: 0.99
         };
-        const signedOrder = yield clobClient.createMarketOrder(orderArgs);
-        const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+        const signedOrder = await clobClient.createMarketOrder(orderArgs);
+        const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
         if (resp.success) {
             Logger.success(`✅ [${user.chatId}] ${reason} Executed: ${amount} tokens of ${side}`);
             telegram.tradeExecuted(user.chatId, side, amount, 1.0, market.question);
@@ -188,4 +176,4 @@ const executeArbitrageTrade = (user, market, tokenId, side, amount, reason) => _
     catch (error) {
         Logger.error(`[${user.chatId}] Arbitrage exception: ${error.message || error}`);
     }
-});
+};

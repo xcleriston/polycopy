@@ -4,7 +4,7 @@ import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
-import { Side, OrderType } from '@polymarket/clob-client';
+import { Side, OrderType } from '@polymarket/clob-client-v2';
 import telegram from '../utils/telegram.js';
 import getMyBalance from '../utils/getMyBalance.js';
 

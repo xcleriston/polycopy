@@ -53,18 +53,18 @@ const Position = mongoose.model('UserPosition', UserPositionSchema);
  */
 const createDocumentFactory = (model, walletAddress) => {
     const factory = (data) => {
-        const doc = new model(Object.assign(Object.assign({}, data), { traderAddress: walletAddress.toLowerCase() }));
+        const doc = new model({ ...data, traderAddress: walletAddress.toLowerCase() });
         return doc;
     };
     // Helper to inject traderAddress into queries
     const injectFilter = (query = {}) => {
-        return Object.assign(Object.assign({}, query), { traderAddress: walletAddress.toLowerCase() });
+        return { ...query, traderAddress: walletAddress.toLowerCase() };
     };
     // Attach static methods for compatibility
     Object.assign(factory, {
         find: (query = {}) => model.find(injectFilter(query)).lean(),
         findOne: (query = {}) => model.findOne(injectFilter(query)).lean(),
-        findOneAndUpdate: (query, update, options = {}) => model.findOneAndUpdate(injectFilter(query), update, Object.assign(Object.assign({}, options), { new: true })).lean(),
+        findOneAndUpdate: (query, update, options = {}) => model.findOneAndUpdate(injectFilter(query), update, { ...options, new: true }).lean(),
         updateOne: (query, update, options = {}) => model.updateOne(injectFilter(query), update, options),
         updateMany: (query, update, options = {}) => model.updateMany(injectFilter(query), update, options),
         countDocuments: (query = {}) => model.countDocuments(injectFilter(query)),

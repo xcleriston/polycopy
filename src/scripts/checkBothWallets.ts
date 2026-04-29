@@ -80,7 +80,9 @@ const checkBothWallets = async () => {
 
         // Balance
         try {
-            const balance1 = await getMyBalance(ADDRESS_1);
+            const createClobClient = (await import('../utils/createClobClient')).default;
+            const client = await createClobClient();
+            const balance1 = await getMyBalance(client);
             console.log(`   • USDC Balance: $${balance1.toFixed(2)}`);
         } catch (e) {
             console.log('   • USDC Balance: failed to get');
@@ -135,7 +137,9 @@ const checkBothWallets = async () => {
 
         // Balance
         try {
-            const balance2 = await getMyBalance(ADDRESS_2);
+            const createClobClient = (await import('../utils/createClobClient')).default;
+            const client = await createClobClient();
+            const balance2 = await getMyBalance(client);
             console.log(`\n   • USDC Balance: $${balance2.toFixed(2)}`);
         } catch (e) {
             console.log('\n   • USDC Balance: failed to get');

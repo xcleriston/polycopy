@@ -1,29 +1,22 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ENV } from '../config/env';
 import fetchData from '../utils/fetchData';
 import getMyBalance from '../utils/getMyBalance';
 const PROXY_WALLET = ENV.PROXY_WALLET;
-const checkMyStats = () => __awaiter(void 0, void 0, void 0, function* () {
+const checkMyStats = async () => {
     console.log('🔍 Checking your wallet statistics on Polymarket\n');
     console.log(`Wallet: ${PROXY_WALLET}\n`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     try {
         // 1. USDC Balance
         console.log('💰 USDC BALANCE');
-        const balance = yield getMyBalance(PROXY_WALLET);
+        const createClobClient = (await import('../utils/createClobClient')).default;
+        const client = await createClobClient();
+        const balance = await getMyBalance(client);
         console.log(`   Available: $${balance.toFixed(2)}\n`);
         // 2. Open Positions
         console.log('📊 OPEN POSITIONS');
         const positionsUrl = `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`;
-        const positions = yield fetchData(positionsUrl);
+        const positions = await fetchData(positionsUrl);
         if (positions && positions.length > 0) {
             console.log(`   Total positions: ${positions.length}\n`);
             let totalValue = 0;
@@ -65,7 +58,7 @@ const checkMyStats = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('📜 TRADE HISTORY (last 20)\n');
         const activityUrl = `https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`;
-        const activities = yield fetchData(activityUrl);
+        const activities = await fetchData(activityUrl);
         if (activities && activities.length > 0) {
             console.log(`   Total trades in API: ${activities.length}\n`);
             // Trade statistics
@@ -121,5 +114,5 @@ const checkMyStats = () => __awaiter(void 0, void 0, void 0, function* () {
     catch (error) {
         console.error('❌ Error fetching data:', error);
     }
-});
+};
 checkMyStats();

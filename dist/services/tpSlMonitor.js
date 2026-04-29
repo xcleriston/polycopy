@@ -1,27 +1,18 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import User from '../models/user.js';
 import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
 import telegram from '../utils/telegram.js';
-import { Side, OrderType } from '@polymarket/clob-client';
+import { Side, OrderType } from '@polymarket/clob-client-v2';
 const MONITOR_INTERVAL = 30000; // 30 seconds (Balanced frequency)
 export const startTpSlMonitor = () => {
     Logger.info('🛡️ Starting Auto TP/SL Risk Monitor...');
     setInterval(checkPositions, MONITOR_INTERVAL);
 };
-const checkPositions = () => __awaiter(void 0, void 0, void 0, function* () {
+const checkPositions = async () => {
     try {
         // Find users with TP or SL configured
-        const users = yield User.find({
+        const users = await User.find({
             $or: [
                 { 'config.tpPercent': { $gt: 0 } },
                 { 'config.slPercent': { $lt: 0 } }
@@ -32,20 +23,20 @@ const checkPositions = () => __awaiter(void 0, void 0, void 0, function* () {
         if (!users || users.length === 0)
             return;
         for (const user of users) {
-            yield processUserRisk(user);
+            await processUserRisk(user);
         }
     }
     catch (error) {
         Logger.error(`TP/SL Monitor Error: ${error}`);
     }
-});
-const processUserRisk = (user) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const processUserRisk = async (user) => {
     const address = user.wallet.address;
     const tpPercent = user.config.tpPercent || 0;
     const slPercent = user.config.slPercent || 0;
     try {
         // Fetch open positions
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${address}`);
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${address}`);
         if (!positionsData || !Array.isArray(positionsData))
             return;
         for (const pos of positionsData) {
@@ -74,19 +65,19 @@ const processUserRisk = (user) => __awaiter(void 0, void 0, void 0, function* ()
             }
             if (triggerAction) {
                 Logger.warning(`[${user.chatId || address.slice(0, 6)}] 🎯 RISK TRIGGER: ${reasonLabel} for ${pos.asset} (title: ${pos.title})`);
-                yield executeEmergencySell(user, pos, reasonLabel);
+                await executeEmergencySell(user, pos, reasonLabel);
             }
         }
     }
     catch (e) {
         Logger.error(`Error processing risk for user ${address}: ${e}`);
     }
-});
-const executeEmergencySell = (user, position, reason) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const executeEmergencySell = async (user, position, reason) => {
     try {
-        const clobClient = yield createClobClient(user.wallet.privateKey);
+        const clobClient = await createClobClient(user.wallet.privateKey);
         // Find best bid to ensure execution
-        const orderBook = yield clobClient.getOrderBook(position.asset);
+        const orderBook = await clobClient.getOrderBook(position.asset);
         if (!orderBook.bids || orderBook.bids.length === 0) {
             Logger.warning(`[${user.chatId}] No bids available to sell/close position ${position.asset}`);
             return;
@@ -106,8 +97,8 @@ const executeEmergencySell = (user, position, reason) => __awaiter(void 0, void 
             amount: sellAmount,
             price: parseFloat(maxPriceBid.price),
         };
-        const signedOrder = yield clobClient.createMarketOrder(order_arges);
-        const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+        const signedOrder = await clobClient.createMarketOrder(order_arges);
+        const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
         if (resp.success === true) {
             Logger.orderResult(true, `[${user.chatId}] Closed ${sellAmount} tokens due to ${reason}`);
             telegram.tpSlTriggered(user.chatId, `Fechado ${sellAmount.toFixed(2)} tokens.\nMotivo: ${reason}\nMercado: ${position.title || position.asset}`);
@@ -119,4 +110,4 @@ const executeEmergencySell = (user, position, reason) => __awaiter(void 0, void 
     catch (error) {
         Logger.error(`[${user.chatId}] Exception in emergency sell: ${error}`);
     }
-});
+};

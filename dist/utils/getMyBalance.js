@@ -1,37 +1,65 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-import createClobClient from './createClobClient.js';
+import { ethers } from 'ethers';
+import { ENV } from '../config/env.js';
 import Logger from './logger.js';
+const PUSD_ABI = [
+    "function balanceOf(address account) view returns (uint256)",
+    "function decimals() view returns (uint8)"
+];
+const RPC_LIST = [
+    ENV.RPC_URL,
+    'https://polygon-rpc.com',
+    'https://rpc-mainnet.matic.quiknode.pro',
+    'https://1rpc.io/matic',
+    'https://polygon.llamarpc.com'
+].filter(Boolean);
 /**
- * AGENT 4: BALANCE FIX ENGINE (Surgical Patch)
- * Fetches real USDC balance from Polymarket CLOB.
- * Ensures the dashboard shows accurate funds for Proxy Wallets.
+ * Fetches pUSD (Polymarket USD) balance.
+ * Supports both ClobClient (accurate for CLOB funds)
+ * and wallet address (fast RPC check for EOA/Proxy).
  */
-const getMyBalance = (address, proxy) => __awaiter(void 0, void 0, void 0, function* () {
+const getMyBalance = async (clientOrAddress) => {
     try {
-        const client = yield createClobClient();
-        // Force update to sync state
-        yield client.updateBalanceAllowance({
-            asset_type: "COLLATERAL"
-        });
-        // Fetch actual balance from Polymarket CLOB
-        const balanceData = yield client.getBalanceAllowance({
-            asset_type: "COLLATERAL"
-        });
-        const balance = parseFloat(balanceData.balance || "0");
-        Logger.info(`[BALANCE_FIX] Loaded from CLOB: $${balance.toFixed(2)}`);
-        return balance;
+        if (typeof clientOrAddress === 'string') {
+            const address = clientOrAddress;
+            const pusdAddr = ENV.USDC_CONTRACT_ADDRESS || '0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb';
+            for (const rpc of RPC_LIST) {
+                try {
+                    const provider = new ethers.providers.JsonRpcProvider({
+                        url: rpc,
+                        skipFetchSetup: true
+                    }, 137);
+                    const pusd = new ethers.Contract(pusdAddr, PUSD_ABI, provider);
+                    const balance = await pusd.balanceOf(address);
+                    let finalBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
+                    // Division check removed or adjusted as pUSD is also 6 decimals
+                    if (finalBalance > 100000000) {
+                        Logger.warning(`[BALANCE] Suspiciously high pUSD balance ($${finalBalance}) for ${address.slice(0, 6)}. Check decimals.`);
+                    }
+                    if (finalBalance > 0) {
+                        Logger.info(`[BALANCE] Successfully fetched $${finalBalance} pUSD for ${address.slice(0, 6)} via ${rpc}`);
+                    }
+                    return finalBalance;
+                }
+                catch (rpcErr) {
+                    Logger.warning(`[BALANCE] RPC ${rpc} failed for ${address.slice(0, 6)}: ${rpcErr instanceof Error ? rpcErr.message : 'Unknown'}`);
+                    continue;
+                }
+            }
+            throw new Error("All RPCs failed");
+        }
+        else {
+            // ACCURATE CLOB CHECK via V2 SDK
+            // We need an address for getCollateralBalance in V2
+            // We can get it from the client's signer/account if exposed, 
+            // but the caller usually knows the address or the client is initialized for it.
+            // In the SDK, the address might be in client.getAddress() or similar.
+            const resp = await clientOrAddress.getBalanceAllowance();
+            return parseFloat(resp.balance || "0");
+        }
     }
     catch (e) {
-        Logger.error(`[BALANCE_FIX] FAILED: ${e.message}`);
+        Logger.error(`[BALANCE] Critical failure for ${typeof clientOrAddress === 'string' ? clientOrAddress : 'Client'}: ${e.message}`);
         return 0;
     }
-});
+};
 export default getMyBalance;

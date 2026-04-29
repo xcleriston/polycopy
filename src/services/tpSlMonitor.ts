@@ -4,7 +4,7 @@ import Logger from '../utils/logger.js';
 import fetchData from '../utils/fetchData.js';
 import createClobClient from '../utils/createClobClient.js';
 import telegram from '../utils/telegram.js';
-import { Side, OrderType } from '@polymarket/clob-client';
+import { Side, OrderType } from '@polymarket/clob-client-v2';
 
 const MONITOR_INTERVAL = 30000; // 30 seconds (Balanced frequency)
 

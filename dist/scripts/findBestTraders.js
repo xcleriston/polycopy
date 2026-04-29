@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,324 +25,152 @@ const KNOWN_TRADERS = [
     '0x6bab41a0dc40d6dd4c1a915b8c01969479fd1292',
     '0xa4b366ad22fc0d06f1e934ff468e8922431a87b8',
 ];
-function fetchTraderLeaderboard() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            console.log(colors.cyan('📊 Fetching trader leaderboard from Polymarket...'));
-            // Try to get top traders from events/markets
-            const response = yield axios.get('https://data-api.polymarket.com/markets', {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-            });
-            // Extract unique traders from recent activity
-            const traders = new Set();
-            // Try to fetch from popular markets
-            const markets = response.data.slice(0, 5);
-            for (const market of markets) {
-                try {
-                    const tradesUrl = `https://data-api.polymarket.com/trades?market=${market.conditionId}&limit=100`;
-                    const tradesResp = yield axios.get(tradesUrl, { timeout: 5000 });
-                    tradesResp.data.forEach((trade) => {
-                        if (trade.owner) {
-                            traders.add(trade.owner.toLowerCase());
-                        }
-                    });
-                }
-                catch (e) {
-                    // Skip if market doesn't have trades endpoint
-                }
-            }
-            const traderList = Array.from(traders);
-            console.log(colors.green(`✓ Found ${traderList.length} unique traders from recent activity`));
-            return traderList.slice(0, 20); // Top 20 most active
-        }
-        catch (error) {
-            console.log(colors.yellow('⚠️  Could not fetch leaderboard, using known traders list'));
-            return KNOWN_TRADERS;
-        }
-    });
-}
-function fetchBatch(traderAddress, offset, limit, sinceTimestamp) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${limit}&offset=${offset}`, {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-            });
-            const trades = response.data.map((item) => ({
-                id: item.id,
-                timestamp: item.timestamp,
-                market: item.slug || item.market,
-                asset: item.asset,
-                side: item.side,
-                price: item.price,
-                usdcSize: item.usdcSize,
-                size: item.size,
-                outcome: item.outcome || 'Unknown',
-            }));
-            return trades.filter((t) => t.timestamp >= sinceTimestamp);
-        }
-        catch (error) {
-            return [];
-        }
-    });
-}
-function fetchTraderActivity(traderAddress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const sinceTimestamp = Math.floor((Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000) / 1000);
-            const firstBatch = yield fetchBatch(traderAddress, 0, 100, sinceTimestamp);
-            let allTrades = [...firstBatch];
-            if (firstBatch.length === 100) {
-                const batchSize = 100;
-                const maxParallel = 3;
-                let offset = 100;
-                let hasMore = true;
-                while (hasMore && allTrades.length < MAX_TRADES_LIMIT) {
-                    const promises = [];
-                    for (let i = 0; i < maxParallel; i++) {
-                        promises.push(fetchBatch(traderAddress, offset + i * batchSize, batchSize, sinceTimestamp));
-                    }
-                    const results = yield Promise.all(promises);
-                    let addedCount = 0;
-                    for (const batch of results) {
-                        if (batch.length > 0) {
-                            allTrades = allTrades.concat(batch);
-                            addedCount += batch.length;
-                        }
-                        if (batch.length < batchSize) {
-                            hasMore = false;
-                            break;
-                        }
-                    }
-                    if (addedCount === 0) {
-                        hasMore = false;
-                    }
-                    if (allTrades.length >= MAX_TRADES_LIMIT) {
-                        allTrades = allTrades.slice(0, MAX_TRADES_LIMIT);
-                        hasMore = false;
-                    }
-                    offset += maxParallel * batchSize;
-                }
-            }
-            return allTrades.sort((a, b) => a.timestamp - b.timestamp);
-        }
-        catch (error) {
-            console.error(colors.red(`Error fetching trader ${traderAddress}:`), error);
-            return [];
-        }
-    });
-}
-function fetchTraderPositions(traderAddress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const response = yield axios.get(`https://data-api.polymarket.com/positions?user=${traderAddress}`, {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-            });
-            return response.data;
-        }
-        catch (error) {
-            return [];
-        }
-    });
-}
-function getTraderCapitalAtTime(timestamp, trades) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const pastTrades = trades.filter((t) => t.timestamp <= timestamp);
-        let capital = 100000;
-        pastTrades.forEach((trade) => {
-            if (trade.side === 'BUY') {
-                capital -= trade.usdcSize;
-            }
-            else {
-                capital += trade.usdcSize;
-            }
+async function fetchTraderLeaderboard() {
+    try {
+        console.log(colors.cyan('📊 Fetching trader leaderboard from Polymarket...'));
+        // Try to get top traders from events/markets
+        const response = await axios.get('https://data-api.polymarket.com/markets', {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
         });
-        return Math.max(capital, 50000);
-    });
-}
-function simulateTrader(traderAddress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const startTime = Date.now();
-        try {
-            // Fetch trades
-            const trades = yield fetchTraderActivity(traderAddress);
-            if (trades.length < MIN_TRADER_TRADES) {
-                return {
-                    address: traderAddress,
-                    startingCapital: STARTING_CAPITAL,
-                    currentCapital: STARTING_CAPITAL,
-                    totalTrades: trades.length,
-                    copiedTrades: 0,
-                    skippedTrades: trades.length,
-                    totalPnl: 0,
-                    roi: 0,
-                    realizedPnl: 0,
-                    unrealizedPnl: 0,
-                    winRate: 0,
-                    avgTradeSize: 0,
-                    openPositions: 0,
-                    closedPositions: 0,
-                    simulationTime: Date.now() - startTime,
-                    error: `Not enough trades (${trades.length} < ${MIN_TRADER_TRADES})`,
-                };
+        // Extract unique traders from recent activity
+        const traders = new Set();
+        // Try to fetch from popular markets
+        const markets = response.data.slice(0, 5);
+        for (const market of markets) {
+            try {
+                const tradesUrl = `https://data-api.polymarket.com/trades?market=${market.conditionId}&limit=100`;
+                const tradesResp = await axios.get(tradesUrl, { timeout: 5000 });
+                tradesResp.data.forEach((trade) => {
+                    if (trade.owner) {
+                        traders.add(trade.owner.toLowerCase());
+                    }
+                });
             }
-            // Run simulation
-            let yourCapital = STARTING_CAPITAL;
-            let totalInvested = 0;
-            let copiedTrades = 0;
-            let skippedTrades = 0;
-            const positions = new Map();
-            for (const trade of trades) {
-                const traderCapital = yield getTraderCapitalAtTime(trade.timestamp, trades);
-                const traderPercent = trade.usdcSize / traderCapital;
-                const baseOrderSize = yourCapital * traderPercent;
-                let orderSize = baseOrderSize * MULTIPLIER;
-                if (orderSize < MIN_ORDER_SIZE) {
-                    skippedTrades++;
-                    continue;
-                }
-                if (orderSize > yourCapital * 0.95) {
-                    orderSize = yourCapital * 0.95;
-                    if (orderSize < MIN_ORDER_SIZE) {
-                        skippedTrades++;
-                        continue;
-                    }
-                }
-                const positionKey = `${trade.asset}:${trade.outcome}`;
-                if (trade.side === 'BUY') {
-                    const sharesReceived = orderSize / trade.price;
-                    if (!positions.has(positionKey)) {
-                        positions.set(positionKey, {
-                            market: trade.market || trade.asset || 'Unknown market',
-                            outcome: trade.outcome,
-                            entryPrice: trade.price,
-                            exitPrice: null,
-                            invested: orderSize,
-                            currentValue: orderSize,
-                            pnl: 0,
-                            closed: false,
-                            trades: [],
-                        });
-                    }
-                    const pos = positions.get(positionKey);
-                    pos.trades.push({
-                        timestamp: trade.timestamp,
-                        side: 'BUY',
-                        price: trade.price,
-                        size: sharesReceived,
-                        usdcSize: orderSize,
-                        traderPercent: traderPercent * 100,
-                        yourSize: orderSize,
-                    });
-                    pos.invested += orderSize;
-                    yourCapital -= orderSize;
-                    totalInvested += orderSize;
-                    copiedTrades++;
-                }
-                else if (trade.side === 'SELL') {
-                    if (positions.has(positionKey)) {
-                        const pos = positions.get(positionKey);
-                        const sellAmount = Math.min(orderSize, pos.currentValue);
-                        pos.trades.push({
-                            timestamp: trade.timestamp,
-                            side: 'SELL',
-                            price: trade.price,
-                            size: sellAmount / trade.price,
-                            usdcSize: sellAmount,
-                            traderPercent: traderPercent * 100,
-                            yourSize: sellAmount,
-                        });
-                        pos.currentValue -= sellAmount;
-                        pos.exitPrice = trade.price;
-                        yourCapital += sellAmount;
-                        if (pos.currentValue < 0.01) {
-                            pos.closed = true;
-                            pos.pnl = yourCapital - pos.invested;
-                        }
-                        copiedTrades++;
-                    }
-                    else {
-                        skippedTrades++;
-                    }
-                }
+            catch (e) {
+                // Skip if market doesn't have trades endpoint
             }
-            // Calculate current values
-            const traderPositions = yield fetchTraderPositions(traderAddress);
-            let unrealizedPnl = 0;
-            let realizedPnl = 0;
-            for (const [key, simPos] of positions.entries()) {
-                if (!simPos.closed) {
-                    const assetId = key.split(':')[0];
-                    const traderPos = traderPositions.find((tp) => tp.asset === assetId);
-                    if (traderPos && traderPos.size > 0) {
-                        const currentPrice = traderPos.currentValue / traderPos.size;
-                        const totalShares = simPos.trades
-                            .filter((t) => t.side === 'BUY')
-                            .reduce((sum, t) => sum + t.size, 0);
-                        simPos.currentValue = totalShares * currentPrice;
-                    }
-                    simPos.pnl = simPos.currentValue - simPos.invested;
-                    unrealizedPnl += simPos.pnl;
-                }
-                else {
-                    const totalBought = simPos.trades
-                        .filter((t) => t.side === 'BUY')
-                        .reduce((sum, t) => sum + t.usdcSize, 0);
-                    const totalSold = simPos.trades
-                        .filter((t) => t.side === 'SELL')
-                        .reduce((sum, t) => sum + t.usdcSize, 0);
-                    simPos.pnl = totalSold - totalBought;
-                    realizedPnl += simPos.pnl;
-                }
-            }
-            const currentCapital = yourCapital +
-                Array.from(positions.values())
-                    .filter((p) => !p.closed)
-                    .reduce((sum, p) => sum + p.currentValue, 0);
-            const totalPnl = currentCapital - STARTING_CAPITAL;
-            const roi = (totalPnl / STARTING_CAPITAL) * 100;
-            // Calculate win rate
-            const closedPositions = Array.from(positions.values()).filter((p) => p.closed);
-            const winningPositions = closedPositions.filter((p) => p.pnl > 0);
-            const winRate = closedPositions.length > 0
-                ? (winningPositions.length / closedPositions.length) * 100
-                : 0;
-            // Calculate avg trade size
-            const avgTradeSize = copiedTrades > 0 ? totalInvested / copiedTrades : 0;
-            return {
-                address: traderAddress,
-                startingCapital: STARTING_CAPITAL,
-                currentCapital,
-                totalTrades: trades.length,
-                copiedTrades,
-                skippedTrades,
-                totalPnl,
-                roi,
-                realizedPnl,
-                unrealizedPnl,
-                winRate,
-                avgTradeSize,
-                openPositions: Array.from(positions.values()).filter((p) => !p.closed).length,
-                closedPositions: closedPositions.length,
-                simulationTime: Date.now() - startTime,
-            };
         }
-        catch (error) {
+        const traderList = Array.from(traders);
+        console.log(colors.green(`✓ Found ${traderList.length} unique traders from recent activity`));
+        return traderList.slice(0, 20); // Top 20 most active
+    }
+    catch (error) {
+        console.log(colors.yellow('⚠️  Could not fetch leaderboard, using known traders list'));
+        return KNOWN_TRADERS;
+    }
+}
+async function fetchBatch(traderAddress, offset, limit, sinceTimestamp) {
+    try {
+        const response = await axios.get(`https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE&limit=${limit}&offset=${offset}`, {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+        const trades = response.data.map((item) => ({
+            id: item.id,
+            timestamp: item.timestamp,
+            market: item.slug || item.market,
+            asset: item.asset,
+            side: item.side,
+            price: item.price,
+            usdcSize: item.usdcSize,
+            size: item.size,
+            outcome: item.outcome || 'Unknown',
+        }));
+        return trades.filter((t) => t.timestamp >= sinceTimestamp);
+    }
+    catch (error) {
+        return [];
+    }
+}
+async function fetchTraderActivity(traderAddress) {
+    try {
+        const sinceTimestamp = Math.floor((Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000) / 1000);
+        const firstBatch = await fetchBatch(traderAddress, 0, 100, sinceTimestamp);
+        let allTrades = [...firstBatch];
+        if (firstBatch.length === 100) {
+            const batchSize = 100;
+            const maxParallel = 3;
+            let offset = 100;
+            let hasMore = true;
+            while (hasMore && allTrades.length < MAX_TRADES_LIMIT) {
+                const promises = [];
+                for (let i = 0; i < maxParallel; i++) {
+                    promises.push(fetchBatch(traderAddress, offset + i * batchSize, batchSize, sinceTimestamp));
+                }
+                const results = await Promise.all(promises);
+                let addedCount = 0;
+                for (const batch of results) {
+                    if (batch.length > 0) {
+                        allTrades = allTrades.concat(batch);
+                        addedCount += batch.length;
+                    }
+                    if (batch.length < batchSize) {
+                        hasMore = false;
+                        break;
+                    }
+                }
+                if (addedCount === 0) {
+                    hasMore = false;
+                }
+                if (allTrades.length >= MAX_TRADES_LIMIT) {
+                    allTrades = allTrades.slice(0, MAX_TRADES_LIMIT);
+                    hasMore = false;
+                }
+                offset += maxParallel * batchSize;
+            }
+        }
+        return allTrades.sort((a, b) => a.timestamp - b.timestamp);
+    }
+    catch (error) {
+        console.error(colors.red(`Error fetching trader ${traderAddress}:`), error);
+        return [];
+    }
+}
+async function fetchTraderPositions(traderAddress) {
+    try {
+        const response = await axios.get(`https://data-api.polymarket.com/positions?user=${traderAddress}`, {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+        return response.data;
+    }
+    catch (error) {
+        return [];
+    }
+}
+async function getTraderCapitalAtTime(timestamp, trades) {
+    const pastTrades = trades.filter((t) => t.timestamp <= timestamp);
+    let capital = 100000;
+    pastTrades.forEach((trade) => {
+        if (trade.side === 'BUY') {
+            capital -= trade.usdcSize;
+        }
+        else {
+            capital += trade.usdcSize;
+        }
+    });
+    return Math.max(capital, 50000);
+}
+async function simulateTrader(traderAddress) {
+    const startTime = Date.now();
+    try {
+        // Fetch trades
+        const trades = await fetchTraderActivity(traderAddress);
+        if (trades.length < MIN_TRADER_TRADES) {
             return {
                 address: traderAddress,
                 startingCapital: STARTING_CAPITAL,
                 currentCapital: STARTING_CAPITAL,
-                totalTrades: 0,
+                totalTrades: trades.length,
                 copiedTrades: 0,
-                skippedTrades: 0,
+                skippedTrades: trades.length,
                 totalPnl: 0,
                 roi: 0,
                 realizedPnl: 0,
@@ -361,10 +180,170 @@ function simulateTrader(traderAddress) {
                 openPositions: 0,
                 closedPositions: 0,
                 simulationTime: Date.now() - startTime,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: `Not enough trades (${trades.length} < ${MIN_TRADER_TRADES})`,
             };
         }
-    });
+        // Run simulation
+        let yourCapital = STARTING_CAPITAL;
+        let totalInvested = 0;
+        let copiedTrades = 0;
+        let skippedTrades = 0;
+        const positions = new Map();
+        for (const trade of trades) {
+            const traderCapital = await getTraderCapitalAtTime(trade.timestamp, trades);
+            const traderPercent = trade.usdcSize / traderCapital;
+            const baseOrderSize = yourCapital * traderPercent;
+            let orderSize = baseOrderSize * MULTIPLIER;
+            if (orderSize < MIN_ORDER_SIZE) {
+                skippedTrades++;
+                continue;
+            }
+            if (orderSize > yourCapital * 0.95) {
+                orderSize = yourCapital * 0.95;
+                if (orderSize < MIN_ORDER_SIZE) {
+                    skippedTrades++;
+                    continue;
+                }
+            }
+            const positionKey = `${trade.asset}:${trade.outcome}`;
+            if (trade.side === 'BUY') {
+                const sharesReceived = orderSize / trade.price;
+                if (!positions.has(positionKey)) {
+                    positions.set(positionKey, {
+                        market: trade.market || trade.asset || 'Unknown market',
+                        outcome: trade.outcome,
+                        entryPrice: trade.price,
+                        exitPrice: null,
+                        invested: orderSize,
+                        currentValue: orderSize,
+                        pnl: 0,
+                        closed: false,
+                        trades: [],
+                    });
+                }
+                const pos = positions.get(positionKey);
+                pos.trades.push({
+                    timestamp: trade.timestamp,
+                    side: 'BUY',
+                    price: trade.price,
+                    size: sharesReceived,
+                    usdcSize: orderSize,
+                    traderPercent: traderPercent * 100,
+                    yourSize: orderSize,
+                });
+                pos.invested += orderSize;
+                yourCapital -= orderSize;
+                totalInvested += orderSize;
+                copiedTrades++;
+            }
+            else if (trade.side === 'SELL') {
+                if (positions.has(positionKey)) {
+                    const pos = positions.get(positionKey);
+                    const sellAmount = Math.min(orderSize, pos.currentValue);
+                    pos.trades.push({
+                        timestamp: trade.timestamp,
+                        side: 'SELL',
+                        price: trade.price,
+                        size: sellAmount / trade.price,
+                        usdcSize: sellAmount,
+                        traderPercent: traderPercent * 100,
+                        yourSize: sellAmount,
+                    });
+                    pos.currentValue -= sellAmount;
+                    pos.exitPrice = trade.price;
+                    yourCapital += sellAmount;
+                    if (pos.currentValue < 0.01) {
+                        pos.closed = true;
+                        pos.pnl = yourCapital - pos.invested;
+                    }
+                    copiedTrades++;
+                }
+                else {
+                    skippedTrades++;
+                }
+            }
+        }
+        // Calculate current values
+        const traderPositions = await fetchTraderPositions(traderAddress);
+        let unrealizedPnl = 0;
+        let realizedPnl = 0;
+        for (const [key, simPos] of positions.entries()) {
+            if (!simPos.closed) {
+                const assetId = key.split(':')[0];
+                const traderPos = traderPositions.find((tp) => tp.asset === assetId);
+                if (traderPos && traderPos.size > 0) {
+                    const currentPrice = traderPos.currentValue / traderPos.size;
+                    const totalShares = simPos.trades
+                        .filter((t) => t.side === 'BUY')
+                        .reduce((sum, t) => sum + t.size, 0);
+                    simPos.currentValue = totalShares * currentPrice;
+                }
+                simPos.pnl = simPos.currentValue - simPos.invested;
+                unrealizedPnl += simPos.pnl;
+            }
+            else {
+                const totalBought = simPos.trades
+                    .filter((t) => t.side === 'BUY')
+                    .reduce((sum, t) => sum + t.usdcSize, 0);
+                const totalSold = simPos.trades
+                    .filter((t) => t.side === 'SELL')
+                    .reduce((sum, t) => sum + t.usdcSize, 0);
+                simPos.pnl = totalSold - totalBought;
+                realizedPnl += simPos.pnl;
+            }
+        }
+        const currentCapital = yourCapital +
+            Array.from(positions.values())
+                .filter((p) => !p.closed)
+                .reduce((sum, p) => sum + p.currentValue, 0);
+        const totalPnl = currentCapital - STARTING_CAPITAL;
+        const roi = (totalPnl / STARTING_CAPITAL) * 100;
+        // Calculate win rate
+        const closedPositions = Array.from(positions.values()).filter((p) => p.closed);
+        const winningPositions = closedPositions.filter((p) => p.pnl > 0);
+        const winRate = closedPositions.length > 0
+            ? (winningPositions.length / closedPositions.length) * 100
+            : 0;
+        // Calculate avg trade size
+        const avgTradeSize = copiedTrades > 0 ? totalInvested / copiedTrades : 0;
+        return {
+            address: traderAddress,
+            startingCapital: STARTING_CAPITAL,
+            currentCapital,
+            totalTrades: trades.length,
+            copiedTrades,
+            skippedTrades,
+            totalPnl,
+            roi,
+            realizedPnl,
+            unrealizedPnl,
+            winRate,
+            avgTradeSize,
+            openPositions: Array.from(positions.values()).filter((p) => !p.closed).length,
+            closedPositions: closedPositions.length,
+            simulationTime: Date.now() - startTime,
+        };
+    }
+    catch (error) {
+        return {
+            address: traderAddress,
+            startingCapital: STARTING_CAPITAL,
+            currentCapital: STARTING_CAPITAL,
+            totalTrades: 0,
+            copiedTrades: 0,
+            skippedTrades: 0,
+            totalPnl: 0,
+            roi: 0,
+            realizedPnl: 0,
+            unrealizedPnl: 0,
+            winRate: 0,
+            avgTradeSize: 0,
+            openPositions: 0,
+            closedPositions: 0,
+            simulationTime: Date.now() - startTime,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
 }
 function printResults(results) {
     console.log('\n' + colors.cyan('═'.repeat(100)));
@@ -449,57 +428,58 @@ function saveResults(results) {
             minTraderTrades: MIN_TRADER_TRADES,
         },
         timestamp: Date.now(),
-        results: results.map((r) => (Object.assign(Object.assign({}, r), { profileUrl: `https://polymarket.com/profile/${r.address}` }))),
+        results: results.map((r) => ({
+            ...r,
+            profileUrl: `https://polymarket.com/profile/${r.address}`,
+        })),
     };
     fs.writeFileSync(filepath, JSON.stringify(data, null, 2), 'utf8');
     console.log(colors.green(`✓ Results saved to: ${filepath}\n`));
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(colors.cyan('\n🔍 POLYMARKET TRADER FINDER\n'));
-        console.log(colors.gray(`Finding and analyzing the most profitable traders...\n`));
-        try {
-            // Get trader list
-            let traders = [];
-            // Check if custom list provided via env
-            if (process.env.TRADER_LIST) {
-                traders = process.env.TRADER_LIST.split(',').map((t) => t.trim().toLowerCase());
-                console.log(colors.cyan(`Using custom trader list (${traders.length} traders)\n`));
+async function main() {
+    console.log(colors.cyan('\n🔍 POLYMARKET TRADER FINDER\n'));
+    console.log(colors.gray(`Finding and analyzing the most profitable traders...\n`));
+    try {
+        // Get trader list
+        let traders = [];
+        // Check if custom list provided via env
+        if (process.env.TRADER_LIST) {
+            traders = process.env.TRADER_LIST.split(',').map((t) => t.trim().toLowerCase());
+            console.log(colors.cyan(`Using custom trader list (${traders.length} traders)\n`));
+        }
+        else {
+            traders = await fetchTraderLeaderboard();
+        }
+        if (traders.length === 0) {
+            console.log(colors.red('❌ No traders found to analyze'));
+            return;
+        }
+        console.log(colors.cyan(`\n🚀 Starting analysis of ${traders.length} traders...\n`));
+        const results = [];
+        for (let i = 0; i < traders.length; i++) {
+            const trader = traders[i];
+            console.log(colors.gray(`[${i + 1}/${traders.length}] Analyzing ${trader.slice(0, 10)}...`));
+            const result = await simulateTrader(trader);
+            results.push(result);
+            // Show quick status
+            if (!result.error && result.copiedTrades > 0) {
+                const roiColor = result.roi >= 0 ? colors.green : colors.red;
+                console.log(`   ${roiColor(result.roi >= 0 ? '✓' : '✗')} ROI: ${result.roi.toFixed(2)}% | Trades: ${result.copiedTrades} | Time: ${(result.simulationTime / 1000).toFixed(1)}s`);
             }
             else {
-                traders = yield fetchTraderLeaderboard();
+                console.log(`   ${colors.yellow('⚠')} ${result.error || 'No trades copied'}`);
             }
-            if (traders.length === 0) {
-                console.log(colors.red('❌ No traders found to analyze'));
-                return;
-            }
-            console.log(colors.cyan(`\n🚀 Starting analysis of ${traders.length} traders...\n`));
-            const results = [];
-            for (let i = 0; i < traders.length; i++) {
-                const trader = traders[i];
-                console.log(colors.gray(`[${i + 1}/${traders.length}] Analyzing ${trader.slice(0, 10)}...`));
-                const result = yield simulateTrader(trader);
-                results.push(result);
-                // Show quick status
-                if (!result.error && result.copiedTrades > 0) {
-                    const roiColor = result.roi >= 0 ? colors.green : colors.red;
-                    console.log(`   ${roiColor(result.roi >= 0 ? '✓' : '✗')} ROI: ${result.roi.toFixed(2)}% | Trades: ${result.copiedTrades} | Time: ${(result.simulationTime / 1000).toFixed(1)}s`);
-                }
-                else {
-                    console.log(`   ${colors.yellow('⚠')} ${result.error || 'No trades copied'}`);
-                }
-                // Small delay to avoid rate limiting
-                yield new Promise((resolve) => setTimeout(resolve, 500));
-            }
-            // Print and save results
-            printResults(results);
-            saveResults(results);
-            console.log(colors.green('✅ Analysis complete!\n'));
+            // Small delay to avoid rate limiting
+            await new Promise((resolve) => setTimeout(resolve, 500));
         }
-        catch (error) {
-            console.error(colors.red('\n✗ Analysis failed:'), error);
-            process.exit(1);
-        }
-    });
+        // Print and save results
+        printResults(results);
+        saveResults(results);
+        console.log(colors.green('✅ Analysis complete!\n'));
+    }
+    catch (error) {
+        console.error(colors.red('\n✗ Analysis failed:'), error);
+        process.exit(1);
+    }
 }
 main();

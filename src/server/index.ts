@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
-import { setupNewUser, findPolymarketProxy } from './setup.js';
+import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 import bcrypt from 'bcryptjs';
@@ -11,9 +11,7 @@ import telegram from '../utils/telegram.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
-import setupProxy from '../utils/setupProxy.js';
-
-// Global proxy will be initialized inside startServer
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 
 const app = express();
 app.use(express.json());
@@ -95,6 +93,18 @@ app.get('/api/health', (_req, res) => {
 
 // --- Protect all other /api routes ---
 app.use('/api', authenticateToken);
+
+// Middleware to populate fullUser for API routes
+app.use('/api', async (req: any, res, next) => {
+    if (req.user?.id) {
+        try {
+            req.fullUser = await User.findById(req.user.id);
+        } catch (error) {
+            console.error('Error fetching fullUser:', error);
+        }
+    }
+    next();
+});
 
 app.get('/api/status', async (req: AuthRequest, res) => {
     try {
@@ -905,105 +915,89 @@ setInterval(refresh, 5000);
 </script>
 </body></html>`;
 
-const hackerStyles = `
+const authStyles = `
 :root {
-  --bg: #050505;
-  --card: #0a0a0a;
-  --border: #1a1a1a;
-  --text: #e0e0e0;
-  --text-dim: #808080;
-  --accent: #00ff41;
-  --accent-blue: #00d1ff;
-  --accent-glow: rgba(0, 255, 65, 0.2);
-  --danger: #ff003c;
-  --warning: #f59e0b;
-  --hacker-font: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { 
   background: var(--bg); 
   color: var(--text); 
-  font-family: 'Outfit', sans-serif; 
-  overflow-x: hidden; 
-  background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #050505 100%);
+  font-family: var(--font-main); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  min-height: 100vh;
 }
-.scanline {
+.auth-card { 
+  width: 100%; 
+  max-width: 420px; 
+  background: var(--card); 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  padding: 40px; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.logo { font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 30px; text-align: center; }
+.logo span { color: var(--accent); }
+.form-group { margin-bottom: 20px; }
+label { display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+input { 
+  width: 100%; 
+  background: #0d1117; 
+  border: 1px solid var(--border); 
+  padding: 12px 16px; 
+  color: #fff; 
+  border-radius: 6px; 
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s;
+}
+input:focus { border-color: var(--accent); }
+.btn-auth {
   width: 100%;
-  height: 100px;
-  background: linear-gradient(0deg, rgba(0, 255, 65, 0.03), transparent);
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  pointer-events: none;
-  animation: scan 8s linear infinite;
-}
-@keyframes scan { from { transform: translateY(-100px); } to { transform: translateY(100vh); } }
-
-.glass {
-  background: rgba(10, 10, 10, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.hacker-glow { box-shadow: 0 0 15px var(--accent-glow); }
-.text-hacker { font-family: var(--hacker-font); color: var(--accent); }
-.btn-hacker {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-family: var(--hacker-font);
-  cursor: pointer;
-  transition: 0.3s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.btn-hacker:hover {
   background: var(--accent);
-  color: #000;
-  box-shadow: 0 0 20px var(--accent-glow);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: 0.2s;
 }
+.btn-auth:hover { background: #2563eb; transform: translateY(-1px); }
+.footer { margin-top: 25px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+.footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
 `;
 
 const loginHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Entry Point</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; letter-spacing: -1px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent); }
-    input:focus { border-color: var(--accent); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Login</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="loginForm">
       <div class="form-group">
-        <label>ID / EMAIL / USER</label>
-        <input type="text" id="identity" required>
+        <label>Identificação / E-mail</label>
+        <input type="text" id="identity" placeholder="Seu usuário ou e-mail" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="••••••••" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%">Execute_Login</button>
+      <button type="submit" class="btn-auth">Entrar no Sistema</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Não tem acesso? <a href="/signup">Solicitar Credenciais</a>
+      Não tem uma conta? <a href="/signup">Criar Cadastro</a>
     </div>
   </div>
   <script>
@@ -1027,43 +1021,30 @@ const signupHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Register</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent-blue); }
-    input:focus { border-color: var(--accent-blue); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent-blue); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Cadastro</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow" style="box-shadow: 0 0 15px rgba(0, 209, 255, 0.2)">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="signupForm">
       <div class="form-group">
-        <label>USERNAME</label>
-        <input type="text" id="username" required>
+        <label>Nome de Usuário</label>
+        <input type="text" id="username" placeholder="Como deseja ser chamado" required>
       </div>
       <div class="form-group">
-        <label>EMAIL</label>
-        <input type="email" id="email" required>
+        <label>E-mail</label>
+        <input type="email" id="email" placeholder="seu@email.com" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%; border-color: var(--accent-blue); color: var(--accent-blue)">Initialize_Account</button>
+      <button type="submit" class="btn-auth">Finalizar Cadastro</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Já possui acesso? <a href="/login">Conectar</a>
+      Já possui cadastro? <a href="/login">Fazer Login</a>
     </div>
   </div>
   <script>
@@ -1092,52 +1073,42 @@ const adminDashboardHtml = `<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b0e14;
-  --sidebar: #151921;
-  --card: #1c212b;
-  --border: #2d343f;
-  --text: #e2e8f0;
-  --text-dim: #94a3b8;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --font-main: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
 
 /* Sidebar */
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; transition: 0.3s; z-index: 1000; }
-.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+aside { width: 240px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; transition: 0.3s; z-index: 1000; }
+.logo { padding: 25px; font-size: 1.3rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
-.nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; font-size: 0.95rem; }
+.nav { flex: 1; padding: 15px 0; }
+.nav-item { padding: 12px 25px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; font-size: 0.9rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.03); }
-.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent); }
 
 /* Main Content */
-main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .user-info { display: flex; align-items: center; gap: 12px; }
-.avatar { width: 35px; height: 35px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 0 15px var(--accent-glow); }
+.avatar { width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 40px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); padding: 24px; border-radius: 16px; position: relative; overflow: hidden; }
-.stat-card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.03)); pointer-events: none; }
-.stat-label { color: var(--text-dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-.stat-value { font-size: 2rem; font-weight: 700; color: #fff; }
-.stat-sub { font-size: 0.8rem; margin-top: 8px; font-family: var(--font-mono); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
+.stat-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value { font-size: 1.8rem; font-weight: 700; color: #fff; }
+.stat-sub { font-size: 0.75rem; margin-top: 6px; font-family: monospace; }
 
 /* Tables & Content */
 .section { display: none; width: 100%; }
-.section.active { display: block; animation: fadeIn 0.4s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.section.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-h2 { margin-bottom: 24px; font-size: 1.25rem; font-weight: 700; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+h2 { margin-bottom: 20px; font-size: 1.1rem; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: 16px 24px; color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); letter-spacing: 1px; }
 td { padding: 16px 24px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
@@ -1382,10 +1353,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <input type="text" id="edit-trader" placeholder="0x...">
           </div>
           <div class="form-group">
-            <label>Endereço Proxy (Polymarket)</label>
-            <input type="text" id="edit-proxyAddress" placeholder="0x...">
-          </div>
-          <div class="form-group">
             <label>Estratégia de Cópia</label>
             <select id="edit-strategy">
               <option value="PERCENTAGE">Percentage (%)</option>
@@ -1568,7 +1535,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
         
         document.getElementById('edit-trader').value = c.traderAddress || '';
-        document.getElementById('edit-proxyAddress').value = u.wallet?.proxyAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
         document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
@@ -1594,7 +1560,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
-        proxyAddress: document.getElementById('edit-proxyAddress').value,
         strategy: document.getElementById('edit-strategy').value,
         copySize: parseFloat(document.getElementById('edit-size').value),
         orderType: document.getElementById('edit-orderType').value,
@@ -1726,51 +1691,46 @@ const userDashboardHtml = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
-  --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
-  --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; }
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
-.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
+aside { width: 240px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+.logo { padding: 25px; font-size: 1.3rem; font-weight: 800; color: #fff; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
-.nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
+.nav { flex: 1; padding: 15px 0; }
+.nav-item { padding: 12px 25px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; font-size: 0.9rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
-.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
-.nav-item.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
-main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
-.step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
-.step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
-.step.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
-.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
-.form-group { margin-bottom: 20px; }
-label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 0.95rem; }
-input:focus { border-color: var(--accent); outline: none; }
-.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.btn:hover { background: #2563eb; transform: translateY(-1px); }
-.btn-sm { padding: 8px 16px; width: auto; font-size: 0.85rem; }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent); }
+main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; max-width: 700px; margin: 40px auto; }
+.form-group { margin-bottom: 15px; }
+label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; }
+input, select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; outline: none; }
+input:focus { border-color: var(--accent); }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+.btn:hover { background: #2563eb; }
+.btn-sm { padding: 8px 16px; width: auto; font-size: 0.8rem; }
 .btn-outline { background: transparent; border: 1px solid var(--border); }
 .btn-outline:hover { background: rgba(255,255,255,0.05); }
-.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 16px; border-radius: 10px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); margin: 15px 0; word-break: break-all; }
-#message-banner { position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px; font-weight: 600; display: none; z-index: 10000; animation: slideIn 0.3s ease-out; }
-@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-.badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+th { text-align: left; padding: 10px; font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); }
 .status-active { color: var(--success); }
 .status-paused { color: var(--warning); }
-.switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-.switch-container input { width: 18px; height: 18px; cursor: pointer; }
+.step-indicator { display: flex; justify-content: space-between; margin-bottom: 30px; }
+.step { width: 30px; height: 30px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text-dim); }
+.step.active { border-color: var(--accent); color: var(--accent); }
+.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+#message-banner { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; display: none; z-index: 10000; background: var(--accent); color: #fff; }
+.switch-container { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -1784,8 +1744,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
   </aside>
   <main>
-    <div id="bypass-alert-banner" style="background:var(--danger); color:#fff; padding:8px; text-align:center; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:2px; display:none">⚠️ ATENÇÃO: MODO BYPASS ATIVO - FILTROS DE RISCO DESATIVADOS ⚠️</div>
-    <div id="message-banner"></div>
+    <div id="setup-wizard" class="wizard-card" style="display:none">
         <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
         <div class="step-indicator">
@@ -1910,21 +1869,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <div class="form-group">
                         <label>Modo de Operação</label>
                         <select id="bot-mode">
-                            <option value="COPY">COPY: Cópia Automática</option>
-                            <option value="MIRROR_100">MIRROR 100%: Cópia Fiel (Sem Filtros)</option>
+                            <option value="COPY">COPY: Cópia Inteligente (Com Filtros)</option>
+                            <option value="MIRROR_100">MIRROR: 100% Espelhamento (Sem Filtros)</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Endereço do Trader Monitorado</label>
                         <input type="text" id="bot-trader" placeholder="0x...">
-                    </div>
-                    <div class="form-group">
-                        <label>Sua Carteira Proxy (Polymarket)</label>
-                        <div style="display:flex; gap:8px">
-                            <input type="text" id="bot-proxyAddress" placeholder="0x..." style="flex:1">
-                            <button class="btn btn-sm btn-outline" onclick="syncProxy()" style="width:auto; white-space:nowrap">Sincronizar</button>
-                        </div>
-                        <small style="color:var(--text-dim)">O bot detecta automaticamente, mas você pode ajustar se o saldo aparecer como $0.00. <a href="https://polymarket.com/settings" target="_blank" style="color:var(--accent)">Ver na Polymarket</a></small>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
@@ -1958,6 +1909,34 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                 </div>
 
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Execução & Filtros de Cópia</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; opacity: 0.5; pointer-events: none; filter: grayscale(1)">
+                        <div class="form-group">
+                            <label>Trigger Delta ($) [Arbitrage]</label>
+                            <input type="number" id="bot-triggerDelta" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label>Hedge Ceiling ($) [Arbitrage]</label>
+                            <input type="number" id="bot-hedgeCeiling" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 24px; display: grid; gap: 12px">
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra o Trader)</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Ordens de COMPRA</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Ordens de VENDA</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
@@ -2064,11 +2043,19 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div>
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Importar carteira existente via Chave Privada:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Configuração de Carteiras:</p>
                     <div class="form-group">
-                        <input type="password" id="settings-import-pk" placeholder="Chave Privada (0x...)">
+                        <label>Chave Privada (0x...)</label>
+                        <input type="password" id="settings-import-pk" placeholder="0x...">
                     </div>
-                    <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label>Proxy Wallet Address (Gnosis Safe)</label>
+                        <input type="text" id="bot-proxyAddress" placeholder="0x... (Opcional se auto-detectado)">
+                        <small style="color:var(--text-dim); display:block; margin-top:4px">Insira manualmente se o saldo não estiver aparecendo.</small>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 16px">
+                        <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    </div>
                 </div>
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
                     <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
@@ -2128,9 +2115,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        const isMirrorMode = currentUser.config?.mode === 'MIRROR_100';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || !hasTrader || !isReady) {
+        if (!hasWallet || (!hasTrader && !isMirrorMode && !isReady)) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(i => {
@@ -2138,18 +2126,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             });
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader) renderStep2();
+            else if (!hasTrader && !isMirrorMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
-            
-            const banner = document.getElementById('bypass-alert-banner');
-            if (banner) {
-                banner.style.display = currentUser.config?.mode === 'MIRROR_100' ? 'block' : 'none';
-            }
-
             renderMainDashboard();
         }
     }
@@ -2191,14 +2173,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </div>
 
                         <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:16px; border-radius:12px; margin-bottom:20px">
-                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Pr\u00F3ximos Passos na Polymarket:</h5>
+                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Como Vincular na Polymarket:</h5>
                             <ol style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.4; margin-bottom:12px">
-                                <li>Importe sua <b>Chave Privada</b> no MetaMask.</li>
-                                <li>Conecte na Polymarket para ativar sua <b>Carteira Proxy</b>.</li>
-                                <li>O bot detectar\u00E1 seu saldo automaticamente via Proxy.</li>
+                                <li>Copie sua <b>Chave Privada</b> acima.</li>
+                                <li>No seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
+                                <li>Cole a chave e clique em "Importar".</li>
+                                <li>Abra a Polymarket e clique em <b>"Conectar Carteira"</b>.</li>
                             </ol>
-                            <button onclick="window.open('https://polymarket.com/settings', '_blank')" style="margin-bottom:8px; width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">VERIFICAR NA POLYMARKET</button>
-                            <small style="font-size:0.65rem; color:var(--text-dim); display:block; text-align:center">Se o bot n\u00E3o detectar seu saldo, v\u00E1 em Configura\u00E7\u00F5es e cole o endere\u00E7o da Polymarket.</small>
+                            <button onclick="window.open('https://polymarket.com', '_blank')" style="width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">ABRIR POLYMARKET AGORA</button>
                         </div>
 
                         <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
@@ -2255,19 +2237,49 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endere\u00E7o do trader que deseja copiar. O bot monitorar\u00E1 cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endere\u00E7o da Carteira (Polymarket)</label>
+                <label>Endereço da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
             <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+            <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">MODO MIRROR</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <button class="btn btn-outline" onclick="enterMirrorMode(this)">Usar Mirror 100% (Sem Filtros)</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Copia exatamente cada trade do alvo, ignorando limites de preço e tamanho.</p>
         \`;
     }
 
+    async function enterMirrorMode(btn) {
+        const addr = document.getElementById('setup-trader').value;
+        if (!addr || addr.length < 40) return showBanner('Informe o Trader para Espelhar', 'warning');
+        btn.disabled = true; btn.textContent = 'Configurando...';
+        try {
+            await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    traderAddress: addr, 
+                    mode: 'MIRROR_100', 
+                    strategy: 'PERCENTAGE', 
+                    copySize: 100, 
+                    enabled: true, 
+                    finalize: true 
+                })
+            });
+            loadUser();
+        } catch (e) {
+            showBanner('Erro ao configurar Mirror', 'danger');
+            btn.disabled = false;
+        }
+    }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('Endere\u00E7o Inv\u00E1lido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2337,10 +2349,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const c = currentUser.config || {};
             const walletAddr = document.getElementById('user-wallet-addr');
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
+            
             const addrDisplay = document.getElementById('trader-addr-display');
+            const isArbitrage = c.mode === 'ARBITRAGE';
+            
             if (addrDisplay) {
-                addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
-                addrDisplay.style.color = 'var(--accent)';
+                if (isArbitrage) {
+                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
+                    addrDisplay.style.color = 'var(--warning)';
+                } else {
+                    addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+                    addrDisplay.style.color = 'var(--accent)';
+                }
             }
             
             // Status UI
@@ -2358,6 +2378,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             // Config Fill
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
             setVal('bot-trader', c.traderAddress || '');
+            const tName = document.getElementById('trader-name');
+            if (tName) tName.textContent = c.traderAddress ? (c.traderAddress.slice(0,10) + '...') : 'Nenhum';
             setVal('bot-strategy', c.strategy || 'PERCENTAGE');
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
@@ -2380,8 +2402,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-balanceSl', c.balanceSl || 0);
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
-            setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
             setVal('bot-mode', c.mode || 'COPY');
+            setVal('bot-proxyAddress', currentUser.wallet?.proxyAddress || '');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2474,9 +2496,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', '$' + Number(data.balance || 0).toFixed(2));
+            setTxt('stat-exposure', '$' + Number(data.exposure || 0).toFixed(2));
             
+            if (data.proxy) {
+                const pInput = document.getElementById('bot-proxyAddress');
+                if (pInput && !pInput.value) {
+                    pInput.placeholder = data.proxy + ' (Auto-Detectado)';
+                }
+            }
+
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
                 setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
@@ -2511,8 +2540,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDEAB' },
                     'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
                     'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\u274C' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\uD83D\uDD34' }
+                    'PULADO (LIQUIDEZ)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💧' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' }
                 };
                 const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '\uD83D\uDD35' };
 
@@ -2530,7 +2560,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
@@ -2538,27 +2568,39 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     ? \`<a href="https://polymarket.com/event/\${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="\${t.title}">\${(t.title || t.slug).slice(0,35)}...\${sourceBadge}</a>\`
                     : \`<span style="font-size:0.85rem">\${(t.title || 'Detectando...').slice(0,35)}\${sourceBadge}</span>\`;
 
-                const tooltip = t.executionDetails ? \` title="\${t.executionDetails}"\` : '';
+                const tooltipContent = [
+                    status,
+                    t.executionDetails ? \`Detalhes: \${t.executionDetails}\` : '',
+                    t.myEntryAmount ? \`Entrada: $\${t.myEntryAmount.toFixed(2)}\` : '',
+                    t.myEntryPrice ? \`Preço: \${(t.myEntryPrice*100).toFixed(1)}c\` : '',
+                    t.myExecutedAt ? \`Hora: \${new Date(t.myExecutedAt).toLocaleTimeString()}\` : ''
+                ].filter(Boolean).join(' | ');
 
                 return \`
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                     <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
                     <td>\${marketLink}</td>
-                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'\uD83D\uDCC8 COMPRA':'\uD83D\uDCC9 VENDA'}</span></td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
                     <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
+                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td><span class="badge" title="\${tooltipContent}" style="background:\${style.bg}; color:\${style.color}; cursor:help">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
 
             // Update Trader Info
-            if (trades.length > 0 && trades[0].pseudonym) {
-                const el = document.getElementById('trader-name');
-                if (el) el.textContent = trades[0].pseudonym || 'Desconhecido';
+            if (trades.length > 0) {
+                const first = trades[0];
+                const nameEl = document.getElementById('trader-name');
+                if (nameEl) nameEl.textContent = first.pseudonym || first.name || (currentUser.config?.traderAddress ? currentUser.config.traderAddress.slice(0,10)+'...' : 'Nenhum');
+                
+                const avatarEl = document.getElementById('trader-avatar');
+                if (avatarEl && first.profileImage) {
+                    avatarEl.innerHTML = \`<img src="\${first.profileImage}" style="width:100%; height:100%; border-radius:50%; object-fit:cover">\`;
+                }
             }
         } catch(e) { console.error('Trades refresh fail:', e); }
     }
@@ -2603,9 +2645,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
             mode: document.getElementById('bot-mode').value,
+            proxyAddress: document.getElementById('bot-proxyAddress').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
-            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
-            proxyAddress: document.getElementById('bot-proxyAddress').value
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2624,31 +2666,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
-
-    async function syncProxy() {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = 'Buscando...';
-        try {
-            const res = await fetch('/api/user/me');
-            const data = await res.json();
-            if (data.wallet?.address) {
-                // We ask the backend to re-run detection effectively
-                // But for now we just show what's currently stored or try to fetch
-                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
-                loadUser(); 
-            }
-        } catch (e) {
-            showBanner('Erro ao sincronizar', 'danger');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Sincronizar';
-        }
-    }
-
     
     // Auto refresh stats e trades em tempo real
-    setInterval(refreshStats, 30000);
+    setInterval(refreshStats, 5000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
     
@@ -2720,11 +2740,9 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         }
 
         const newWallet = ethers.Wallet.createRandom();
-        const proxyAddress = await findPolymarketProxy(newWallet.address);
         user.wallet = {
             address: newWallet.address,
-            privateKey: newWallet.privateKey,
-            proxyAddress: proxyAddress || newWallet.address
+            privateKey: newWallet.privateKey
         };
         // Only set to setup if not already ready (to allow seamless swaps)
         if (user.step !== 'ready') user.step = 'setup';
@@ -2758,11 +2776,9 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
             return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
 
-        const proxyAddress = await findPolymarketProxy(wallet.address);
         user.wallet = {
             address: wallet.address,
-            privateKey: wallet.privateKey,
-            proxyAddress: proxyAddress || wallet.address
+            privateKey: wallet.privateKey
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready') user.step = 'setup';
@@ -2795,11 +2811,6 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (enabled !== undefined) user.config.enabled = enabled;
     if (strategy !== undefined) user.config.strategy = strategy;
     if (copySize !== undefined) user.config.copySize = copySize;
-    if (proxyAddress !== undefined) {
-        if (!user.wallet) user.wallet = { address: '', privateKey: '' };
-        user.wallet.proxyAddress = proxyAddress;
-    }
-
     
     // Advanced fields
     if (reverseCopy !== undefined) user.config.reverseCopy = reverseCopy;
@@ -2827,6 +2838,11 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (maxMarketCount !== undefined) user.config.maxMarketCount = maxMarketCount;
     if (minMarketLiquidity !== undefined) user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined) user.config.mode = mode;
+
+    // Wallet settings
+    if (proxyAddress !== undefined && user.wallet) {
+        user.wallet.proxyAddress = proxyAddress;
+    }
     
     if (req.body.finalize === true) {
         user.step = 'ready';
@@ -2839,11 +2855,10 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
     try {
         const user = (req as any).fullUser;
         if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira não configurada' });
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
         }
 
-        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
         if (!Array.isArray(positionsData)) {
             return res.json([]);
         }
@@ -2971,7 +2986,10 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 transactionHash: t.transactionHash,
                 executionStatus,
                 executionDetails,
-                isChainDetected: t.isChainDetected || false
+                isChainDetected: t.isChainDetected || false,
+                pseudonym: t.pseudonym,
+                name: t.name,
+                profileImage: t.profileImage
             };
         }));
 
@@ -2985,18 +3003,47 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
-        if (!user || !user.wallet?.address) return res.json({ balance: 0, exposure: 0 });
+        const eoa = user.wallet?.address;
+        if (!eoa) return res.json({ balance: 0, exposure: 0 });
 
-        const proxyAddress = user.wallet?.proxyAddress || user.wallet?.address;
+        const proxy = await findProxyWallet(user);
         
-        const balance = await getMyBalance(user.wallet?.address || '', user.wallet?.proxyAddress);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
+        // Fetch CLOB balance (if client is available)
+        let clobBalance = 0;
+        try {
+            const clobClient = await getClobClientForUser(user);
+            if (clobClient) {
+                clobBalance = await getMyBalance(clobClient);
+            }
+        } catch (clobErr) {
+            console.error(`[STATS] CLOB balance error for ${user.chatId}:`, clobErr);
+        }
+
+        // Sum balances of EOA and Proxy via FAST RPC
+        const [balEoa, balProxy] = await Promise.all([
+            getMyBalance(eoa),
+            proxy ? getMyBalance(proxy) : Promise.resolve(0)
+        ]);
         
-        // Fetch positions to calculate exposure
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
+        const userIdentifier = user.username || user.chatId || user._id;
+        
+        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
+        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
+        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
+        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
+        
+        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+
+        const targetAddr = proxy || eoa;
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
-        res.json({ balance, exposure });
+        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy}, CLOB=${clobBalance} -> Total=${totalBalance}`);
+        res.json({ 
+            balance: parseFloat(totalBalance.toFixed(4)), 
+            exposure: parseFloat(exposure.toFixed(2)), 
+            proxy 
+        });
     } catch (e) {
         console.error('Stats error:', e);
         res.status(500).json({ error: 'Failed to fetch stats' });
@@ -3015,28 +3062,7 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
 });
 
 export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
-    // Initialize global proxy if configured
-    await setupProxy();
-    
     await bootstrapAdmin();
-    
-    // ONE-TIME FIX: User identified proxy wallet mismatch
-    try {
-        const userToFix = await User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
-        if (userToFix && !userToFix.wallet?.proxyAddress) {
-            console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
-            if (!userToFix.wallet) userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
-            userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
-            await User.updateOne(
-                { _id: userToFix._id }, 
-                { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } }
-            );
-            console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
-        }
-    } catch (e) {
-        console.error('[FIX] Manual proxy fix failed:', e);
-    }
-
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);

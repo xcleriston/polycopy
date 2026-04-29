@@ -1,16 +1,7 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ENV } from '../config/env';
 import fetchData from '../utils/fetchData';
 const PROXY_WALLET = ENV.PROXY_WALLET;
-const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
+const checkDiscrepancy = async () => {
     console.log('🔍 Detailed P&L discrepancy check\n');
     console.log(`Wallet: ${PROXY_WALLET}\n`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -18,7 +9,7 @@ const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Get all positions (open and closed)
         console.log('📊 Fetching data from Polymarket API...\n');
         const positionsUrl = `https://data-api.polymarket.com/positions?user=${PROXY_WALLET}`;
-        const positions = yield fetchData(positionsUrl);
+        const positions = await fetchData(positionsUrl);
         console.log(`Fetched positions: ${positions.length}\n`);
         // 2. Separate into open and closed
         const openPositions = positions.filter((p) => p.size > 0);
@@ -85,7 +76,7 @@ const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
         // 6. Check through trade history
         console.log('🔎 CHECK THROUGH TRADE HISTORY:\n');
         const activityUrl = `https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`;
-        const activities = yield fetchData(activityUrl);
+        const activities = await fetchData(activityUrl);
         // Group trades by markets
         const marketTrades = new Map();
         activities.forEach((trade) => {
@@ -153,5 +144,5 @@ const checkDiscrepancy = () => __awaiter(void 0, void 0, void 0, function* () {
     catch (error) {
         console.error('❌ Error:', error);
     }
-});
+};
 checkDiscrepancy();

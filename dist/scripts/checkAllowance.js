@@ -1,23 +1,13 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ethers } from 'ethers';
-import { AssetType, ClobClient, getContractConfig } from '@polymarket/clob-client';
-import { SignatureType } from '@polymarket/order-utils';
+import { AssetType, ClobClient, Chain, SignatureTypeV2, getContractConfig } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env';
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const RPC_URL = ENV.RPC_URL;
 const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
-const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
+const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
 const POLYGON_CHAIN_ID = 137;
-const POLYMARKET_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
+const POLYMARKET_EXCHANGE = ENV.POLYMARKET_EXCHANGE_ADDR;
 const POLYMARKET_EXCHANGE_LOWER = POLYMARKET_EXCHANGE.toLowerCase();
 const POLYMARKET_COLLATERAL = getContractConfig(POLYGON_CHAIN_ID).collateral;
 const POLYMARKET_COLLATERAL_LOWER = POLYMARKET_COLLATERAL.toLowerCase();
@@ -30,34 +20,38 @@ const USDC_ABI = [
     'function approve(address spender, uint256 amount) returns (bool)',
     'function decimals() view returns (uint8)',
 ];
-const buildClobClient = (provider) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+const buildClobClient = async (provider) => {
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-    const code = yield provider.getCode(PROXY_WALLET);
+    const code = await provider.getCode(PROXY_WALLET);
     const isProxySafe = code !== '0x';
-    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    const signatureType = isProxySafe ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA;
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
     console.log = function () { };
     console.error = function () { };
-    const initialClient = new ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, undefined, signatureType, isProxySafe ? PROXY_WALLET : undefined);
+    const initialClient = new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet,
+        signatureType,
+    });
     let creds;
     let createWarning;
     let deriveWarning;
     try {
         try {
-            creds = yield initialClient.createApiKey();
+            creds = await initialClient.createApiKey();
         }
         catch (createError) {
-            const msg = ((_b = (_a = createError === null || createError === void 0 ? void 0 : createError.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) || (createError === null || createError === void 0 ? void 0 : createError.message);
+            const msg = createError?.response?.data?.error || createError?.message;
             createWarning = `⚠️  Unable to create new API key${msg ? `: ${msg}` : ''}`;
         }
-        if (!(creds === null || creds === void 0 ? void 0 : creds.key)) {
+        if (!creds?.key) {
             try {
-                creds = yield initialClient.deriveApiKey();
+                creds = await initialClient.deriveApiKey();
             }
             catch (deriveError) {
-                const msg = ((_d = (_c = deriveError === null || deriveError === void 0 ? void 0 : deriveError.response) === null || _c === void 0 ? void 0 : _c.data) === null || _d === void 0 ? void 0 : _d.error) || (deriveError === null || deriveError === void 0 ? void 0 : deriveError.message);
+                const msg = deriveError?.response?.data?.error || deriveError?.message;
                 deriveWarning = `⚠️  Unable to derive API key${msg ? `: ${msg}` : ''}`;
             }
         }
@@ -72,16 +66,22 @@ const buildClobClient = (provider) => __awaiter(void 0, void 0, void 0, function
     if (deriveWarning) {
         console.log(deriveWarning);
     }
-    if (!(creds === null || creds === void 0 ? void 0 : creds.key)) {
+    if (!creds?.key) {
         throw new Error('Failed to obtain Polymarket API credentials');
     }
-    return new ClobClient(CLOB_HTTP_URL, POLYGON_CHAIN_ID, wallet, creds, signatureType, isProxySafe ? PROXY_WALLET : undefined);
-});
+    return new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet,
+        creds,
+        signatureType,
+    });
+};
 const formatClobAmount = (raw, decimals) => {
     try {
         return ethers.utils.formatUnits(raw, decimals);
     }
-    catch (_a) {
+    catch {
         const numeric = parseFloat(raw);
         if (!Number.isFinite(numeric)) {
             return raw;
@@ -89,14 +89,14 @@ const formatClobAmount = (raw, decimals) => {
         return numeric.toFixed(Math.min(decimals, 6));
     }
 };
-const syncPolymarketAllowanceCache = (decimals, provider) => __awaiter(void 0, void 0, void 0, function* () {
+const syncPolymarketAllowanceCache = async (decimals, provider) => {
     try {
         console.log('🔄 Syncing Polymarket allowance cache...');
-        const clobClient = yield buildClobClient(provider);
+        const clobClient = await buildClobClient(provider);
         const updateParams = {
             asset_type: AssetType.COLLATERAL,
         };
-        const updateResult = yield clobClient.updateBalanceAllowance(updateParams);
+        const updateResult = await clobClient.updateBalanceAllowance(updateParams);
         if (updateResult && typeof updateResult === 'object' && 'error' in updateResult) {
             console.log(`⚠️  Polymarket cache update failed: ${updateResult.error}`);
             return;
@@ -110,7 +110,7 @@ const syncPolymarketAllowanceCache = (decimals, provider) => __awaiter(void 0, v
         else {
             console.log('ℹ  Polymarket cache update response:', JSON.stringify(updateResult));
         }
-        const balanceResponse = yield clobClient.getBalanceAllowance(updateParams);
+        const balanceResponse = await clobClient.getBalanceAllowance(updateParams);
         if (!balanceResponse || typeof balanceResponse !== 'object') {
             console.log('⚠️  Unexpected response from Polymarket when fetching balance/allowance:', JSON.stringify(balanceResponse));
             return;
@@ -140,110 +140,108 @@ const syncPolymarketAllowanceCache = (decimals, provider) => __awaiter(void 0, v
         console.log(`💾 Polymarket Recorded Allowance: ${syncedAllowance} USDC\n`);
     }
     catch (syncError) {
-        console.log(`⚠️  Unable to sync Polymarket cache: ${(syncError === null || syncError === void 0 ? void 0 : syncError.message) || syncError}`);
+        console.log(`⚠️  Unable to sync Polymarket cache: ${syncError?.message || syncError}`);
     }
-});
-function checkAndSetAllowance() {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log('🔍 Checking USDC balance and allowance...\n');
-        // Connect to Polygon
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-        // Create USDC contract instance
-        const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, wallet);
-        try {
-            // Get USDC decimals
-            const decimals = yield usdcContract.decimals();
-            console.log(`💵 USDC Decimals: ${decimals}`);
-            const usesPolymarketCollateral = USDC_CONTRACT_ADDRESS.toLowerCase() === POLYMARKET_COLLATERAL_LOWER;
-            // Local token balance & allowance (whatever is configured in .env)
-            const localBalance = yield usdcContract.balanceOf(PROXY_WALLET);
-            const localAllowance = yield usdcContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
-            const localBalanceFormatted = ethers.utils.formatUnits(localBalance, decimals);
-            const localAllowanceFormatted = ethers.utils.formatUnits(localAllowance, decimals);
-            console.log(`💰 Your USDC Balance (${USDC_CONTRACT_ADDRESS}): ${localBalanceFormatted} USDC`);
-            console.log(`✅ Current Allowance (${USDC_CONTRACT_ADDRESS}): ${localAllowanceFormatted} USDC`);
-            console.log(`📍 Polymarket Exchange: ${POLYMARKET_EXCHANGE}\n`);
-            if (USDC_CONTRACT_ADDRESS.toLowerCase() !== NATIVE_USDC_LOWER) {
-                try {
-                    const nativeContract = new ethers.Contract(NATIVE_USDC_ADDRESS, USDC_ABI, wallet);
-                    const nativeDecimals = yield nativeContract.decimals();
-                    const nativeBalance = yield nativeContract.balanceOf(PROXY_WALLET);
-                    if (!nativeBalance.isZero()) {
-                        const nativeFormatted = ethers.utils.formatUnits(nativeBalance, nativeDecimals);
-                        console.log('ℹ️  Detected native USDC (Polygon PoS) balance:');
-                        console.log(`    ${nativeFormatted} tokens at ${NATIVE_USDC_ADDRESS}`);
-                        console.log('    Polymarket does not recognize this token. Swap to USDC.e (0x2791...) to trade.\n');
-                    }
-                }
-                catch (nativeError) {
-                    console.log(`⚠️  Unable to check native USDC balance: ${nativeError}`);
+};
+async function checkAndSetAllowance() {
+    console.log('🔍 Checking USDC balance and allowance...\n');
+    // Connect to Polygon
+    const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+    // Create USDC contract instance
+    const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, wallet);
+    try {
+        // Get USDC decimals
+        const decimals = await usdcContract.decimals();
+        console.log(`💵 USDC Decimals: ${decimals}`);
+        const usesPolymarketCollateral = USDC_CONTRACT_ADDRESS.toLowerCase() === POLYMARKET_COLLATERAL_LOWER;
+        // Local token balance & allowance (whatever is configured in .env)
+        const localBalance = await usdcContract.balanceOf(PROXY_WALLET);
+        const localAllowance = await usdcContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
+        const localBalanceFormatted = ethers.utils.formatUnits(localBalance, decimals);
+        const localAllowanceFormatted = ethers.utils.formatUnits(localAllowance, decimals);
+        console.log(`💰 Your USDC Balance (${USDC_CONTRACT_ADDRESS}): ${localBalanceFormatted} USDC`);
+        console.log(`✅ Current Allowance (${USDC_CONTRACT_ADDRESS}): ${localAllowanceFormatted} USDC`);
+        console.log(`📍 Polymarket Exchange: ${POLYMARKET_EXCHANGE}\n`);
+        if (USDC_CONTRACT_ADDRESS.toLowerCase() !== NATIVE_USDC_LOWER) {
+            try {
+                const nativeContract = new ethers.Contract(NATIVE_USDC_ADDRESS, USDC_ABI, wallet);
+                const nativeDecimals = await nativeContract.decimals();
+                const nativeBalance = await nativeContract.balanceOf(PROXY_WALLET);
+                if (!nativeBalance.isZero()) {
+                    const nativeFormatted = ethers.utils.formatUnits(nativeBalance, nativeDecimals);
+                    console.log('ℹ️  Detected native USDC (Polygon PoS) balance:');
+                    console.log(`    ${nativeFormatted} tokens at ${NATIVE_USDC_ADDRESS}`);
+                    console.log('    Polymarket does not recognize this token. Swap to USDC.e (0x2791...) to trade.\n');
                 }
             }
-            // Determine the contract Polymarket actually reads from (USDC.e)
-            const polymarketContract = usesPolymarketCollateral
-                ? usdcContract
-                : new ethers.Contract(POLYMARKET_COLLATERAL, USDC_ABI, wallet);
-            const polymarketDecimals = usesPolymarketCollateral
-                ? decimals
-                : yield polymarketContract.decimals();
-            const polymarketBalance = usesPolymarketCollateral
-                ? localBalance
-                : yield polymarketContract.balanceOf(PROXY_WALLET);
-            const polymarketAllowance = usesPolymarketCollateral
-                ? localAllowance
-                : yield polymarketContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
-            if (!usesPolymarketCollateral) {
-                const polymarketBalanceFormatted = ethers.utils.formatUnits(polymarketBalance, polymarketDecimals);
-                const polymarketAllowanceFormatted = ethers.utils.formatUnits(polymarketAllowance, polymarketDecimals);
-                console.log('⚠️  Polymarket collateral token is USDC.e (bridged) at address');
-                console.log(`    ${POLYMARKET_COLLATERAL}`);
-                console.log(`⚠️  Polymarket-tracked USDC balance: ${polymarketBalanceFormatted} USDC`);
-                console.log(`⚠️  Polymarket-tracked allowance: ${polymarketAllowanceFormatted} USDC\n`);
-                console.log('👉  Swap native USDC to USDC.e or update your .env to point at the collateral token before trading.\n');
+            catch (nativeError) {
+                console.log(`⚠️  Unable to check native USDC balance: ${nativeError}`);
             }
-            if (polymarketAllowance.lt(polymarketBalance) || polymarketAllowance.isZero()) {
-                console.log('⚠️  Allowance is insufficient or zero!');
-                console.log('📝 Setting unlimited allowance for Polymarket...\n');
-                // Approve unlimited amount (max uint256)
-                const maxAllowance = ethers.constants.MaxUint256;
-                // Get current gas price and add 50% buffer
-                const feeData = yield provider.getFeeData();
-                const gasPrice = feeData.gasPrice
-                    ? feeData.gasPrice.mul(150).div(100)
-                    : ethers.utils.parseUnits('50', 'gwei');
-                console.log(`⛽ Gas Price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
-                const approveTx = yield polymarketContract.approve(POLYMARKET_EXCHANGE, maxAllowance, {
-                    gasPrice: gasPrice,
-                    gasLimit: 100000,
-                });
-                console.log(`⏳ Transaction sent: ${approveTx.hash}`);
-                console.log('⏳ Waiting for confirmation...\n');
-                const receipt = yield approveTx.wait();
-                if (receipt.status === 1) {
-                    console.log('✅ Allowance set successfully!');
-                    console.log(`🔗 Transaction: https://polygonscan.com/tx/${approveTx.hash}\n`);
-                    // Verify new allowance
-                    const newAllowance = yield polymarketContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
-                    const newAllowanceFormatted = ethers.utils.formatUnits(newAllowance, polymarketDecimals);
-                    console.log(`✅ New Allowance: ${newAllowanceFormatted} USDC`);
-                }
-                else {
-                    console.log('❌ Transaction failed!');
-                }
+        }
+        // Determine the contract Polymarket actually reads from (USDC.e)
+        const polymarketContract = usesPolymarketCollateral
+            ? usdcContract
+            : new ethers.Contract(POLYMARKET_COLLATERAL, USDC_ABI, wallet);
+        const polymarketDecimals = usesPolymarketCollateral
+            ? decimals
+            : await polymarketContract.decimals();
+        const polymarketBalance = usesPolymarketCollateral
+            ? localBalance
+            : await polymarketContract.balanceOf(PROXY_WALLET);
+        const polymarketAllowance = usesPolymarketCollateral
+            ? localAllowance
+            : await polymarketContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
+        if (!usesPolymarketCollateral) {
+            const polymarketBalanceFormatted = ethers.utils.formatUnits(polymarketBalance, polymarketDecimals);
+            const polymarketAllowanceFormatted = ethers.utils.formatUnits(polymarketAllowance, polymarketDecimals);
+            console.log('⚠️  Polymarket collateral token is USDC.e (bridged) at address');
+            console.log(`    ${POLYMARKET_COLLATERAL}`);
+            console.log(`⚠️  Polymarket-tracked USDC balance: ${polymarketBalanceFormatted} USDC`);
+            console.log(`⚠️  Polymarket-tracked allowance: ${polymarketAllowanceFormatted} USDC\n`);
+            console.log('👉  Swap native USDC to USDC.e or update your .env to point at the collateral token before trading.\n');
+        }
+        if (polymarketAllowance.lt(polymarketBalance) || polymarketAllowance.isZero()) {
+            console.log('⚠️  Allowance is insufficient or zero!');
+            console.log('📝 Setting unlimited allowance for Polymarket...\n');
+            // Approve unlimited amount (max uint256)
+            const maxAllowance = ethers.constants.MaxUint256;
+            // Get current gas price and add 50% buffer
+            const feeData = await provider.getFeeData();
+            const gasPrice = feeData.gasPrice
+                ? feeData.gasPrice.mul(150).div(100)
+                : ethers.utils.parseUnits('50', 'gwei');
+            console.log(`⛽ Gas Price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+            const approveTx = await polymarketContract.approve(POLYMARKET_EXCHANGE, maxAllowance, {
+                gasPrice: gasPrice,
+                gasLimit: 100000,
+            });
+            console.log(`⏳ Transaction sent: ${approveTx.hash}`);
+            console.log('⏳ Waiting for confirmation...\n');
+            const receipt = await approveTx.wait();
+            if (receipt.status === 1) {
+                console.log('✅ Allowance set successfully!');
+                console.log(`🔗 Transaction: https://polygonscan.com/tx/${approveTx.hash}\n`);
+                // Verify new allowance
+                const newAllowance = await polymarketContract.allowance(PROXY_WALLET, POLYMARKET_EXCHANGE);
+                const newAllowanceFormatted = ethers.utils.formatUnits(newAllowance, polymarketDecimals);
+                console.log(`✅ New Allowance: ${newAllowanceFormatted} USDC`);
             }
             else {
-                console.log('✅ Allowance is already sufficient! No action needed.');
-            }
-            yield syncPolymarketAllowanceCache(polymarketDecimals, provider);
-        }
-        catch (error) {
-            console.error('❌ Error:', error.message);
-            if (error.code === 'INSUFFICIENT_FUNDS') {
-                console.log('\n⚠️  You need MATIC for gas fees on Polygon!');
+                console.log('❌ Transaction failed!');
             }
         }
-    });
+        else {
+            console.log('✅ Allowance is already sufficient! No action needed.');
+        }
+        await syncPolymarketAllowanceCache(polymarketDecimals, provider);
+    }
+    catch (error) {
+        console.error('❌ Error:', error.message);
+        if (error.code === 'INSUFFICIENT_FUNDS') {
+            console.log('\n⚠️  You need MATIC for gas fees on Polygon!');
+        }
+    }
 }
 checkAndSetAllowance()
     .then(() => {

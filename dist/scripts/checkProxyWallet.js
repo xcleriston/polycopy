@@ -1,19 +1,10 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ethers } from 'ethers';
 import { ENV } from '../config/env';
 import fetchData from '../utils/fetchData';
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const RPC_URL = ENV.RPC_URL;
-const checkProxyWallet = () => __awaiter(void 0, void 0, void 0, function* () {
+const checkProxyWallet = async () => {
     console.log('🔍 CHECKING PROXY WALLET AND MAIN WALLET\n');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     try {
@@ -27,9 +18,9 @@ const checkProxyWallet = () => __awaiter(void 0, void 0, void 0, function* () {
         // 2. Check activity on EOA
         console.log('🔎 CHECKING ACTIVITY ON MAIN WALLET (EOA):\n');
         const eoaActivityUrl = `https://data-api.polymarket.com/activity?user=${eoaAddress}&type=TRADE`;
-        const eoaActivities = yield fetchData(eoaActivityUrl);
+        const eoaActivities = await fetchData(eoaActivityUrl);
         console.log(`   Address: ${eoaAddress}`);
-        console.log(`   Trades: ${(eoaActivities === null || eoaActivities === void 0 ? void 0 : eoaActivities.length) || 0}`);
+        console.log(`   Trades: ${eoaActivities?.length || 0}`);
         console.log(`   Profile: https://polymarket.com/profile/${eoaAddress}\n`);
         if (eoaActivities && eoaActivities.length > 0) {
             const buyTrades = eoaActivities.filter((a) => a.side === 'BUY');
@@ -56,9 +47,9 @@ const checkProxyWallet = () => __awaiter(void 0, void 0, void 0, function* () {
         // 3. Check activity on Proxy Wallet
         console.log('🔎 CHECKING ACTIVITY ON PROXY WALLET (CONTRACT):\n');
         const proxyActivityUrl = `https://data-api.polymarket.com/activity?user=${PROXY_WALLET}&type=TRADE`;
-        const proxyActivities = yield fetchData(proxyActivityUrl);
+        const proxyActivities = await fetchData(proxyActivityUrl);
         console.log(`   Address: ${PROXY_WALLET}`);
-        console.log(`   Trades: ${(proxyActivities === null || proxyActivities === void 0 ? void 0 : proxyActivities.length) || 0}`);
+        console.log(`   Trades: ${proxyActivities?.length || 0}`);
         console.log(`   Profile: https://polymarket.com/profile/${PROXY_WALLET}\n`);
         if (proxyActivities && proxyActivities.length > 0) {
             const buyTrades = proxyActivities.filter((a) => a.side === 'BUY');
@@ -142,8 +133,8 @@ const checkProxyWallet = () => __awaiter(void 0, void 0, void 0, function* () {
         // Check address type via RPC
         try {
             const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-            const eoaCode = yield provider.getCode(eoaAddress);
-            const proxyCode = yield provider.getCode(PROXY_WALLET);
+            const eoaCode = await provider.getCode(eoaAddress);
+            const proxyCode = await provider.getCode(PROXY_WALLET);
             console.log('   🔍 Address types:');
             console.log(`      EOA: ${eoaCode === '0x' ? '✅ Regular wallet (EOA)' : '⚠️  Smart contract'}`);
             console.log(`      Proxy: ${proxyCode === '0x' ? '❌ Regular wallet (error!)' : '✅ Smart contract (correct)'}\n`);
@@ -162,5 +153,5 @@ const checkProxyWallet = () => __awaiter(void 0, void 0, void 0, function* () {
     catch (error) {
         console.error('❌ Error:', error);
     }
-});
+};
 checkProxyWallet();

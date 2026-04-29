@@ -2,6 +2,8 @@ import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
 class Logger {
+    static logsDir = path.join(process.cwd(), 'logs');
+    static currentLogFile = '';
     static getLogFileName() {
         const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         return path.join(this.logsDir, `bot-${date}.log`);
@@ -43,6 +45,10 @@ class Logger {
     static info(message) {
         console.log(chalk.blue('ℹ'), message);
         this.writeToFile(`INFO: ${message}`);
+    }
+    static debug(message) {
+        console.log(chalk.gray('🔍'), chalk.gray(message));
+        this.writeToFile(`DEBUG: ${message}`);
     }
     static success(message) {
         console.log(chalk.green('✓'), message);
@@ -154,6 +160,8 @@ class Logger {
     static separator() {
         console.log(chalk.dim('─'.repeat(70)));
     }
+    static spinnerFrames = ['⏳', '⌛', '⏳'];
+    static spinnerIndex = 0;
     static waiting(traderCount, extraInfo) {
         const timestamp = new Date().toLocaleTimeString();
         const spinner = this.spinnerFrames[this.spinnerIndex % this.spinnerFrames.length];
@@ -239,8 +247,4 @@ class Logger {
         console.log('');
     }
 }
-Logger.logsDir = path.join(process.cwd(), 'logs');
-Logger.currentLogFile = '';
-Logger.spinnerFrames = ['⏳', '⌛', '⏳'];
-Logger.spinnerIndex = 0;
 export default Logger;

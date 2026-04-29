@@ -1,13 +1,4 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-import { AssetType, OrderType, Side } from '@polymarket/clob-client';
+import { AssetType, OrderType, Side } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env';
 import createClobClient from '../utils/createClobClient';
 import fetchData from '../utils/fetchData';
@@ -55,9 +46,9 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
     const lower = message.toLowerCase();
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
-const updatePolymarketCache = (clobClient, tokenId) => __awaiter(void 0, void 0, void 0, function* () {
+const updatePolymarketCache = async (clobClient, tokenId) => {
     try {
-        yield clobClient.updateBalanceAllowance({
+        await clobClient.updateBalanceAllowance({
             asset_type: AssetType.CONDITIONAL,
             token_id: tokenId,
         });
@@ -65,8 +56,8 @@ const updatePolymarketCache = (clobClient, tokenId) => __awaiter(void 0, void 0,
     catch (error) {
         console.log(`⚠️  Failed to refresh balance cache for ${tokenId}:`, error);
     }
-});
-const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const sellEntirePosition = async (clobClient, position) => {
     let remaining = position.size;
     let attempts = 0;
     let soldTokens = 0;
@@ -75,9 +66,9 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
         console.log(`   ❌ Position size ${remaining.toFixed(4)} < ${MIN_SELL_TOKENS} token minimum, skipping`);
         return { soldTokens: 0, proceedsUsd: 0, remainingTokens: remaining };
     }
-    yield updatePolymarketCache(clobClient, position.asset);
+    await updatePolymarketCache(clobClient, position.asset);
     while (remaining >= MIN_SELL_TOKENS && attempts < RETRY_LIMIT) {
-        const orderBook = yield clobClient.getOrderBook(position.asset);
+        const orderBook = await clobClient.getOrderBook(position.asset);
         if (!orderBook.bids || orderBook.bids.length === 0) {
             console.log('   ❌ Order book has no bids – liquidity unavailable');
             break;
@@ -103,8 +94,8 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
             price: bidPrice,
         };
         try {
-            const signedOrder = yield clobClient.createMarketOrder(orderArgs);
-            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+            const signedOrder = await clobClient.createMarketOrder(orderArgs);
+            const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
             if (resp.success === true) {
                 const tradeValue = sellAmount * bidPrice;
                 soldTokens += sellAmount;
@@ -117,7 +108,7 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
                 attempts += 1;
                 const errorMessage = extractOrderError(resp);
                 if (isInsufficientBalanceOrAllowanceError(errorMessage)) {
-                    console.log(`   ❌ Order rejected: ${errorMessage !== null && errorMessage !== void 0 ? errorMessage : 'balance/allowance issue'}`);
+                    console.log(`   ❌ Order rejected: ${errorMessage ?? 'balance/allowance issue'}`);
                     break;
                 }
                 console.log(`   ⚠️  Sell attempt ${attempts}/${RETRY_LIMIT} failed${errorMessage ? ` – ${errorMessage}` : ''}`);
@@ -135,18 +126,18 @@ const sellEntirePosition = (clobClient, position) => __awaiter(void 0, void 0, v
         console.log(`   ℹ️  Residual dust < ${MIN_SELL_TOKENS} token left (${remaining.toFixed(4)})`);
     }
     return { soldTokens, proceedsUsd, remainingTokens: remaining };
-});
-const loadPositions = (address) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const loadPositions = async (address) => {
     const url = `https://data-api.polymarket.com/positions?user=${address}`;
-    const data = yield fetchData(url);
+    const data = await fetchData(url);
     const positions = Array.isArray(data) ? data : [];
     return positions.filter((pos) => (pos.size || 0) > ZERO_THRESHOLD);
-});
-const buildTrackedSet = () => __awaiter(void 0, void 0, void 0, function* () {
+};
+const buildTrackedSet = async () => {
     const tracked = new Set();
     for (const user of USER_ADDRESSES) {
         try {
-            const positions = yield loadPositions(user);
+            const positions = await loadPositions(user);
             positions.forEach((pos) => {
                 if ((pos.size || 0) > ZERO_THRESHOLD) {
                     tracked.add(`${pos.conditionId}:${pos.asset}`);
@@ -158,7 +149,7 @@ const buildTrackedSet = () => __awaiter(void 0, void 0, void 0, function* () {
         }
     }
     return tracked;
-});
+};
 const logPositionHeader = (position, index, total) => {
     console.log(`\n${index + 1}/${total} ▶ ${position.title || position.slug || position.asset}`);
     if (position.outcome) {
@@ -170,13 +161,13 @@ const logPositionHeader = (position, index, total) => {
         console.log('   ℹ️  Market is redeemable — consider redeeming if value stays flat at $0.');
     }
 };
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
+const main = async () => {
     console.log('🚀 Closing stale positions (tracked traders already exited)');
     console.log('════════════════════════════════════════════════════');
     console.log(`Wallet: ${PROXY_WALLET}`);
-    const clobClient = yield createClobClient();
+    const clobClient = await createClobClient();
     console.log('✅ Connected to Polymarket CLOB');
-    const [myPositions, trackedPositions] = yield Promise.all([
+    const [myPositions, trackedPositions] = await Promise.all([
         loadPositions(PROXY_WALLET),
         buildTrackedSet(),
     ]);
@@ -196,7 +187,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const position = stalePositions[i];
         logPositionHeader(position, i, stalePositions.length);
         try {
-            const result = yield sellEntirePosition(clobClient, position);
+            const result = await sellEntirePosition(clobClient, position);
             totalTokens += result.soldTokens;
             totalProceeds += result.proceedsUsd;
         }
@@ -210,7 +201,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Tokens sold: ${totalTokens.toFixed(2)}`);
     console.log(`USDC realized (approx.): $${totalProceeds.toFixed(2)}`);
     console.log('════════════════════════════════════════════════════\n');
-});
+};
 main()
     .then(() => process.exit(0))
     .catch((error) => {

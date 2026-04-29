@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { spawn } from 'child_process';
 import * as readline from 'readline';
 // Colors for console output
@@ -46,7 +37,15 @@ const PRESETS = {
 };
 function runSimulation(config) {
     return new Promise((resolve, reject) => {
-        const env = Object.assign(Object.assign({}, process.env), { SIM_TRADER_ADDRESS: config.traderAddress, SIM_HISTORY_DAYS: String(config.historyDays), SIM_MIN_ORDER_USD: String(config.minOrderSize), SIM_MAX_TRADES: String(config.maxTrades || 5000), SIM_RESULT_TAG: config.tag || '', TRADE_MULTIPLIER: String(config.multiplier) });
+        const env = {
+            ...process.env,
+            SIM_TRADER_ADDRESS: config.traderAddress,
+            SIM_HISTORY_DAYS: String(config.historyDays),
+            SIM_MIN_ORDER_USD: String(config.minOrderSize),
+            SIM_MAX_TRADES: String(config.maxTrades || 5000),
+            SIM_RESULT_TAG: config.tag || '',
+            TRADE_MULTIPLIER: String(config.multiplier),
+        };
         console.log(colors.cyan('\n🚀 Starting simulation...'));
         console.log(colors.gray(`   Trader: ${config.traderAddress.slice(0, 10)}...`));
         console.log(colors.gray(`   Days: ${config.historyDays}, Multiplier: ${config.multiplier}x, MinOrder: $${config.minOrderSize}`));
@@ -70,29 +69,27 @@ function runSimulation(config) {
         });
     });
 }
-function runBatch(configs) {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(colors.bold(colors.cyan('\n════════════════════════════════════════════════════════════════')));
-        console.log(colors.bold(colors.cyan('  📊 BATCH SIMULATION RUNNER')));
-        console.log(colors.bold(colors.cyan('════════════════════════════════════════════════════════════════\n')));
-        console.log(colors.yellow(`Total simulations to run: ${configs.length}\n`));
-        for (let i = 0; i < configs.length; i++) {
-            console.log(colors.bold(`\n[${i + 1}/${configs.length}] Running simulation...`));
-            try {
-                yield runSimulation(configs[i]);
-            }
-            catch (error) {
-                console.log(colors.red(`Simulation ${i + 1} failed, continuing with next...\n`));
-            }
-            // Small delay between simulations
-            if (i < configs.length - 1) {
-                yield new Promise((resolve) => setTimeout(resolve, 1000));
-            }
+async function runBatch(configs) {
+    console.log(colors.bold(colors.cyan('\n════════════════════════════════════════════════════════════════')));
+    console.log(colors.bold(colors.cyan('  📊 BATCH SIMULATION RUNNER')));
+    console.log(colors.bold(colors.cyan('════════════════════════════════════════════════════════════════\n')));
+    console.log(colors.yellow(`Total simulations to run: ${configs.length}\n`));
+    for (let i = 0; i < configs.length; i++) {
+        console.log(colors.bold(`\n[${i + 1}/${configs.length}] Running simulation...`));
+        try {
+            await runSimulation(configs[i]);
         }
-        console.log(colors.bold(colors.green('\n════════════════════════════════════════════════════════════════')));
-        console.log(colors.bold(colors.green('  ✅ ALL SIMULATIONS COMPLETED')));
-        console.log(colors.bold(colors.green('════════════════════════════════════════════════════════════════\n')));
-    });
+        catch (error) {
+            console.log(colors.red(`Simulation ${i + 1} failed, continuing with next...\n`));
+        }
+        // Small delay between simulations
+        if (i < configs.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+    }
+    console.log(colors.bold(colors.green('\n════════════════════════════════════════════════════════════════')));
+    console.log(colors.bold(colors.green('  ✅ ALL SIMULATIONS COMPLETED')));
+    console.log(colors.bold(colors.green('════════════════════════════════════════════════════════════════\n')));
 }
 function generateConfigs(preset, traders) {
     const presetConfig = PRESETS[preset];
@@ -112,91 +109,87 @@ function generateConfigs(preset, traders) {
     }
     return configs;
 }
-function interactiveMode() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-        });
-        const question = (query) => {
-            return new Promise((resolve) => rl.question(query, resolve));
-        };
-        console.log(colors.bold(colors.cyan('\n════════════════════════════════════════════════════════════════')));
-        console.log(colors.bold(colors.cyan('  🎮 INTERACTIVE SIMULATION SETUP')));
-        console.log(colors.bold(colors.cyan('════════════════════════════════════════════════════════════════\n')));
-        // Select preset
-        console.log(colors.yellow('Select simulation preset:'));
-        console.log('  1. Quick (7 days, 2 multipliers, ~500 trades)');
-        console.log('  2. Standard (30 days, 3 multipliers, ~2000 trades) [RECOMMENDED]');
-        console.log('  3. Full (90 days, 4 multipliers, ~5000 trades)\n');
-        const presetChoice = yield question(colors.cyan('Enter choice (1-3): '));
-        const presetMap = {
-            '1': 'quick',
-            '2': 'standard',
-            '3': 'full',
-        };
-        const preset = presetMap[presetChoice.trim()] || 'standard';
-        // Select traders
-        console.log(colors.yellow('\nTrader addresses (leave empty for defaults):'));
-        console.log(colors.gray('  Default: 0x7c3d... and 0x6bab...\n'));
-        const tradersInput = yield question(colors.cyan('Enter addresses (comma-separated) or press Enter: '));
-        const traders = tradersInput.trim()
-            ? tradersInput.split(',').map((t) => t.trim().toLowerCase())
-            : undefined;
-        rl.close();
-        const configs = generateConfigs(preset, traders);
-        yield runBatch(configs);
+async function interactiveMode() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
     });
+    const question = (query) => {
+        return new Promise((resolve) => rl.question(query, resolve));
+    };
+    console.log(colors.bold(colors.cyan('\n════════════════════════════════════════════════════════════════')));
+    console.log(colors.bold(colors.cyan('  🎮 INTERACTIVE SIMULATION SETUP')));
+    console.log(colors.bold(colors.cyan('════════════════════════════════════════════════════════════════\n')));
+    // Select preset
+    console.log(colors.yellow('Select simulation preset:'));
+    console.log('  1. Quick (7 days, 2 multipliers, ~500 trades)');
+    console.log('  2. Standard (30 days, 3 multipliers, ~2000 trades) [RECOMMENDED]');
+    console.log('  3. Full (90 days, 4 multipliers, ~5000 trades)\n');
+    const presetChoice = await question(colors.cyan('Enter choice (1-3): '));
+    const presetMap = {
+        '1': 'quick',
+        '2': 'standard',
+        '3': 'full',
+    };
+    const preset = presetMap[presetChoice.trim()] || 'standard';
+    // Select traders
+    console.log(colors.yellow('\nTrader addresses (leave empty for defaults):'));
+    console.log(colors.gray('  Default: 0x7c3d... and 0x6bab...\n'));
+    const tradersInput = await question(colors.cyan('Enter addresses (comma-separated) or press Enter: '));
+    const traders = tradersInput.trim()
+        ? tradersInput.split(',').map((t) => t.trim().toLowerCase())
+        : undefined;
+    rl.close();
+    const configs = generateConfigs(preset, traders);
+    await runBatch(configs);
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const args = process.argv.slice(2);
-        if (args.length === 0) {
-            // Interactive mode
-            yield interactiveMode();
-            return;
-        }
-        const command = args[0];
-        switch (command) {
-            case 'quick':
-                yield runBatch(generateConfigs('quick'));
-                break;
-            case 'standard':
-            case 'std':
-                yield runBatch(generateConfigs('standard'));
-                break;
-            case 'full':
-                yield runBatch(generateConfigs('full'));
-                break;
-            case 'custom': {
-                const trader = args[1];
-                const days = parseInt(args[2] || '30');
-                const multiplier = parseFloat(args[3] || '1.0');
-                if (!trader) {
-                    console.log(colors.red('Error: Trader address required for custom mode'));
-                    console.log(colors.yellow('Usage: npm run sim custom <trader_address> [days] [multiplier]'));
-                    return;
-                }
-                yield runSimulation({
-                    traderAddress: trader.toLowerCase(),
-                    historyDays: days,
-                    multiplier,
-                    minOrderSize: 1.0,
-                    tag: 'custom',
-                });
-                break;
+async function main() {
+    const args = process.argv.slice(2);
+    if (args.length === 0) {
+        // Interactive mode
+        await interactiveMode();
+        return;
+    }
+    const command = args[0];
+    switch (command) {
+        case 'quick':
+            await runBatch(generateConfigs('quick'));
+            break;
+        case 'standard':
+        case 'std':
+            await runBatch(generateConfigs('standard'));
+            break;
+        case 'full':
+            await runBatch(generateConfigs('full'));
+            break;
+        case 'custom': {
+            const trader = args[1];
+            const days = parseInt(args[2] || '30');
+            const multiplier = parseFloat(args[3] || '1.0');
+            if (!trader) {
+                console.log(colors.red('Error: Trader address required for custom mode'));
+                console.log(colors.yellow('Usage: npm run sim custom <trader_address> [days] [multiplier]'));
+                return;
             }
-            case 'help':
-            case '--help':
-            case '-h':
-                printHelp();
-                break;
-            default:
-                console.log(colors.red(`Unknown command: ${command}\n`));
-                printHelp();
-                break;
+            await runSimulation({
+                traderAddress: trader.toLowerCase(),
+                historyDays: days,
+                multiplier,
+                minOrderSize: 1.0,
+                tag: 'custom',
+            });
+            break;
         }
-    });
+        case 'help':
+        case '--help':
+        case '-h':
+            printHelp();
+            break;
+        default:
+            console.log(colors.red(`Unknown command: ${command}\n`));
+            printHelp();
+            break;
+    }
 }
 function printHelp() {
     console.log(colors.cyan('\n📊 Simulation Runner - Usage\n'));

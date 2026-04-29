@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { getContractConfig } from '@polymarket/clob-client';
+import { getContractConfig } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env';
 
 const PROXY_WALLET = ENV.PROXY_WALLET;
@@ -7,8 +7,8 @@ const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const RPC_URL = ENV.RPC_URL;
 const POLYGON_CHAIN_ID = 137;
 
-// Polymarket Exchange address where tokens need to be approved
-const POLYMARKET_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
+// Polymarket Exchange address where tokens need to be approved (V2)
+const POLYMARKET_EXCHANGE = ENV.POLYMARKET_EXCHANGE_ADDR;
 
 // CTF (Conditional Token Framework) contract address
 const CTF_CONTRACT = getContractConfig(POLYGON_CHAIN_ID).conditionalTokens;

@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import * as dotenv from 'dotenv';
 import axios from 'axios';
 import moment from 'moment';
@@ -15,25 +6,22 @@ import * as path from 'path';
 // Load environment variables (optional for this script)
 dotenv.config();
 // Simple fetch function that doesn't require full config
-function fetchData(url) {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a;
-        try {
-            const response = yield axios.get(url, {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-            });
-            return response.data;
+async function fetchData(url) {
+    try {
+        const response = await axios.get(url, {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+        return response.data;
+    }
+    catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(`HTTP ${error.response?.status}: ${error.message}`);
         }
-        catch (error) {
-            if (axios.isAxiosError(error)) {
-                throw new Error(`HTTP ${(_a = error.response) === null || _a === void 0 ? void 0 : _a.status}: ${error.message}`);
-            }
-            throw error;
-        }
-    });
+        throw error;
+    }
 }
 // Load environment variables (optional for this script)
 dotenv.config();
@@ -60,34 +48,32 @@ const MIN_ROI_THRESHOLD = parseFloat(process.env.MIN_ROI_THRESHOLD || '10.0'); /
 /**
  * Fetch trader's trading activity
  */
-function fetchTraderActivity(traderAddress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const cutoffTime = Math.floor(Date.now() / 1000) - HISTORY_DAYS * 24 * 60 * 60;
-            const url = `https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE`;
-            const activities = yield fetchData(url);
-            if (!Array.isArray(activities)) {
-                return [];
-            }
-            return activities
-                .filter((activity) => activity.timestamp >= cutoffTime)
-                .map((activity) => ({
-                timestamp: activity.timestamp,
-                asset: activity.asset,
-                side: activity.side,
-                price: activity.price,
-                usdcSize: activity.usdcSize,
-                size: activity.size,
-                conditionId: activity.conditionId,
-                transactionHash: activity.transactionHash,
-            }))
-                .sort((a, b) => a.timestamp - b.timestamp);
-        }
-        catch (error) {
-            console.error(`Error fetching activity for ${traderAddress}:`, error);
+async function fetchTraderActivity(traderAddress) {
+    try {
+        const cutoffTime = Math.floor(Date.now() / 1000) - HISTORY_DAYS * 24 * 60 * 60;
+        const url = `https://data-api.polymarket.com/activity?user=${traderAddress}&type=TRADE`;
+        const activities = await fetchData(url);
+        if (!Array.isArray(activities)) {
             return [];
         }
-    });
+        return activities
+            .filter((activity) => activity.timestamp >= cutoffTime)
+            .map((activity) => ({
+            timestamp: activity.timestamp,
+            asset: activity.asset,
+            side: activity.side,
+            price: activity.price,
+            usdcSize: activity.usdcSize,
+            size: activity.size,
+            conditionId: activity.conditionId,
+            transactionHash: activity.transactionHash,
+        }))
+            .sort((a, b) => a.timestamp - b.timestamp);
+    }
+    catch (error) {
+        console.error(`Error fetching activity for ${traderAddress}:`, error);
+        return [];
+    }
 }
 /**
  * Calculate equity curve from trades
@@ -271,161 +257,10 @@ function calculateRiskScore(mdd, sharpeRatio, volatility, winRate) {
 /**
  * Analyze trader with risk metrics
  */
-function analyzeTrader(traderAddress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const trades = yield fetchTraderActivity(traderAddress);
-            if (trades.length < MIN_TRADER_TRADES) {
-                return {
-                    address: traderAddress,
-                    profileUrl: `https://polymarket.com/profile/${traderAddress}`,
-                    roi: 0,
-                    totalPnl: 0,
-                    startingCapital: STARTING_CAPITAL,
-                    currentCapital: STARTING_CAPITAL,
-                    maxDrawdown: 0,
-                    maxDrawdownAmount: 0,
-                    sharpeRatio: 0,
-                    calmarRatio: 0,
-                    totalTrades: trades.length,
-                    winRate: 0,
-                    avgTradeSize: 0,
-                    profitFactor: 0,
-                    tradingDays: 0,
-                    avgDailyReturn: 0,
-                    volatility: 0,
-                    lastActivityTime: 0,
-                    lastActivityDate: 'Unknown',
-                    riskScore: 100,
-                    status: 'bad',
-                    error: `Not enough trades (${trades.length} < ${MIN_TRADER_TRADES})`,
-                };
-            }
-            // Calculate trading period
-            const firstTrade = trades[0];
-            const lastTrade = trades[trades.length - 1];
-            const tradingDays = Math.max(1, Math.floor((lastTrade.timestamp - firstTrade.timestamp) / (24 * 60 * 60)));
-            if (tradingDays < MIN_TRADING_DAYS) {
-                return {
-                    address: traderAddress,
-                    profileUrl: `https://polymarket.com/profile/${traderAddress}`,
-                    roi: 0,
-                    totalPnl: 0,
-                    startingCapital: STARTING_CAPITAL,
-                    currentCapital: STARTING_CAPITAL,
-                    maxDrawdown: 0,
-                    maxDrawdownAmount: 0,
-                    sharpeRatio: 0,
-                    calmarRatio: 0,
-                    totalTrades: trades.length,
-                    winRate: 0,
-                    avgTradeSize: 0,
-                    profitFactor: 0,
-                    tradingDays,
-                    avgDailyReturn: 0,
-                    volatility: 0,
-                    lastActivityTime: lastTrade.timestamp,
-                    lastActivityDate: moment.unix(lastTrade.timestamp).fromNow(),
-                    riskScore: 100,
-                    status: 'bad',
-                    error: `Trading period too short (${tradingDays} days < ${MIN_TRADING_DAYS} days)`,
-                };
-            }
-            // Simulate positions
-            const positions = new Map();
-            const equityPoints = calculateEquityCurve(trades, positions);
-            // Get current positions from API
-            const currentPositions = yield fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
-            // Update positions with current values
-            for (const pos of currentPositions) {
-                positions.set(pos.conditionId, pos);
-            }
-            // Calculate final equity
-            let currentEquity = STARTING_CAPITAL;
-            for (const trade of trades) {
-                if (trade.side === 'BUY') {
-                    currentEquity -= trade.usdcSize;
-                }
-                else {
-                    currentEquity += trade.usdcSize;
-                }
-            }
-            // Add current position values
-            let totalPositionValue = 0;
-            for (const position of positions.values()) {
-                totalPositionValue += position.currentValue || position.initialValue;
-            }
-            const finalEquity = currentEquity + totalPositionValue;
-            const totalPnl = finalEquity - STARTING_CAPITAL;
-            const roi = (totalPnl / STARTING_CAPITAL) * 100;
-            // Calculate risk metrics
-            const { mdd, mddAmount } = calculateMaxDrawdown(equityPoints);
-            const sharpeRatio = calculateSharpeRatio(equityPoints);
-            const volatility = calculateVolatility(equityPoints);
-            const calmarRatio = mdd > 0 ? roi / mdd : roi > 0 ? Infinity : 0;
-            // Calculate win rate (simplified)
-            const closedPositions = Array.from(positions.values()).filter((p) => p.size === 0);
-            const winningPositions = closedPositions.filter((p) => (p.currentValue || p.initialValue) > p.initialValue);
-            const winRate = closedPositions.length > 0
-                ? (winningPositions.length / closedPositions.length) * 100
-                : 0;
-            // Calculate profit factor
-            const profitFactor = calculateProfitFactor(trades, positions);
-            // Calculate average trade size
-            const totalVolume = trades.reduce((sum, t) => sum + t.usdcSize, 0);
-            const avgTradeSize = trades.length > 0 ? totalVolume / trades.length : 0;
-            // Calculate average daily return
-            const avgDailyReturn = tradingDays > 0 ? roi / tradingDays : 0;
-            // Calculate risk score
-            const riskScore = calculateRiskScore(mdd, sharpeRatio, volatility, winRate);
-            // Determine status based on risk-adjusted metrics
-            let status;
-            if (roi >= MIN_ROI_THRESHOLD &&
-                sharpeRatio >= MIN_SHARPE_THRESHOLD &&
-                mdd <= MAX_MDD_THRESHOLD &&
-                riskScore < 30) {
-                status = 'excellent';
-            }
-            else if (roi >= MIN_ROI_THRESHOLD * 0.7 &&
-                sharpeRatio >= MIN_SHARPE_THRESHOLD * 0.7 &&
-                mdd <= MAX_MDD_THRESHOLD * 1.5 &&
-                riskScore < 50) {
-                status = 'good';
-            }
-            else if (roi >= 0 && sharpeRatio >= 0.5 && mdd <= 40 && riskScore < 70) {
-                status = 'average';
-            }
-            else if (roi >= -10) {
-                status = 'poor';
-            }
-            else {
-                status = 'bad';
-            }
-            return {
-                address: traderAddress,
-                profileUrl: `https://polymarket.com/profile/${traderAddress}`,
-                roi,
-                totalPnl,
-                startingCapital: STARTING_CAPITAL,
-                currentCapital: finalEquity,
-                maxDrawdown: mdd,
-                maxDrawdownAmount: mddAmount,
-                sharpeRatio,
-                calmarRatio,
-                totalTrades: trades.length,
-                winRate,
-                avgTradeSize,
-                profitFactor,
-                tradingDays,
-                avgDailyReturn,
-                volatility,
-                lastActivityTime: lastTrade.timestamp,
-                lastActivityDate: moment.unix(lastTrade.timestamp).fromNow(),
-                riskScore,
-                status,
-            };
-        }
-        catch (error) {
+async function analyzeTrader(traderAddress) {
+    try {
+        const trades = await fetchTraderActivity(traderAddress);
+        if (trades.length < MIN_TRADER_TRADES) {
             return {
                 address: traderAddress,
                 profileUrl: `https://polymarket.com/profile/${traderAddress}`,
@@ -437,7 +272,7 @@ function analyzeTrader(traderAddress) {
                 maxDrawdownAmount: 0,
                 sharpeRatio: 0,
                 calmarRatio: 0,
-                totalTrades: 0,
+                totalTrades: trades.length,
                 winRate: 0,
                 avgTradeSize: 0,
                 profitFactor: 0,
@@ -448,10 +283,159 @@ function analyzeTrader(traderAddress) {
                 lastActivityDate: 'Unknown',
                 riskScore: 100,
                 status: 'bad',
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: `Not enough trades (${trades.length} < ${MIN_TRADER_TRADES})`,
             };
         }
-    });
+        // Calculate trading period
+        const firstTrade = trades[0];
+        const lastTrade = trades[trades.length - 1];
+        const tradingDays = Math.max(1, Math.floor((lastTrade.timestamp - firstTrade.timestamp) / (24 * 60 * 60)));
+        if (tradingDays < MIN_TRADING_DAYS) {
+            return {
+                address: traderAddress,
+                profileUrl: `https://polymarket.com/profile/${traderAddress}`,
+                roi: 0,
+                totalPnl: 0,
+                startingCapital: STARTING_CAPITAL,
+                currentCapital: STARTING_CAPITAL,
+                maxDrawdown: 0,
+                maxDrawdownAmount: 0,
+                sharpeRatio: 0,
+                calmarRatio: 0,
+                totalTrades: trades.length,
+                winRate: 0,
+                avgTradeSize: 0,
+                profitFactor: 0,
+                tradingDays,
+                avgDailyReturn: 0,
+                volatility: 0,
+                lastActivityTime: lastTrade.timestamp,
+                lastActivityDate: moment.unix(lastTrade.timestamp).fromNow(),
+                riskScore: 100,
+                status: 'bad',
+                error: `Trading period too short (${tradingDays} days < ${MIN_TRADING_DAYS} days)`,
+            };
+        }
+        // Simulate positions
+        const positions = new Map();
+        const equityPoints = calculateEquityCurve(trades, positions);
+        // Get current positions from API
+        const currentPositions = await fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
+        // Update positions with current values
+        for (const pos of currentPositions) {
+            positions.set(pos.conditionId, pos);
+        }
+        // Calculate final equity
+        let currentEquity = STARTING_CAPITAL;
+        for (const trade of trades) {
+            if (trade.side === 'BUY') {
+                currentEquity -= trade.usdcSize;
+            }
+            else {
+                currentEquity += trade.usdcSize;
+            }
+        }
+        // Add current position values
+        let totalPositionValue = 0;
+        for (const position of positions.values()) {
+            totalPositionValue += position.currentValue || position.initialValue;
+        }
+        const finalEquity = currentEquity + totalPositionValue;
+        const totalPnl = finalEquity - STARTING_CAPITAL;
+        const roi = (totalPnl / STARTING_CAPITAL) * 100;
+        // Calculate risk metrics
+        const { mdd, mddAmount } = calculateMaxDrawdown(equityPoints);
+        const sharpeRatio = calculateSharpeRatio(equityPoints);
+        const volatility = calculateVolatility(equityPoints);
+        const calmarRatio = mdd > 0 ? roi / mdd : roi > 0 ? Infinity : 0;
+        // Calculate win rate (simplified)
+        const closedPositions = Array.from(positions.values()).filter((p) => p.size === 0);
+        const winningPositions = closedPositions.filter((p) => (p.currentValue || p.initialValue) > p.initialValue);
+        const winRate = closedPositions.length > 0
+            ? (winningPositions.length / closedPositions.length) * 100
+            : 0;
+        // Calculate profit factor
+        const profitFactor = calculateProfitFactor(trades, positions);
+        // Calculate average trade size
+        const totalVolume = trades.reduce((sum, t) => sum + t.usdcSize, 0);
+        const avgTradeSize = trades.length > 0 ? totalVolume / trades.length : 0;
+        // Calculate average daily return
+        const avgDailyReturn = tradingDays > 0 ? roi / tradingDays : 0;
+        // Calculate risk score
+        const riskScore = calculateRiskScore(mdd, sharpeRatio, volatility, winRate);
+        // Determine status based on risk-adjusted metrics
+        let status;
+        if (roi >= MIN_ROI_THRESHOLD &&
+            sharpeRatio >= MIN_SHARPE_THRESHOLD &&
+            mdd <= MAX_MDD_THRESHOLD &&
+            riskScore < 30) {
+            status = 'excellent';
+        }
+        else if (roi >= MIN_ROI_THRESHOLD * 0.7 &&
+            sharpeRatio >= MIN_SHARPE_THRESHOLD * 0.7 &&
+            mdd <= MAX_MDD_THRESHOLD * 1.5 &&
+            riskScore < 50) {
+            status = 'good';
+        }
+        else if (roi >= 0 && sharpeRatio >= 0.5 && mdd <= 40 && riskScore < 70) {
+            status = 'average';
+        }
+        else if (roi >= -10) {
+            status = 'poor';
+        }
+        else {
+            status = 'bad';
+        }
+        return {
+            address: traderAddress,
+            profileUrl: `https://polymarket.com/profile/${traderAddress}`,
+            roi,
+            totalPnl,
+            startingCapital: STARTING_CAPITAL,
+            currentCapital: finalEquity,
+            maxDrawdown: mdd,
+            maxDrawdownAmount: mddAmount,
+            sharpeRatio,
+            calmarRatio,
+            totalTrades: trades.length,
+            winRate,
+            avgTradeSize,
+            profitFactor,
+            tradingDays,
+            avgDailyReturn,
+            volatility,
+            lastActivityTime: lastTrade.timestamp,
+            lastActivityDate: moment.unix(lastTrade.timestamp).fromNow(),
+            riskScore,
+            status,
+        };
+    }
+    catch (error) {
+        return {
+            address: traderAddress,
+            profileUrl: `https://polymarket.com/profile/${traderAddress}`,
+            roi: 0,
+            totalPnl: 0,
+            startingCapital: STARTING_CAPITAL,
+            currentCapital: STARTING_CAPITAL,
+            maxDrawdown: 0,
+            maxDrawdownAmount: 0,
+            sharpeRatio: 0,
+            calmarRatio: 0,
+            totalTrades: 0,
+            winRate: 0,
+            avgTradeSize: 0,
+            profitFactor: 0,
+            tradingDays: 0,
+            avgDailyReturn: 0,
+            volatility: 0,
+            lastActivityTime: 0,
+            lastActivityDate: 'Unknown',
+            riskScore: 100,
+            status: 'bad',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
 }
 /**
  * Print analysis results
@@ -522,29 +506,27 @@ function printResults(results) {
 /**
  * Main function
  */
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(colors.bold(colors.cyan('\n🔍 Finding Low-Risk High-Performance Traders...\n')));
-        // Get trader addresses from command line or use default list
-        const traderAddresses = process.argv.slice(2);
-        if (traderAddresses.length === 0) {
-            console.log(colors.yellow('⚠️  No trader addresses provided.'));
-            console.log(colors.gray('   Usage: npm run find-low-risk <address1> <address2> ...'));
-            console.log(colors.gray('   Or set TRADER_ADDRESSES environment variable\n'));
-            process.exit(1);
-        }
-        console.log(colors.cyan(`📊 Analyzing ${traderAddresses.length} trader(s)...\n`));
-        const results = [];
-        for (let i = 0; i < traderAddresses.length; i++) {
-            const address = traderAddresses[i];
-            console.log(colors.gray(`[${i + 1}/${traderAddresses.length}] Analyzing ${address}...`));
-            const analysis = yield analyzeTrader(address);
-            results.push(analysis);
-            // Small delay to avoid rate limiting
-            yield new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        printResults(results);
-    });
+async function main() {
+    console.log(colors.bold(colors.cyan('\n🔍 Finding Low-Risk High-Performance Traders...\n')));
+    // Get trader addresses from command line or use default list
+    const traderAddresses = process.argv.slice(2);
+    if (traderAddresses.length === 0) {
+        console.log(colors.yellow('⚠️  No trader addresses provided.'));
+        console.log(colors.gray('   Usage: npm run find-low-risk <address1> <address2> ...'));
+        console.log(colors.gray('   Or set TRADER_ADDRESSES environment variable\n'));
+        process.exit(1);
+    }
+    console.log(colors.cyan(`📊 Analyzing ${traderAddresses.length} trader(s)...\n`));
+    const results = [];
+    for (let i = 0; i < traderAddresses.length; i++) {
+        const address = traderAddresses[i];
+        console.log(colors.gray(`[${i + 1}/${traderAddresses.length}] Analyzing ${address}...`));
+        const analysis = await analyzeTrader(address);
+        results.push(analysis);
+        // Small delay to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    printResults(results);
 }
 main().catch((error) => {
     console.error(colors.red('Fatal error:'), error);

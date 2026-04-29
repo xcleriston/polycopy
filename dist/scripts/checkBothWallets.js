@@ -1,18 +1,8 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ENV } from '../config/env';
 import fetchData from '../utils/fetchData';
 import getMyBalance from '../utils/getMyBalance';
 const PROXY_WALLET = ENV.PROXY_WALLET;
-const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+const checkBothWallets = async () => {
     console.log('🔍 CHECKING BOTH ADDRESSES\n');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     const ADDRESS_1 = ENV.PROXY_WALLET; // From .env
@@ -22,10 +12,10 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('📊 ADDRESS 1 (from .env - PROXY_WALLET):\n');
         console.log(`   ${ADDRESS_1}`);
         console.log(`   Profile: https://polymarket.com/profile/${ADDRESS_1}\n`);
-        const addr1Activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_1}&type=TRADE`);
-        const addr1Positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_1}`);
-        console.log(`   • Trades in API: ${(addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities.length) || 0}`);
-        console.log(`   • Positions in API: ${(addr1Positions === null || addr1Positions === void 0 ? void 0 : addr1Positions.length) || 0}`);
+        const addr1Activities = await fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_1}&type=TRADE`);
+        const addr1Positions = await fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_1}`);
+        console.log(`   • Trades in API: ${addr1Activities?.length || 0}`);
+        console.log(`   • Positions in API: ${addr1Positions?.length || 0}`);
         if (addr1Activities && addr1Activities.length > 0) {
             const buyTrades = addr1Activities.filter((a) => a.side === 'BUY');
             const sellTrades = addr1Activities.filter((a) => a.side === 'SELL');
@@ -35,13 +25,15 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log(`   • Sells: ${sellTrades.length}`);
             console.log(`   • Volume: $${totalVolume.toFixed(2)}`);
             // Show proxyWallet from first trade
-            if ((_a = addr1Activities[0]) === null || _a === void 0 ? void 0 : _a.proxyWallet) {
+            if (addr1Activities[0]?.proxyWallet) {
                 console.log(`   • proxyWallet in trades: ${addr1Activities[0].proxyWallet}`);
             }
         }
         // Balance
         try {
-            const balance1 = yield getMyBalance(ADDRESS_1);
+            const createClobClient = (await import('../utils/createClobClient')).default;
+            const client = await createClobClient();
+            const balance1 = await getMyBalance(client);
             console.log(`   • USDC Balance: $${balance1.toFixed(2)}`);
         }
         catch (e) {
@@ -52,10 +44,10 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('📊 ADDRESS 2 (from profile @shbot):\n');
         console.log(`   ${ADDRESS_2}`);
         console.log(`   Profile: https://polymarket.com/profile/${ADDRESS_2}\n`);
-        const addr2Activities = yield fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_2}&type=TRADE`);
-        const addr2Positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_2}`);
-        console.log(`   • Trades in API: ${(addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities.length) || 0}`);
-        console.log(`   • Positions in API: ${(addr2Positions === null || addr2Positions === void 0 ? void 0 : addr2Positions.length) || 0}`);
+        const addr2Activities = await fetchData(`https://data-api.polymarket.com/activity?user=${ADDRESS_2}&type=TRADE`);
+        const addr2Positions = await fetchData(`https://data-api.polymarket.com/positions?user=${ADDRESS_2}`);
+        console.log(`   • Trades in API: ${addr2Activities?.length || 0}`);
+        console.log(`   • Positions in API: ${addr2Positions?.length || 0}`);
         if (addr2Activities && addr2Activities.length > 0) {
             const buyTrades = addr2Activities.filter((a) => a.side === 'BUY');
             const sellTrades = addr2Activities.filter((a) => a.side === 'SELL');
@@ -65,7 +57,7 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log(`   • Sells: ${sellTrades.length}`);
             console.log(`   • Volume: $${totalVolume.toFixed(2)}`);
             // Show proxyWallet from first trade
-            if ((_b = addr2Activities[0]) === null || _b === void 0 ? void 0 : _b.proxyWallet) {
+            if (addr2Activities[0]?.proxyWallet) {
                 console.log(`   • proxyWallet in trades: ${addr2Activities[0].proxyWallet}`);
             }
             // Last 5 trades for comparison
@@ -79,7 +71,9 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         // Balance
         try {
-            const balance2 = yield getMyBalance(ADDRESS_2);
+            const createClobClient = (await import('../utils/createClobClient')).default;
+            const client = await createClobClient();
+            const balance2 = await getMyBalance(client);
             console.log(`\n   • USDC Balance: $${balance2.toFixed(2)}`);
         }
         catch (e) {
@@ -88,20 +82,20 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         // 3. Comparison
         console.log('🔍 ADDRESS COMPARISON:\n');
-        const addr1HasData = ((addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities.length) || 0) > 0 || ((addr1Positions === null || addr1Positions === void 0 ? void 0 : addr1Positions.length) || 0) > 0;
-        const addr2HasData = ((addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities.length) || 0) > 0 || ((addr2Positions === null || addr2Positions === void 0 ? void 0 : addr2Positions.length) || 0) > 0;
+        const addr1HasData = (addr1Activities?.length || 0) > 0 || (addr1Positions?.length || 0) > 0;
+        const addr2HasData = (addr2Activities?.length || 0) > 0 || (addr2Positions?.length || 0) > 0;
         console.log(`   Address 1 (${ADDRESS_1.slice(0, 8)}...):`);
         console.log(`   ${addr1HasData ? '✅ Has data' : '❌ No data'}`);
-        console.log(`   • Trades: ${(addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities.length) || 0}`);
-        console.log(`   • Positions: ${(addr1Positions === null || addr1Positions === void 0 ? void 0 : addr1Positions.length) || 0}\n`);
+        console.log(`   • Trades: ${addr1Activities?.length || 0}`);
+        console.log(`   • Positions: ${addr1Positions?.length || 0}\n`);
         console.log(`   Address 2 (${ADDRESS_2.slice(0, 8)}...):`);
         console.log(`   ${addr2HasData ? '✅ Has data' : '❌ No data'}`);
-        console.log(`   • Trades: ${(addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities.length) || 0}`);
-        console.log(`   • Positions: ${(addr2Positions === null || addr2Positions === void 0 ? void 0 : addr2Positions.length) || 0}\n`);
+        console.log(`   • Trades: ${addr2Activities?.length || 0}`);
+        console.log(`   • Positions: ${addr2Positions?.length || 0}\n`);
         // 4. Check connection through proxyWallet field
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('🔗 CONNECTION BETWEEN ADDRESSES:\n');
-        if (((_c = addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities[0]) === null || _c === void 0 ? void 0 : _c.proxyWallet) && ((_d = addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities[0]) === null || _d === void 0 ? void 0 : _d.proxyWallet)) {
+        if (addr1Activities?.[0]?.proxyWallet && addr2Activities?.[0]?.proxyWallet) {
             const proxy1 = addr1Activities[0].proxyWallet.toLowerCase();
             const proxy2 = addr2Activities[0].proxyWallet.toLowerCase();
             console.log(`   Address 1 uses proxyWallet: ${proxy1}`);
@@ -160,7 +154,7 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log('   2. Traded manually from one, with bot from another');
             console.log('   3. Both addresses linked through Polymarket proxy system\n');
             // Compare last trades
-            if ((addr1Activities === null || addr1Activities === void 0 ? void 0 : addr1Activities[0]) && (addr2Activities === null || addr2Activities === void 0 ? void 0 : addr2Activities[0])) {
+            if (addr1Activities?.[0] && addr2Activities?.[0]) {
                 const lastTrade1 = new Date(addr1Activities[0].timestamp * 1000);
                 const lastTrade2 = new Date(addr2Activities[0].timestamp * 1000);
                 console.log('   Last trade:');
@@ -181,5 +175,5 @@ const checkBothWallets = () => __awaiter(void 0, void 0, void 0, function* () {
     catch (error) {
         console.error('❌ Error:', error);
     }
-});
+};
 checkBothWallets();

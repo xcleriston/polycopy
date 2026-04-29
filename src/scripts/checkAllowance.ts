@@ -1,15 +1,14 @@
 import { ethers } from 'ethers';
-import { AssetType, ClobClient, getContractConfig } from '@polymarket/clob-client';
-import { SignatureType } from '@polymarket/order-utils';
+import { AssetType, ClobClient, Chain, SignatureTypeV2, getContractConfig } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env';
 
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const RPC_URL = ENV.RPC_URL;
 const USDC_CONTRACT_ADDRESS = ENV.USDC_CONTRACT_ADDRESS;
-const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
+const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
 const POLYGON_CHAIN_ID = 137;
-const POLYMARKET_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
+const POLYMARKET_EXCHANGE = ENV.POLYMARKET_EXCHANGE_ADDR;
 const POLYMARKET_EXCHANGE_LOWER = POLYMARKET_EXCHANGE.toLowerCase();
 const POLYMARKET_COLLATERAL = getContractConfig(POLYGON_CHAIN_ID).collateral;
 const POLYMARKET_COLLATERAL_LOWER = POLYMARKET_COLLATERAL.toLowerCase();
@@ -28,20 +27,18 @@ const buildClobClient = async (provider: ethers.providers.JsonRpcProvider): Prom
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     const code = await provider.getCode(PROXY_WALLET);
     const isProxySafe = code !== '0x';
-    const signatureType = isProxySafe ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    const signatureType = isProxySafe ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA;
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
     console.log = function () {};
     console.error = function () {};
 
-    const initialClient = new ClobClient(
-        CLOB_HTTP_URL,
-        POLYGON_CHAIN_ID,
-        wallet,
-        undefined,
+    const initialClient = new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet as any,
         signatureType,
-        isProxySafe ? PROXY_WALLET : undefined
-    );
+    });
 
     let creds;
     let createWarning: string | undefined;
@@ -78,14 +75,13 @@ const buildClobClient = async (provider: ethers.providers.JsonRpcProvider): Prom
         throw new Error('Failed to obtain Polymarket API credentials');
     }
 
-    return new ClobClient(
-        CLOB_HTTP_URL,
-        POLYGON_CHAIN_ID,
-        wallet,
+    return new ClobClient({
+        host: CLOB_HTTP_URL,
+        chain: Chain.POLYGON,
+        signer: wallet as any,
         creds,
         signatureType,
-        isProxySafe ? PROXY_WALLET : undefined
-    );
+    });
 };
 
 const formatClobAmount = (raw: string, decimals: number): string => {

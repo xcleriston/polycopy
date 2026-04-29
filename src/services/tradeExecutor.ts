@@ -1,4 +1,4 @@
-import { ClobClient } from '@polymarket/clob-client';
+import { ClobClient } from '@polymarket/clob-client-v2';
 import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
 import { ENV } from '../config/env.js';
 import { Activity, getUserActivityModel, IUserActivity } from '../models/userHistory.js';
@@ -14,22 +14,7 @@ import { broadcastTrade } from '../utils/push.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 
-// Cache for CLOB clients to avoid repeated instantiation
-const clobClientCache: Map<string, ClobClient> = new Map();
-
-const getClobClientForUser = async (user: IUser): Promise<ClobClient | null> => {
-    if (!user.wallet) {
-        Logger.warning(`No wallet configured for user \${user.username || user.chatId || user._id}`);
-        return null;
-    }
-    const cacheKey = user.wallet.address.toLowerCase();
-    if (clobClientCache.has(cacheKey)) {
-        return clobClientCache.get(cacheKey)!;
-    }
-    const client = await createClobClient(user.wallet.privateKey, user.wallet.proxyAddress || user.wallet.address);
-    clobClientCache.set(cacheKey, client);
-    return client;
-};
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 
 // Check daily loss per user (wallet)
 const checkDailyLoss = async (proxyWallet: string, chatId: string): Promise<boolean> => {
@@ -49,7 +34,7 @@ const readUnprocessedTrades = async (): Promise<IUserActivity[]> => {
 const doTrading = async (trade: any) => {
     const traderAddress = trade.traderAddress.toLowerCase();
     
-    // Find all users following this trader in COPY or MIRROR_100 mode
+    // Find all users following this trader in COPY mode
     const followers = await User.find({ 
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
         'config.enabled': true,
@@ -62,7 +47,7 @@ const doTrading = async (trade: any) => {
         return;
     }
     for (const follower of followers) {
-        const followerId = (follower.chatId || (follower._id as any).toString());
+        const followerId = (follower._id as any).toString();
 
         // Skip if this follower already processed this trade
         if (trade.processedBy && trade.processedBy.includes(followerId)) {
@@ -105,8 +90,9 @@ const doTrading = async (trade: any) => {
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             } else {
+                const targetAddr = (await findProxyWallet(follower)) || follower.wallet?.address || '';
                 const my_positions: UserPositionInterface[] = await fetchData(
-                    `https://data-api.polymarket.com/positions?user=${proxyWallet}`
+                    `https://data-api.polymarket.com/positions?user=${targetAddr}`
                 );
                 const user_positions: UserPositionInterface[] = await fetchData(
                     `https://data-api.polymarket.com/positions?user=${traderAddress}`
@@ -118,11 +104,18 @@ const doTrading = async (trade: any) => {
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
 
-                const my_balance = await getMyBalance(follower.wallet?.address || '', follower.wallet?.proxyAddress);
+                const [balEoa, balProxy, clobBalance] = await Promise.all([
+                    getMyBalance(follower.wallet?.address || ''),
+                    targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(clobClient)
+                ]);
+                const my_balance = balEoa + balProxy + clobBalance;
+
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
 
+                Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
                 Logger.balance(my_balance, user_balance, followerId);
 
                 // Execute the trade with FOLLOWER'S config
@@ -135,7 +128,8 @@ const doTrading = async (trade: any) => {
                     my_balance,
                     followerId,
                     follower.config, // Pass individual user config
-                    my_positions // Pass all positions for exposure calculation
+                    my_positions, // Pass all positions for exposure calculation
+                    targetAddr // Pass proxyAddress
                 );
             }
         } catch (error) {

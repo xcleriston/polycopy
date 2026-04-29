@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import * as fs from 'fs';
 import * as path from 'path';
 const colors = {
@@ -173,60 +164,58 @@ function printDetailedResult(result) {
     console.log(`  Closed: ${colors.gray(String(closedPositions.length))}`);
     console.log();
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const args = process.argv.slice(2);
-        const results = loadSimulationResults();
-        if (results.length === 0) {
-            console.log(colors.yellow('\nNo simulation results to compare. Run simulations first with:'));
-            console.log(colors.cyan('  npm run sim\n'));
-            return;
-        }
-        const command = args[0] || 'all';
-        switch (command) {
-            case 'all':
-                printComparisonTable(results);
-                printBestResults(results, 5);
-                printWorstResults(results, 3);
-                printStatistics(results);
-                break;
-            case 'best':
-                const limit = parseInt(args[1]) || 10;
-                printBestResults(results, limit);
-                break;
-            case 'worst':
-                const worstLimit = parseInt(args[1]) || 5;
-                printWorstResults(results, worstLimit);
-                break;
-            case 'stats':
-                printStatistics(results);
-                break;
-            case 'detail': {
-                const searchName = args[1];
-                if (!searchName) {
-                    console.log(colors.red('Please provide a result name to view details'));
-                    console.log(colors.yellow('Usage: npm run compare detail <name>'));
-                    return;
-                }
-                const found = results.find((r) => r.name.includes(searchName));
-                if (!found) {
-                    console.log(colors.red(`No result found matching: ${searchName}`));
-                    return;
-                }
-                printDetailedResult(found);
-                break;
+async function main() {
+    const args = process.argv.slice(2);
+    const results = loadSimulationResults();
+    if (results.length === 0) {
+        console.log(colors.yellow('\nNo simulation results to compare. Run simulations first with:'));
+        console.log(colors.cyan('  npm run sim\n'));
+        return;
+    }
+    const command = args[0] || 'all';
+    switch (command) {
+        case 'all':
+            printComparisonTable(results);
+            printBestResults(results, 5);
+            printWorstResults(results, 3);
+            printStatistics(results);
+            break;
+        case 'best':
+            const limit = parseInt(args[1]) || 10;
+            printBestResults(results, limit);
+            break;
+        case 'worst':
+            const worstLimit = parseInt(args[1]) || 5;
+            printWorstResults(results, worstLimit);
+            break;
+        case 'stats':
+            printStatistics(results);
+            break;
+        case 'detail': {
+            const searchName = args[1];
+            if (!searchName) {
+                console.log(colors.red('Please provide a result name to view details'));
+                console.log(colors.yellow('Usage: npm run compare detail <name>'));
+                return;
             }
-            case 'help':
-            case '--help':
-            case '-h':
-                printHelp();
-                break;
-            default:
-                console.log(colors.red(`Unknown command: ${command}\n`));
-                printHelp();
-                break;
+            const found = results.find((r) => r.name.includes(searchName));
+            if (!found) {
+                console.log(colors.red(`No result found matching: ${searchName}`));
+                return;
+            }
+            printDetailedResult(found);
+            break;
         }
-    });
+        case 'help':
+        case '--help':
+        case '-h':
+            printHelp();
+            break;
+        default:
+            console.log(colors.red(`Unknown command: ${command}\n`));
+            printHelp();
+            break;
+    }
 }
 function printHelp() {
     console.log(colors.cyan('\n📊 Simulation Results Comparison - Usage\n'));

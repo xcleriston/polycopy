@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import connectDB, { closeDB } from './config/db.js';
 import { ENV } from './config/env.js';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor.js';
@@ -16,15 +7,13 @@ import { startTpSlMonitor } from './services/tpSlMonitor.js';
 import { startServer } from './server/index.js';
 import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
-import setupProxy from './utils/setupProxy.js';
-// Function handles proxy initialization inside main
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const PROXY_WALLET = ENV.PROXY_WALLET;
 // Graceful shutdown handler
 let isShuttingDown = false;
-const gracefulShutdown = (signal) => __awaiter(void 0, void 0, void 0, function* () {
+const gracefulShutdown = async (signal) => {
     if (isShuttingDown) {
         Logger.warning('Shutdown already in progress, forcing exit...');
         process.exit(1);
@@ -38,9 +27,9 @@ const gracefulShutdown = (signal) => __awaiter(void 0, void 0, void 0, function*
         stopTradeExecutor();
         // Give services time to finish current operations
         Logger.info('Waiting for services to finish current operations...');
-        yield new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         // Close database connection
-        yield closeDB();
+        await closeDB();
         Logger.success('Graceful shutdown completed');
         process.exit(0);
     }
@@ -48,7 +37,7 @@ const gracefulShutdown = (signal) => __awaiter(void 0, void 0, void 0, function*
         Logger.error(`Error during shutdown: ${error}`);
         process.exit(1);
     }
-});
+};
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     Logger.error(`🌪️ UNHANDLED REJECTION at: ${promise}, reason: ${reason}`);
@@ -59,8 +48,11 @@ process.on('uncaughtException', (error) => {
     // Check if error is related to network/RPC limits (429 or frame errors)
     const isNetworkError = error.message.includes('429') ||
         error.message.includes('Unexpected server response: 429') ||
+        error.message.includes('Unexpected server response: 404') ||
+        error.message.includes('Unexpected server response: 409') ||
         error.message.includes('Invalid WebSocket frame') ||
-        error.message.includes('ECONNRESET');
+        error.message.includes('ECONNRESET') ||
+        error.message.includes('ETIMEDOUT');
     if (isNetworkError) {
         Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
         return; // Don't kill the process for network hiccups
@@ -74,12 +66,21 @@ process.on('uncaughtException', (error) => {
 // Handle termination signals
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-export const main = () => __awaiter(void 0, void 0, void 0, function* () {
+export const main = async () => {
     try {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
-        yield connectDB();
-        // Initialize global proxy if configured
-        yield setupProxy();
+        await connectDB();
+        // One-time Migration: Convert ARBITRAGE users to COPY
+        try {
+            const User = (await import('./models/user.js')).default;
+            const migrationResult = await User.updateMany({ "config.mode": "ARBITRAGE" }, { $set: { "config.mode": "COPY", "step": "ready" } });
+            if (migrationResult.modifiedCount > 0) {
+                Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
+            }
+        }
+        catch (err) {
+            Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
+        }
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {
             const telegramServer = new TelegramServer(ENV.TELEGRAM_BOT_TOKEN);
@@ -98,12 +99,12 @@ export const main = () => __awaiter(void 0, void 0, void 0, function* () {
         // Logger.info('Starting arbitrage/hedge bot...');
         // startArbitrageMonitor();
         // Start web UI + API server
-        yield startServer(PORT);
+        await startServer(PORT);
         Logger.success('All services initialized 🚀');
     }
     catch (error) {
         Logger.error(`Fatal error during startup: ${error}`);
-        yield gracefulShutdown('startup-error');
+        await gracefulShutdown('startup-error');
     }
-});
+};
 main();

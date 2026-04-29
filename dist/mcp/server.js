@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -22,13 +13,13 @@ const readDbFile = (filename) => {
         try {
             return JSON.parse(line);
         }
-        catch (_a) {
+        catch {
             return null;
         }
     }).filter(Boolean);
 };
 const server = new McpServer({ name: 'polycopy', version: '2.0.0' });
-server.tool('get_bot_status', 'Get current bot status and uptime', {}, () => __awaiter(void 0, void 0, void 0, function* () {
+server.tool('get_bot_status', 'Get current bot status and uptime', {}, async () => {
     const dbFiles = fs.existsSync(DATA_DIR) ? fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.db')) : [];
     return { content: [{ type: 'text', text: JSON.stringify({
                     running: true,
@@ -36,8 +27,8 @@ server.tool('get_bot_status', 'Get current bot status and uptime', {}, () => __a
                     dataFiles: dbFiles.length,
                     previewMode: process.env.PREVIEW_MODE === 'true',
                 }, null, 2) }] };
-}));
-server.tool('get_recent_trades', 'Get recent copy trades', { limit: z.number().optional().describe('Max trades to return (default 20)') }, (_a) => __awaiter(void 0, [_a], void 0, function* ({ limit }) {
+});
+server.tool('get_recent_trades', 'Get recent copy trades', { limit: z.number().optional().describe('Max trades to return (default 20)') }, async ({ limit }) => {
     const trades = [];
     if (fs.existsSync(DATA_DIR)) {
         for (const f of fs.readdirSync(DATA_DIR).filter(f => f.startsWith('user_activities_'))) {
@@ -46,8 +37,8 @@ server.tool('get_recent_trades', 'Get recent copy trades', { limit: z.number().o
     }
     trades.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     return { content: [{ type: 'text', text: JSON.stringify(trades.slice(0, limit || 20), null, 2) }] };
-}));
-server.tool('get_positions', 'Get current tracked positions', {}, () => __awaiter(void 0, void 0, void 0, function* () {
+});
+server.tool('get_positions', 'Get current tracked positions', {}, async () => {
     const positions = [];
     if (fs.existsSync(DATA_DIR)) {
         for (const f of fs.readdirSync(DATA_DIR).filter(f => f.startsWith('user_positions_'))) {
@@ -55,8 +46,8 @@ server.tool('get_positions', 'Get current tracked positions', {}, () => __awaite
         }
     }
     return { content: [{ type: 'text', text: JSON.stringify(positions, null, 2) }] };
-}));
-server.tool('get_config', 'Get current bot configuration', {}, () => __awaiter(void 0, void 0, void 0, function* () {
+});
+server.tool('get_config', 'Get current bot configuration', {}, async () => {
     return { content: [{ type: 'text', text: JSON.stringify({
                     copyStrategy: process.env.COPY_STRATEGY || 'PERCENTAGE',
                     copySize: process.env.COPY_SIZE || '10.0',
@@ -66,9 +57,9 @@ server.tool('get_config', 'Get current bot configuration', {}, () => __awaiter(v
                     dailyLossCap: process.env.DAILY_LOSS_CAP_PCT || '20',
                     previewMode: process.env.PREVIEW_MODE || 'false',
                 }, null, 2) }] };
-}));
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
-    const transport = new StdioServerTransport();
-    yield server.connect(transport);
 });
+const main = async () => {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+};
 main().catch(console.error);

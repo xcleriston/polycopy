@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import axios from 'axios';
 import { ENV } from '../config/env';
 // Simple console colors without chalk
@@ -43,286 +34,278 @@ const MAX_TRADES_LIMIT = (() => {
     const value = raw ? Number(raw) : 5000;
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 5000;
 })(); // Limit on number of trades for quick testing
-function fetchBatch(offset, limit, sinceTimestamp) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${TRADER_ADDRESS}&type=TRADE&limit=${limit}&offset=${offset}`, {
+async function fetchBatch(offset, limit, sinceTimestamp) {
+    const response = await axios.get(`https://data-api.polymarket.com/activity?user=${TRADER_ADDRESS}&type=TRADE&limit=${limit}&offset=${offset}`, {
+        timeout: 10000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+    });
+    const trades = response.data.map((item) => ({
+        id: item.id,
+        timestamp: item.timestamp,
+        market: item.slug || item.market,
+        asset: item.asset,
+        side: item.side,
+        price: item.price,
+        usdcSize: item.usdcSize,
+        size: item.size,
+        outcome: item.outcome || 'Unknown',
+    }));
+    return trades.filter((t) => t.timestamp >= sinceTimestamp);
+}
+async function fetchTraderActivity() {
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+        // Check cache first
+        const cacheDir = path.join(process.cwd(), 'trader_data_cache');
+        const today = new Date().toISOString().split('T')[0];
+        const cacheFile = path.join(cacheDir, `${TRADER_ADDRESS}_${HISTORY_DAYS}d_${today}.json`);
+        if (fs.existsSync(cacheFile)) {
+            console.log(colors.cyan('📦 Loading cached trader activity...'));
+            const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+            console.log(colors.green(`✓ Loaded ${cached.trades.length} trades from cache (${cached.name})`));
+            return cached.trades;
+        }
+        console.log(colors.cyan(`📊 Fetching trader activity from last ${HISTORY_DAYS} days (with parallel requests)...`));
+        // Calculate timestamp for history window
+        const sinceTimestamp = Math.floor((Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000) / 1000);
+        // First, get a sample to estimate total
+        const firstBatch = await fetchBatch(0, 100, sinceTimestamp);
+        let allTrades = [...firstBatch];
+        if (firstBatch.length === 100) {
+            // Need to fetch more - do it in parallel batches
+            const batchSize = 100;
+            const maxParallel = 5; // 5 parallel requests at a time
+            let offset = 100;
+            let hasMore = true;
+            while (hasMore && allTrades.length < MAX_TRADES_LIMIT) {
+                // Create batch of parallel requests
+                const promises = [];
+                for (let i = 0; i < maxParallel; i++) {
+                    promises.push(fetchBatch(offset + i * batchSize, batchSize, sinceTimestamp));
+                }
+                const results = await Promise.all(promises);
+                let addedCount = 0;
+                for (const batch of results) {
+                    if (batch.length > 0) {
+                        allTrades = allTrades.concat(batch);
+                        addedCount += batch.length;
+                    }
+                    if (batch.length < batchSize) {
+                        hasMore = false;
+                        break;
+                    }
+                }
+                if (addedCount === 0) {
+                    hasMore = false;
+                }
+                // Check limit
+                if (allTrades.length >= MAX_TRADES_LIMIT) {
+                    console.log(colors.yellow(`⚠️  Reached trade limit (${MAX_TRADES_LIMIT}), stopping fetch...`));
+                    allTrades = allTrades.slice(0, MAX_TRADES_LIMIT);
+                    hasMore = false;
+                }
+                offset += maxParallel * batchSize;
+                console.log(colors.gray(`  Fetched ${allTrades.length} trades so far...`));
+            }
+        }
+        const sortedTrades = allTrades.sort((a, b) => a.timestamp - b.timestamp);
+        console.log(colors.green(`✓ Fetched ${sortedTrades.length} trades from last 7 days`));
+        // Save to cache
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+        const cacheData = {
+            name: `trader_${TRADER_ADDRESS.slice(0, 6)}_${HISTORY_DAYS}d_${today}`,
+            traderAddress: TRADER_ADDRESS,
+            fetchedAt: new Date().toISOString(),
+            period: `${HISTORY_DAYS}_days`,
+            totalTrades: sortedTrades.length,
+            trades: sortedTrades,
+        };
+        fs.writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
+        console.log(colors.green(`✓ Cached trades to: ${cacheFile}\n`));
+        return sortedTrades;
+    }
+    catch (error) {
+        console.error(colors.red('Error fetching trader activity:'), error);
+        throw error;
+    }
+}
+async function fetchTraderPositions() {
+    try {
+        console.log(colors.cyan('📈 Fetching trader positions...'));
+        const response = await axios.get(`https://data-api.polymarket.com/positions?user=${TRADER_ADDRESS}`, {
             timeout: 10000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
         });
-        const trades = response.data.map((item) => ({
-            id: item.id,
-            timestamp: item.timestamp,
-            market: item.slug || item.market,
-            asset: item.asset,
-            side: item.side,
-            price: item.price,
-            usdcSize: item.usdcSize,
-            size: item.size,
-            outcome: item.outcome || 'Unknown',
-        }));
-        return trades.filter((t) => t.timestamp >= sinceTimestamp);
-    });
+        console.log(colors.green(`✓ Fetched ${response.data.length} positions`));
+        return response.data;
+    }
+    catch (error) {
+        console.error(colors.red('Error fetching positions:'), error);
+        throw error;
+    }
 }
-function fetchTraderActivity() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const fs = yield import('fs');
-            const path = yield import('path');
-            // Check cache first
-            const cacheDir = path.join(process.cwd(), 'trader_data_cache');
-            const today = new Date().toISOString().split('T')[0];
-            const cacheFile = path.join(cacheDir, `${TRADER_ADDRESS}_${HISTORY_DAYS}d_${today}.json`);
-            if (fs.existsSync(cacheFile)) {
-                console.log(colors.cyan('📦 Loading cached trader activity...'));
-                const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-                console.log(colors.green(`✓ Loaded ${cached.trades.length} trades from cache (${cached.name})`));
-                return cached.trades;
-            }
-            console.log(colors.cyan(`📊 Fetching trader activity from last ${HISTORY_DAYS} days (with parallel requests)...`));
-            // Calculate timestamp for history window
-            const sinceTimestamp = Math.floor((Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000) / 1000);
-            // First, get a sample to estimate total
-            const firstBatch = yield fetchBatch(0, 100, sinceTimestamp);
-            let allTrades = [...firstBatch];
-            if (firstBatch.length === 100) {
-                // Need to fetch more - do it in parallel batches
-                const batchSize = 100;
-                const maxParallel = 5; // 5 parallel requests at a time
-                let offset = 100;
-                let hasMore = true;
-                while (hasMore && allTrades.length < MAX_TRADES_LIMIT) {
-                    // Create batch of parallel requests
-                    const promises = [];
-                    for (let i = 0; i < maxParallel; i++) {
-                        promises.push(fetchBatch(offset + i * batchSize, batchSize, sinceTimestamp));
-                    }
-                    const results = yield Promise.all(promises);
-                    let addedCount = 0;
-                    for (const batch of results) {
-                        if (batch.length > 0) {
-                            allTrades = allTrades.concat(batch);
-                            addedCount += batch.length;
-                        }
-                        if (batch.length < batchSize) {
-                            hasMore = false;
-                            break;
-                        }
-                    }
-                    if (addedCount === 0) {
-                        hasMore = false;
-                    }
-                    // Check limit
-                    if (allTrades.length >= MAX_TRADES_LIMIT) {
-                        console.log(colors.yellow(`⚠️  Reached trade limit (${MAX_TRADES_LIMIT}), stopping fetch...`));
-                        allTrades = allTrades.slice(0, MAX_TRADES_LIMIT);
-                        hasMore = false;
-                    }
-                    offset += maxParallel * batchSize;
-                    console.log(colors.gray(`  Fetched ${allTrades.length} trades so far...`));
-                }
-            }
-            const sortedTrades = allTrades.sort((a, b) => a.timestamp - b.timestamp);
-            console.log(colors.green(`✓ Fetched ${sortedTrades.length} trades from last 7 days`));
-            // Save to cache
-            if (!fs.existsSync(cacheDir)) {
-                fs.mkdirSync(cacheDir, { recursive: true });
-            }
-            const cacheData = {
-                name: `trader_${TRADER_ADDRESS.slice(0, 6)}_${HISTORY_DAYS}d_${today}`,
-                traderAddress: TRADER_ADDRESS,
-                fetchedAt: new Date().toISOString(),
-                period: `${HISTORY_DAYS}_days`,
-                totalTrades: sortedTrades.length,
-                trades: sortedTrades,
-            };
-            fs.writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
-            console.log(colors.green(`✓ Cached trades to: ${cacheFile}\n`));
-            return sortedTrades;
+async function simulateCopyTrading(trades) {
+    console.log(colors.cyan('\n🎮 Starting simulation...\n'));
+    let yourCapital = STARTING_CAPITAL;
+    let totalInvested = 0;
+    let copiedTrades = 0;
+    let skippedTrades = 0;
+    const positions = new Map();
+    for (const trade of trades) {
+        // NEW LOGIC: Copy fixed percentage of trader's order size
+        const baseOrderSize = trade.usdcSize * (COPY_PERCENTAGE / 100);
+        let orderSize = baseOrderSize * MULTIPLIER;
+        // Check if order meets minimum
+        if (orderSize < MIN_ORDER_SIZE) {
+            skippedTrades++;
+            continue;
         }
-        catch (error) {
-            console.error(colors.red('Error fetching trader activity:'), error);
-            throw error;
-        }
-    });
-}
-function fetchTraderPositions() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            console.log(colors.cyan('📈 Fetching trader positions...'));
-            const response = yield axios.get(`https://data-api.polymarket.com/positions?user=${TRADER_ADDRESS}`, {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-            });
-            console.log(colors.green(`✓ Fetched ${response.data.length} positions`));
-            return response.data;
-        }
-        catch (error) {
-            console.error(colors.red('Error fetching positions:'), error);
-            throw error;
-        }
-    });
-}
-function simulateCopyTrading(trades) {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(colors.cyan('\n🎮 Starting simulation...\n'));
-        let yourCapital = STARTING_CAPITAL;
-        let totalInvested = 0;
-        let copiedTrades = 0;
-        let skippedTrades = 0;
-        const positions = new Map();
-        for (const trade of trades) {
-            // NEW LOGIC: Copy fixed percentage of trader's order size
-            const baseOrderSize = trade.usdcSize * (COPY_PERCENTAGE / 100);
-            let orderSize = baseOrderSize * MULTIPLIER;
-            // Check if order meets minimum
+        // Check if we have enough capital
+        if (orderSize > yourCapital * 0.95) {
+            orderSize = yourCapital * 0.95;
             if (orderSize < MIN_ORDER_SIZE) {
                 skippedTrades++;
                 continue;
             }
-            // Check if we have enough capital
-            if (orderSize > yourCapital * 0.95) {
-                orderSize = yourCapital * 0.95;
-                if (orderSize < MIN_ORDER_SIZE) {
+        }
+        const positionKey = `${trade.asset}:${trade.outcome}`;
+        if (trade.side === 'BUY') {
+            // BUY trade
+            const sharesReceived = orderSize / trade.price;
+            if (!positions.has(positionKey)) {
+                positions.set(positionKey, {
+                    market: trade.market || trade.asset || 'Unknown market',
+                    outcome: trade.outcome,
+                    sharesHeld: 0, // Initialize shares
+                    entryPrice: trade.price,
+                    exitPrice: null,
+                    invested: 0,
+                    currentValue: 0,
+                    pnl: 0,
+                    closed: false,
+                    trades: [],
+                });
+            }
+            const pos = positions.get(positionKey);
+            // Track shares properly
+            pos.sharesHeld += sharesReceived;
+            pos.invested += orderSize;
+            pos.currentValue = pos.sharesHeld * trade.price;
+            pos.trades.push({
+                timestamp: trade.timestamp,
+                side: 'BUY',
+                price: trade.price,
+                size: sharesReceived,
+                usdcSize: orderSize,
+                traderPercent: (trade.usdcSize / 100000) * 100, // Placeholder for display
+                yourSize: orderSize,
+            });
+            yourCapital -= orderSize;
+            totalInvested += orderSize;
+            copiedTrades++;
+        }
+        else if (trade.side === 'SELL') {
+            // SELL trade
+            if (positions.has(positionKey)) {
+                const pos = positions.get(positionKey);
+                if (pos.sharesHeld <= 0) {
                     skippedTrades++;
                     continue;
                 }
-            }
-            const positionKey = `${trade.asset}:${trade.outcome}`;
-            if (trade.side === 'BUY') {
-                // BUY trade
-                const sharesReceived = orderSize / trade.price;
-                if (!positions.has(positionKey)) {
-                    positions.set(positionKey, {
-                        market: trade.market || trade.asset || 'Unknown market',
-                        outcome: trade.outcome,
-                        sharesHeld: 0, // Initialize shares
-                        entryPrice: trade.price,
-                        exitPrice: null,
-                        invested: 0,
-                        currentValue: 0,
-                        pnl: 0,
-                        closed: false,
-                        trades: [],
-                    });
-                }
-                const pos = positions.get(positionKey);
-                // Track shares properly
-                pos.sharesHeld += sharesReceived;
-                pos.invested += orderSize;
+                // Calculate proportional sell based on trader's order
+                const traderSellShares = trade.usdcSize / trade.price;
+                const traderTotalShares = traderSellShares / 0.1; // Estimate (we don't know trader's exact position)
+                const traderSellPercent = Math.min(traderSellShares / traderTotalShares, 1.0);
+                // Sell same proportion of our shares
+                const sharesToSell = Math.min(pos.sharesHeld * traderSellPercent, pos.sharesHeld);
+                const sellAmount = sharesToSell * trade.price;
+                pos.sharesHeld -= sharesToSell;
                 pos.currentValue = pos.sharesHeld * trade.price;
+                pos.exitPrice = trade.price;
                 pos.trades.push({
                     timestamp: trade.timestamp,
-                    side: 'BUY',
+                    side: 'SELL',
                     price: trade.price,
-                    size: sharesReceived,
-                    usdcSize: orderSize,
-                    traderPercent: (trade.usdcSize / 100000) * 100, // Placeholder for display
-                    yourSize: orderSize,
+                    size: sharesToSell,
+                    usdcSize: sellAmount,
+                    traderPercent: traderSellPercent * 100,
+                    yourSize: sellAmount,
                 });
-                yourCapital -= orderSize;
-                totalInvested += orderSize;
+                yourCapital += sellAmount;
+                if (pos.sharesHeld < 0.01) {
+                    pos.closed = true;
+                    // Calculate final P&L
+                    const totalBought = pos.trades
+                        .filter((t) => t.side === 'BUY')
+                        .reduce((sum, t) => sum + t.usdcSize, 0);
+                    const totalSold = pos.trades
+                        .filter((t) => t.side === 'SELL')
+                        .reduce((sum, t) => sum + t.usdcSize, 0);
+                    pos.pnl = totalSold - totalBought;
+                }
                 copiedTrades++;
             }
-            else if (trade.side === 'SELL') {
-                // SELL trade
-                if (positions.has(positionKey)) {
-                    const pos = positions.get(positionKey);
-                    if (pos.sharesHeld <= 0) {
-                        skippedTrades++;
-                        continue;
-                    }
-                    // Calculate proportional sell based on trader's order
-                    const traderSellShares = trade.usdcSize / trade.price;
-                    const traderTotalShares = traderSellShares / 0.1; // Estimate (we don't know trader's exact position)
-                    const traderSellPercent = Math.min(traderSellShares / traderTotalShares, 1.0);
-                    // Sell same proportion of our shares
-                    const sharesToSell = Math.min(pos.sharesHeld * traderSellPercent, pos.sharesHeld);
-                    const sellAmount = sharesToSell * trade.price;
-                    pos.sharesHeld -= sharesToSell;
-                    pos.currentValue = pos.sharesHeld * trade.price;
-                    pos.exitPrice = trade.price;
-                    pos.trades.push({
-                        timestamp: trade.timestamp,
-                        side: 'SELL',
-                        price: trade.price,
-                        size: sharesToSell,
-                        usdcSize: sellAmount,
-                        traderPercent: traderSellPercent * 100,
-                        yourSize: sellAmount,
-                    });
-                    yourCapital += sellAmount;
-                    if (pos.sharesHeld < 0.01) {
-                        pos.closed = true;
-                        // Calculate final P&L
-                        const totalBought = pos.trades
-                            .filter((t) => t.side === 'BUY')
-                            .reduce((sum, t) => sum + t.usdcSize, 0);
-                        const totalSold = pos.trades
-                            .filter((t) => t.side === 'SELL')
-                            .reduce((sum, t) => sum + t.usdcSize, 0);
-                        pos.pnl = totalSold - totalBought;
-                    }
-                    copiedTrades++;
-                }
-                else {
-                    skippedTrades++;
-                }
-            }
-        }
-        // Calculate current values based on trader's current positions
-        const traderPositions = yield fetchTraderPositions();
-        let totalCurrentValue = yourCapital;
-        let unrealizedPnl = 0;
-        let realizedPnl = 0;
-        for (const [key, simPos] of positions.entries()) {
-            if (!simPos.closed) {
-                // Find matching trader position to get current value
-                const assetId = key.split(':')[0];
-                const traderPos = traderPositions.find((tp) => tp.asset === assetId);
-                if (traderPos) {
-                    const currentPrice = traderPos.currentValue / traderPos.size;
-                    // Use tracked sharesHeld instead of recalculating
-                    simPos.currentValue = simPos.sharesHeld * currentPrice;
-                }
-                simPos.pnl = simPos.currentValue - simPos.invested;
-                unrealizedPnl += simPos.pnl;
-                totalCurrentValue += simPos.currentValue;
-            }
             else {
-                // Closed position - P&L already calculated
-                realizedPnl += simPos.pnl;
+                skippedTrades++;
             }
         }
-        const currentCapital = yourCapital +
-            Array.from(positions.values())
-                .filter((p) => !p.closed)
-                .reduce((sum, p) => sum + p.currentValue, 0);
-        const totalPnl = currentCapital - STARTING_CAPITAL;
-        const roi = (totalPnl / STARTING_CAPITAL) * 100;
-        return {
-            id: `sim_${TRADER_ADDRESS.slice(0, 8)}_${Date.now()}`,
-            name: `FIXED_${TRADER_ADDRESS.slice(0, 6)}_${HISTORY_DAYS}d_copy${COPY_PERCENTAGE}pct`,
-            logic: 'fixed_percentage',
-            timestamp: Date.now(),
-            traderAddress: TRADER_ADDRESS,
-            startingCapital: STARTING_CAPITAL,
-            currentCapital,
-            totalTrades: trades.length,
-            copiedTrades,
-            skippedTrades,
-            totalInvested,
-            currentValue: totalCurrentValue,
-            realizedPnl,
-            unrealizedPnl,
-            totalPnl,
-            roi,
-            positions: Array.from(positions.values()),
-        };
-    });
+    }
+    // Calculate current values based on trader's current positions
+    const traderPositions = await fetchTraderPositions();
+    let totalCurrentValue = yourCapital;
+    let unrealizedPnl = 0;
+    let realizedPnl = 0;
+    for (const [key, simPos] of positions.entries()) {
+        if (!simPos.closed) {
+            // Find matching trader position to get current value
+            const assetId = key.split(':')[0];
+            const traderPos = traderPositions.find((tp) => tp.asset === assetId);
+            if (traderPos) {
+                const currentPrice = traderPos.currentValue / traderPos.size;
+                // Use tracked sharesHeld instead of recalculating
+                simPos.currentValue = simPos.sharesHeld * currentPrice;
+            }
+            simPos.pnl = simPos.currentValue - simPos.invested;
+            unrealizedPnl += simPos.pnl;
+            totalCurrentValue += simPos.currentValue;
+        }
+        else {
+            // Closed position - P&L already calculated
+            realizedPnl += simPos.pnl;
+        }
+    }
+    const currentCapital = yourCapital +
+        Array.from(positions.values())
+            .filter((p) => !p.closed)
+            .reduce((sum, p) => sum + p.currentValue, 0);
+    const totalPnl = currentCapital - STARTING_CAPITAL;
+    const roi = (totalPnl / STARTING_CAPITAL) * 100;
+    return {
+        id: `sim_${TRADER_ADDRESS.slice(0, 8)}_${Date.now()}`,
+        name: `FIXED_${TRADER_ADDRESS.slice(0, 6)}_${HISTORY_DAYS}d_copy${COPY_PERCENTAGE}pct`,
+        logic: 'fixed_percentage',
+        timestamp: Date.now(),
+        traderAddress: TRADER_ADDRESS,
+        startingCapital: STARTING_CAPITAL,
+        currentCapital,
+        totalTrades: trades.length,
+        copiedTrades,
+        skippedTrades,
+        totalInvested,
+        currentValue: totalCurrentValue,
+        realizedPnl,
+        unrealizedPnl,
+        totalPnl,
+        roi,
+        positions: Array.from(positions.values()),
+    };
 }
 function printReport(result) {
     console.log('\n' + colors.cyan('═'.repeat(80)));
@@ -383,41 +366,39 @@ function printReport(result) {
     }
     console.log('\n' + colors.cyan('═'.repeat(80)) + '\n');
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(colors.cyan('\n🚀 POLYMARKET COPY TRADING PROFITABILITY SIMULATOR (FIXED)\n'));
-        console.log(colors.gray(`Trader: ${TRADER_ADDRESS}`));
-        console.log(colors.gray(`Starting Capital: $${STARTING_CAPITAL}`));
-        console.log(colors.gray(`Copy Percentage: ${COPY_PERCENTAGE}% (of trader order size)`));
-        console.log(colors.gray(`Multiplier: ${MULTIPLIER}x`));
-        console.log(colors.gray(`History window: ${HISTORY_DAYS} day(s), max trades: ${MAX_TRADES_LIMIT}\n`));
-        try {
-            const trades = yield fetchTraderActivity();
-            const result = yield simulateCopyTrading(trades);
-            printReport(result);
-            // Save to JSON file
-            const fs = yield import('fs');
-            const path = yield import('path');
-            const resultsDir = path.join(process.cwd(), 'simulation_results');
-            if (!fs.existsSync(resultsDir)) {
-                fs.mkdirSync(resultsDir, { recursive: true });
-            }
-            const tag = (() => {
-                const raw = process.env.SIM_RESULT_TAG;
-                if (!raw)
-                    return '';
-                return '_' + raw.trim().replace(/[^a-zA-Z0-9-_]+/g, '-');
-            })();
-            const filename = `fixed_logic_${TRADER_ADDRESS}_${HISTORY_DAYS}d_copy${COPY_PERCENTAGE}pct${tag}_${new Date().toISOString().split('T')[0]}.json`;
-            const filepath = path.join(resultsDir, filename);
-            fs.writeFileSync(filepath, JSON.stringify(result, null, 2), 'utf8');
-            console.log(colors.green(`✓ Results saved to: ${filepath}\n`));
-            console.log(colors.green('✓ Simulation completed successfully!\n'));
+async function main() {
+    console.log(colors.cyan('\n🚀 POLYMARKET COPY TRADING PROFITABILITY SIMULATOR (FIXED)\n'));
+    console.log(colors.gray(`Trader: ${TRADER_ADDRESS}`));
+    console.log(colors.gray(`Starting Capital: $${STARTING_CAPITAL}`));
+    console.log(colors.gray(`Copy Percentage: ${COPY_PERCENTAGE}% (of trader order size)`));
+    console.log(colors.gray(`Multiplier: ${MULTIPLIER}x`));
+    console.log(colors.gray(`History window: ${HISTORY_DAYS} day(s), max trades: ${MAX_TRADES_LIMIT}\n`));
+    try {
+        const trades = await fetchTraderActivity();
+        const result = await simulateCopyTrading(trades);
+        printReport(result);
+        // Save to JSON file
+        const fs = await import('fs');
+        const path = await import('path');
+        const resultsDir = path.join(process.cwd(), 'simulation_results');
+        if (!fs.existsSync(resultsDir)) {
+            fs.mkdirSync(resultsDir, { recursive: true });
         }
-        catch (error) {
-            console.error(colors.red('\n✗ Simulation failed:'), error);
-            process.exit(1);
-        }
-    });
+        const tag = (() => {
+            const raw = process.env.SIM_RESULT_TAG;
+            if (!raw)
+                return '';
+            return '_' + raw.trim().replace(/[^a-zA-Z0-9-_]+/g, '-');
+        })();
+        const filename = `fixed_logic_${TRADER_ADDRESS}_${HISTORY_DAYS}d_copy${COPY_PERCENTAGE}pct${tag}_${new Date().toISOString().split('T')[0]}.json`;
+        const filepath = path.join(resultsDir, filename);
+        fs.writeFileSync(filepath, JSON.stringify(result, null, 2), 'utf8');
+        console.log(colors.green(`✓ Results saved to: ${filepath}\n`));
+        console.log(colors.green('✓ Simulation completed successfully!\n'));
+    }
+    catch (error) {
+        console.error(colors.red('\n✗ Simulation failed:'), error);
+        process.exit(1);
+    }
 }
 main();

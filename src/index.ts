@@ -10,10 +10,6 @@ import { startServer } from './server/index.js';
 import TelegramServer from './telegram/server.js';
 import Logger from './utils/logger.js';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck.js';
-import setupProxy from './utils/setupProxy.js';
-import User from './models/user.js';
-
-// Function handles proxy initialization inside main
 
 // Handle Railway port
 const PORT = parseInt(process.env.PORT || '3000');
@@ -65,8 +61,11 @@ process.on('uncaughtException', (error: Error) => {
     // Check if error is related to network/RPC limits (429 or frame errors)
     const isNetworkError = error.message.includes('429') || 
                           error.message.includes('Unexpected server response: 429') ||
+                          error.message.includes('Unexpected server response: 404') ||
+                          error.message.includes('Unexpected server response: 409') ||
                           error.message.includes('Invalid WebSocket frame') || 
-                          error.message.includes('ECONNRESET');
+                          error.message.includes('ECONNRESET') ||
+                          error.message.includes('ETIMEDOUT');
 
     if (isNetworkError) {
         Logger.error(`⚠️ Network Resiliency: Suppression of crash for error: ${error.message}`);
@@ -89,12 +88,13 @@ export const main = async () => {
         Logger.info('Starting Polycopy SaaS Multi-User System...');
         
         await connectDB();
-        
-        // Migration: Convert legacy ARBITRAGE users to COPY to prevent UI/Execution confusion
+
+        // One-time Migration: Convert ARBITRAGE users to COPY
         try {
+            const User = (await import('./models/user.js')).default;
             const migrationResult = await User.updateMany(
                 { "config.mode": "ARBITRAGE" },
-                { $set: { "config.mode": "COPY" } }
+                { $set: { "config.mode": "COPY", "step": "ready" } }
             );
             if (migrationResult.modifiedCount > 0) {
                 Logger.info(`[MIGRATION] Successfully converted ${migrationResult.modifiedCount} users from ARBITRAGE to COPY.`);
@@ -102,9 +102,6 @@ export const main = async () => {
         } catch (err) {
             Logger.error(`[MIGRATION] Failed to migrate ARBITRAGE users: ${err}`);
         }
-        
-        // Initialize global proxy if configured (Disabled for Europe Region)
-        // await setupProxy();
         
         // Telegram Bot (non-blocking)
         if (ENV.TELEGRAM_BOT_TOKEN) {

@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -33,16 +24,16 @@ const MAX_PARALLEL = (() => {
     return Number.isFinite(value) && value > 0 ? Math.min(Math.floor(value), 10) : 4;
 })();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const fetchBatch = (address, offset, limit) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield axios.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=${limit}&offset=${offset}`, {
+const fetchBatch = async (address, offset, limit) => {
+    const response = await axios.get(`https://data-api.polymarket.com/activity?user=${address}&type=TRADE&limit=${limit}&offset=${offset}`, {
         timeout: 15000,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
     });
     return Array.isArray(response.data) ? response.data : [];
-});
-const fetchTradesForTrader = (address) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const fetchTradesForTrader = async (address) => {
     console.log(`\n🚀 Loading history for ${address} (last ${HISTORY_DAYS} days)`);
     const sinceTimestamp = Math.floor((Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000) / 1000);
     let offset = 0;
@@ -50,7 +41,7 @@ const fetchTradesForTrader = (address) => __awaiter(void 0, void 0, void 0, func
     let hasMore = true;
     while (hasMore && allTrades.length < MAX_TRADES_PER_TRADER) {
         const batchLimit = Math.min(BATCH_SIZE, MAX_TRADES_PER_TRADER - allTrades.length);
-        const batch = yield fetchBatch(address, offset, batchLimit);
+        const batch = await fetchBatch(address, offset, batchLimit);
         if (batch.length === 0) {
             hasMore = false;
             break;
@@ -62,13 +53,13 @@ const fetchTradesForTrader = (address) => __awaiter(void 0, void 0, void 0, func
         }
         offset += batchLimit;
         if (allTrades.length % (BATCH_SIZE * MAX_PARALLEL) === 0) {
-            yield sleep(150);
+            await sleep(150);
         }
     }
     const sorted = allTrades.sort((a, b) => a.timestamp - b.timestamp);
     console.log(`✓ Retrieved ${sorted.length} trades`);
     return sorted;
-});
+};
 const saveTradesToCache = (address, trades) => {
     const cacheDir = path.join(process.cwd(), 'trader_data_cache');
     if (!fs.existsSync(cacheDir)) {
@@ -95,7 +86,7 @@ const chunk = (array, size) => {
     }
     return result;
 };
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
+const main = async () => {
     if (USER_ADDRESSES.length === 0) {
         console.log('USER_ADDRESSES is empty. Check .env');
         return;
@@ -105,16 +96,16 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Period: ${HISTORY_DAYS} days, max ${MAX_TRADES_PER_TRADER} trades per trader`);
     const addressChunks = chunk(USER_ADDRESSES, MAX_PARALLEL);
     for (const chunkItem of addressChunks) {
-        yield Promise.all(chunkItem.map((address) => __awaiter(void 0, void 0, void 0, function* () {
+        await Promise.all(chunkItem.map(async (address) => {
             try {
-                const trades = yield fetchTradesForTrader(address);
+                const trades = await fetchTradesForTrader(address);
                 saveTradesToCache(address, trades);
             }
             catch (error) {
                 console.error(`✗ Error loading for ${address}:`, error);
             }
-        })));
+        }));
     }
     console.log('\n✅ Export completed');
-});
+};
 main();

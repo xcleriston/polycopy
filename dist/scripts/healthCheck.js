@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import * as dotenv from 'dotenv';
 dotenv.config();
 import connectDB, { closeDB } from '../config/db';
@@ -28,7 +19,6 @@ function printHeader() {
     console.log(`${colors.reset}\n`);
 }
 function printRecommendations(result) {
-    var _a;
     const issues = [];
     if (result.checks.database.status === 'error') {
         issues.push('❌ Database Connection Failed');
@@ -57,7 +47,7 @@ function printRecommendations(result) {
     }
     else if (result.checks.balance.status === 'warning') {
         console.log(`${colors.yellow}${colors.bright}\n⚠️  Low Balance Warning:${colors.reset}`);
-        console.log(`   • Balance: $${((_a = result.checks.balance.balance) === null || _a === void 0 ? void 0 : _a.toFixed(2)) || '0.00'}`);
+        console.log(`   • Balance: $${result.checks.balance.balance?.toFixed(2) || '0.00'}`);
         console.log('   • Consider adding more USDC to avoid missing trades');
         console.log('   • Recommended minimum: $50-100 for active trading\n');
     }
@@ -90,12 +80,12 @@ function printConfiguration() {
     console.log(`   Trade Multiplier: ${ENV.TRADE_MULTIPLIER}x`);
     console.log('');
 }
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
+const main = async () => {
     try {
         printHeader();
         console.log(`${colors.yellow}⏳ Running diagnostic checks...${colors.reset}\n`);
-        yield connectDB();
-        const result = yield performHealthCheck();
+        await connectDB();
+        const result = await performHealthCheck();
         logHealthCheck(result);
         printConfiguration();
         printRecommendations(result);
@@ -119,7 +109,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         process.exit(1);
     }
     finally {
-        yield closeDB();
+        await closeDB();
     }
-});
+};
 main();

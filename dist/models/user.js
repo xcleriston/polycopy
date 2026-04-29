@@ -9,10 +9,10 @@ const UserSchema = new Schema({
     wallet: {
         address: { type: String, index: true },
         privateKey: { type: String },
-        proxyAddress: { type: String },
+        proxyAddress: { type: String, index: true },
     },
     config: {
-        mode: { type: String, enum: ['COPY', 'MIRROR_100'], default: 'COPY' },
+        mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
         traderAddress: { type: String, index: true },
         strategy: { type: String, default: 'PERCENTAGE' },
         copySize: { type: Number, default: 10.0 },

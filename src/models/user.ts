@@ -65,7 +65,7 @@ const UserSchema: Schema = new Schema({
     wallet: {
         address: { type: String, index: true },
         privateKey: { type: String },
-        proxyAddress: { type: String },
+        proxyAddress: { type: String, index: true },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },

@@ -1,19 +1,11 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 class TelegramBotStandalone {
+    token;
+    users = new Map();
     constructor(token) {
-        this.users = new Map();
         this.token = token;
         this.loadUsers();
     }
@@ -62,39 +54,36 @@ class TelegramBotStandalone {
             quickswap: `https://quickswap.exchange/#/swap?inputCurrency=0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174&outputCurrency=0x458Efe634a885F2A2A57B106063e822A060f9dcF&recipient=${address}`
         };
     }
-    sendMessage(chatId, text, keyboard) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const url = `https://api.telegram.org/bot${this.token}/sendMessage`;
-            const payload = {
-                chat_id: chatId,
-                text: text,
-                parse_mode: 'Markdown'
+    async sendMessage(chatId, text, keyboard) {
+        const url = `https://api.telegram.org/bot${this.token}/sendMessage`;
+        const payload = {
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'Markdown'
+        };
+        if (keyboard) {
+            payload.reply_markup = {
+                inline_keyboard: keyboard
             };
-            if (keyboard) {
-                payload.reply_markup = {
-                    inline_keyboard: keyboard
-                };
-            }
-            try {
-                yield axios.post(url, payload);
-            }
-            catch (error) {
-                console.error('Error sending message:', error);
-            }
-        });
+        }
+        try {
+            await axios.post(url, payload);
+        }
+        catch (error) {
+            console.error('Error sending message:', error);
+        }
     }
-    handleStart(chatId, refCode) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let user = this.users.get(chatId);
-            if (!user) {
-                user = {
-                    chatId,
-                    step: 'start',
-                    refCode: refCode
-                };
-                this.users.set(chatId, user);
-            }
-            const welcomeMessage = `*🚀 BEM-VINDO AO POLYCOPY BOT!*
+    async handleStart(chatId, refCode) {
+        let user = this.users.get(chatId);
+        if (!user) {
+            user = {
+                chatId,
+                step: 'start',
+                refCode: refCode
+            };
+            this.users.set(chatId, user);
+        }
+        const welcomeMessage = `*🚀 BEM-VINDO AO POLYCOPY BOT!*
 
 Este bot irá criar sua carteira e configurar seu sistema de copy trading automático.
 
@@ -108,25 +97,23 @@ Vou gerar uma carteira Polygon para você começar a operar na Polymarket.
 • A chave dá acesso total aos seus fundos
 
 Clique em "Gerar Carteira" para continuar:`;
-            const keyboard = [
-                [{ text: '🔐 Gerar Nova Carteira', callback_data: 'generate_wallet' }],
-                [{ text: '❓ Como Funciona?', callback_data: 'how_it_works' }]
-            ];
-            yield this.sendMessage(chatId, welcomeMessage, keyboard);
-        });
+        const keyboard = [
+            [{ text: '🔐 Gerar Nova Carteira', callback_data: 'generate_wallet' }],
+            [{ text: '❓ Como Funciona?', callback_data: 'how_it_works' }]
+        ];
+        await this.sendMessage(chatId, welcomeMessage, keyboard);
     }
-    handleGenerateWallet(chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = this.users.get(chatId);
-            if (!user)
-                return;
-            const wallet = this.generateWallet();
-            user.wallet = wallet;
-            user.step = 'wallet';
-            this.users.set(chatId, user);
-            this.saveUsers();
-            const depositLinks = this.getDepositLinks(wallet.address);
-            const walletMessage = `*✅ CARTEIRA CRIADA COM SUCESSO!*
+    async handleGenerateWallet(chatId) {
+        const user = this.users.get(chatId);
+        if (!user)
+            return;
+        const wallet = this.generateWallet();
+        user.wallet = wallet;
+        user.step = 'wallet';
+        this.users.set(chatId, user);
+        this.saveUsers();
+        const depositLinks = this.getDepositLinks(wallet.address);
+        const walletMessage = `*✅ CARTEIRA CRIADA COM SUCESSO!*
 
 *📍 ENDEREÇO DA CARTEIRA:*
 \`${wallet.address}\`
@@ -159,21 +146,19 @@ ${depositLinks.quickswap}
 *💡 VALOR SUGERIDO:* Comece com $100-500 USDC
 
 Após depositar, clique em "Confirmar Depósito":`;
-            const keyboard = [
-                [{ text: '✅ Já Depositei Fundos', callback_data: 'deposit_confirmed' }],
-                [{ text: '❓ Ajuda com Depósito', callback_data: 'deposit_help' }]
-            ];
-            yield this.sendMessage(chatId, walletMessage, keyboard);
-        });
+        const keyboard = [
+            [{ text: '✅ Já Depositei Fundos', callback_data: 'deposit_confirmed' }],
+            [{ text: '❓ Ajuda com Depósito', callback_data: 'deposit_help' }]
+        ];
+        await this.sendMessage(chatId, walletMessage, keyboard);
     }
-    handleDepositConfirmed(chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = this.users.get(chatId);
-            if (!user || !user.wallet)
-                return;
-            user.step = 'trader';
-            this.users.set(chatId, user);
-            const traderMessage = `*📊 PASSO 3: ESCOLHER TRADER*
+    async handleDepositConfirmed(chatId) {
+        const user = this.users.get(chatId);
+        if (!user || !user.wallet)
+            return;
+        user.step = 'trader';
+        this.users.set(chatId, user);
+        const traderMessage = `*📊 PASSO 3: ESCOLHER TRADER*
 
 Agora escolha qual trader você deseja copiar:
 
@@ -188,23 +173,21 @@ Agora escolha qual trader você deseja copiar:
 3. *Custom* (Seu próprio trader)
 
 Digite o endereço do trader que deseja copiar ou escolha uma opção acima:`;
-            const keyboard = [
-                [{ text: '🎯 Usar Trader Popular 1', callback_data: 'trader_popular_1' }],
-                [{ text: '🛡️ Usar Trader Popular 2', callback_data: 'trader_popular_2' }],
-                [{ text: '📝 Inserir Endereço Customizado', callback_data: 'trader_custom' }]
-            ];
-            yield this.sendMessage(chatId, traderMessage, keyboard);
-        });
+        const keyboard = [
+            [{ text: '🎯 Usar Trader Popular 1', callback_data: 'trader_popular_1' }],
+            [{ text: '🛡️ Usar Trader Popular 2', callback_data: 'trader_popular_2' }],
+            [{ text: '📝 Inserir Endereço Customizado', callback_data: 'trader_custom' }]
+        ];
+        await this.sendMessage(chatId, traderMessage, keyboard);
     }
-    handleTraderSelection(chatId, traderAddress) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = this.users.get(chatId);
-            if (!user)
-                return;
-            user.config = Object.assign(Object.assign({}, user.config), { traderAddress });
-            user.step = 'strategy';
-            this.users.set(chatId, user);
-            const strategyMessage = `*⚙️ PASSO 4: CONFIGURAR ESTRATÉGIA*
+    async handleTraderSelection(chatId, traderAddress) {
+        const user = this.users.get(chatId);
+        if (!user)
+            return;
+        user.config = { ...user.config, traderAddress };
+        user.step = 'strategy';
+        this.users.set(chatId, user);
+        const strategyMessage = `*⚙️ PASSO 4: CONFIGURAR ESTRATÉGIA*
 
 Escolha sua estratégia de copy trading:
 
@@ -223,26 +206,24 @@ Escolha sua estratégia de copy trading:
    Menor % para trades grandes, maior % para pequenos
 
 Escolha sua estratégia:`;
-            const keyboard = [
-                [{ text: '📊 Porcentagem (10%)', callback_data: 'strategy_percentage' }],
-                [{ text: '💰 Valor Fixo ($50)', callback_data: 'strategy_fixed' }],
-                [{ text: '🔄 Adaptiva', callback_data: 'strategy_adaptive' }]
-            ];
-            yield this.sendMessage(chatId, strategyMessage, keyboard);
-        });
+        const keyboard = [
+            [{ text: '📊 Porcentagem (10%)', callback_data: 'strategy_percentage' }],
+            [{ text: '💰 Valor Fixo ($50)', callback_data: 'strategy_fixed' }],
+            [{ text: '🔄 Adaptiva', callback_data: 'strategy_adaptive' }]
+        ];
+        await this.sendMessage(chatId, strategyMessage, keyboard);
     }
-    handleStrategySelection(chatId, strategy, copySize) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = this.users.get(chatId);
-            if (!user)
-                return;
-            user.config = Object.assign(Object.assign({}, user.config), { strategy, copySize });
-            user.step = 'ready';
-            this.users.set(chatId, user);
-            this.saveUsers();
-            // Update .env file with user configuration
-            yield this.updateEnvFile(user);
-            const readyMessage = `*🎉 CONFIGURAÇÃO CONCLUÍDA!*
+    async handleStrategySelection(chatId, strategy, copySize) {
+        const user = this.users.get(chatId);
+        if (!user)
+            return;
+        user.config = { ...user.config, strategy, copySize };
+        user.step = 'ready';
+        this.users.set(chatId, user);
+        this.saveUsers();
+        // Update .env file with user configuration
+        await this.updateEnvFile(user);
+        const readyMessage = `*🎉 CONFIGURAÇÃO CONCLUÍDA!*
 
 *📋 RESUMO DA SUA CONFIGURAÇÃO:*
 
@@ -275,104 +256,94 @@ Parabéns! Seu bot está pronto para operar! 🚀
 *🔗 LINK DE REFERÊNCIA:*
 Compartilhe este link com amigos:
 https://t.me/PolyCop_BOT?start=ref_${user.refCode || 'CUSTOM'}`;
-            const keyboard = [
-                [{ text: '📊 Ver Status', callback_data: 'check_status' }],
-                [{ text: '🌐 Abrir Dashboard', url: 'http://localhost:3000' }],
-                [{ text: '❓ Ajuda', callback_data: 'help' }]
+        const keyboard = [
+            [{ text: '📊 Ver Status', callback_data: 'check_status' }],
+            [{ text: '🌐 Abrir Dashboard', url: 'http://localhost:3000' }],
+            [{ text: '❓ Ajuda', callback_data: 'help' }]
+        ];
+        await this.sendMessage(chatId, readyMessage, keyboard);
+    }
+    async updateEnvFile(user) {
+        try {
+            const envPath = path.join(process.cwd(), '.env');
+            let envContent = '';
+            if (fs.existsSync(envPath)) {
+                envContent = fs.readFileSync(envPath, 'utf-8');
+            }
+            const updates = [
+                { key: 'USER_ADDRESSES', value: user.config?.traderAddress || '' },
+                { key: 'PROXY_WALLET', value: user.wallet?.address || '' },
+                { key: 'PRIVATE_KEY', value: user.wallet?.privateKey || '' },
+                { key: 'COPY_STRATEGY', value: user.config?.strategy || 'PERCENTAGE' },
+                { key: 'COPY_SIZE', value: user.config?.copySize?.toString() || '10.0' },
+                { key: 'PREVIEW_MODE', value: 'true' }
             ];
-            yield this.sendMessage(chatId, readyMessage, keyboard);
-        });
-    }
-    updateEnvFile(user) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f;
-            try {
-                const envPath = path.join(process.cwd(), '.env');
-                let envContent = '';
-                if (fs.existsSync(envPath)) {
-                    envContent = fs.readFileSync(envPath, 'utf-8');
+            updates.forEach(({ key, value }) => {
+                const regex = new RegExp(`^${key}\\s*=.*$`, 'm');
+                if (regex.test(envContent)) {
+                    envContent = envContent.replace(regex, `${key}='${value}'`);
                 }
-                const updates = [
-                    { key: 'USER_ADDRESSES', value: ((_a = user.config) === null || _a === void 0 ? void 0 : _a.traderAddress) || '' },
-                    { key: 'PROXY_WALLET', value: ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.address) || '' },
-                    { key: 'PRIVATE_KEY', value: ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.privateKey) || '' },
-                    { key: 'COPY_STRATEGY', value: ((_d = user.config) === null || _d === void 0 ? void 0 : _d.strategy) || 'PERCENTAGE' },
-                    { key: 'COPY_SIZE', value: ((_f = (_e = user.config) === null || _e === void 0 ? void 0 : _e.copySize) === null || _f === void 0 ? void 0 : _f.toString()) || '10.0' },
-                    { key: 'PREVIEW_MODE', value: 'true' }
-                ];
-                updates.forEach(({ key, value }) => {
-                    const regex = new RegExp(`^${key}\\s*=.*$`, 'm');
-                    if (regex.test(envContent)) {
-                        envContent = envContent.replace(regex, `${key}='${value}'`);
-                    }
-                    else {
-                        envContent += `\n${key}='${value}'`;
-                    }
-                });
-                fs.writeFileSync(envPath, envContent);
-            }
-            catch (error) {
-                console.error('Error updating .env file:', error);
-            }
-        });
+                else {
+                    envContent += `\n${key}='${value}'`;
+                }
+            });
+            fs.writeFileSync(envPath, envContent);
+        }
+        catch (error) {
+            console.error('Error updating .env file:', error);
+        }
     }
-    handleCallback(callbackData, chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = this.users.get(chatId);
-            switch (callbackData) {
-                case 'generate_wallet':
-                    yield this.handleGenerateWallet(chatId);
-                    break;
-                case 'deposit_confirmed':
-                    yield this.handleDepositConfirmed(chatId);
-                    break;
-                case 'trader_popular_1':
-                    yield this.handleTraderSelection(chatId, '0x2005d16a84ceefa912d4e380cd32e7ff827875ea');
-                    break;
-                case 'trader_popular_2':
-                    yield this.handleTraderSelection(chatId, '0xd62531bc536bff72394fc5ef715525575787e809');
-                    break;
-                case 'strategy_percentage':
-                    yield this.handleStrategySelection(chatId, 'PERCENTAGE', 10.0);
-                    break;
-                case 'strategy_fixed':
-                    yield this.handleStrategySelection(chatId, 'FIXED', 50.0);
-                    break;
-                case 'strategy_adaptive':
-                    yield this.handleStrategySelection(chatId, 'ADAPTIVE', 10.0);
-                    break;
-                case 'check_status':
-                    yield this.sendStatus(chatId);
-                    break;
-                case 'help':
-                    yield this.sendHelp(chatId);
-                    break;
-                default:
-                    yield this.sendMessage(chatId, 'Opção não reconhecida. Tente novamente.');
-            }
-        });
+    async handleCallback(callbackData, chatId) {
+        const user = this.users.get(chatId);
+        switch (callbackData) {
+            case 'generate_wallet':
+                await this.handleGenerateWallet(chatId);
+                break;
+            case 'deposit_confirmed':
+                await this.handleDepositConfirmed(chatId);
+                break;
+            case 'trader_popular_1':
+                await this.handleTraderSelection(chatId, '0x2005d16a84ceefa912d4e380cd32e7ff827875ea');
+                break;
+            case 'trader_popular_2':
+                await this.handleTraderSelection(chatId, '0xd62531bc536bff72394fc5ef715525575787e809');
+                break;
+            case 'strategy_percentage':
+                await this.handleStrategySelection(chatId, 'PERCENTAGE', 10.0);
+                break;
+            case 'strategy_fixed':
+                await this.handleStrategySelection(chatId, 'FIXED', 50.0);
+                break;
+            case 'strategy_adaptive':
+                await this.handleStrategySelection(chatId, 'ADAPTIVE', 10.0);
+                break;
+            case 'check_status':
+                await this.sendStatus(chatId);
+                break;
+            case 'help':
+                await this.sendHelp(chatId);
+                break;
+            default:
+                await this.sendMessage(chatId, 'Opção não reconhecida. Tente novamente.');
+        }
     }
-    sendStatus(chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c;
-            const user = this.users.get(chatId);
-            if (!user)
-                return;
-            const statusMessage = `*📊 STATUS DO SEU BOT*
+    async sendStatus(chatId) {
+        const user = this.users.get(chatId);
+        if (!user)
+            return;
+        const statusMessage = `*📊 STATUS DO SEU BOT*
 
-📍 *Carteira:* ${((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address) || 'Não configurada'}
-🎯 *Trader:* ${((_b = user.config) === null || _b === void 0 ? void 0 : _b.traderAddress) || 'Não configurado'}
-⚙️ *Estratégia:* ${((_c = user.config) === null || _c === void 0 ? void 0 : _c.strategy) || 'Não configurada'}
+📍 *Carteira:* ${user.wallet?.address || 'Não configurada'}
+🎯 *Trader:* ${user.config?.traderAddress || 'Não configurado'}
+⚙️ *Estratégia:* ${user.config?.strategy || 'Não configurada'}
 📝 *Step:* ${user.step || 'Não iniciado'}
 
 *🌐 Dashboard:* http://localhost:3000
 *📖 API Docs:* http://localhost:3000/docs`;
-            yield this.sendMessage(chatId, statusMessage);
-        });
+        await this.sendMessage(chatId, statusMessage);
     }
-    sendHelp(chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const helpMessage = `*❓ AJUDA - POLYCOPY BOT*
+    async sendHelp(chatId) {
+        const helpMessage = `*❓ AJUDA - POLYCOPY BOT*
 
 *🚀 COMANDOS:*
 /start - Iniciar configuração
@@ -392,30 +363,27 @@ Se precisar de ajuda, contate nosso suporte.
 • Nunca compartilhe sua chave privada
 • Mantenha seu bot atualizado
 • Monitore suas operações regularmente`;
-            yield this.sendMessage(chatId, helpMessage);
-        });
+        await this.sendMessage(chatId, helpMessage);
     }
-    handleMessage(message) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const chatId = message.chat.id.toString();
-            const text = message.text;
-            if (text === null || text === void 0 ? void 0 : text.startsWith('/start')) {
-                const refCode = text.split(' ')[1];
-                yield this.handleStart(chatId, refCode);
-            }
-            else if (text === null || text === void 0 ? void 0 : text.startsWith('/status')) {
-                yield this.sendStatus(chatId);
-            }
-            else if (text === null || text === void 0 ? void 0 : text.startsWith('/help')) {
-                yield this.sendHelp(chatId);
-            }
-            else if (text === null || text === void 0 ? void 0 : text.startsWith('/wallet')) {
-                yield this.sendStatus(chatId);
-            }
-            else if (text === null || text === void 0 ? void 0 : text.startsWith('/config')) {
-                yield this.sendStatus(chatId);
-            }
-        });
+    async handleMessage(message) {
+        const chatId = message.chat.id.toString();
+        const text = message.text;
+        if (text?.startsWith('/start')) {
+            const refCode = text.split(' ')[1];
+            await this.handleStart(chatId, refCode);
+        }
+        else if (text?.startsWith('/status')) {
+            await this.sendStatus(chatId);
+        }
+        else if (text?.startsWith('/help')) {
+            await this.sendHelp(chatId);
+        }
+        else if (text?.startsWith('/wallet')) {
+            await this.sendStatus(chatId);
+        }
+        else if (text?.startsWith('/config')) {
+            await this.sendStatus(chatId);
+        }
     }
 }
 export default TelegramBotStandalone;

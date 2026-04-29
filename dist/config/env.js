@@ -58,9 +58,9 @@ const validateAddresses = () => {
     }
     if (process.env.USDC_CONTRACT_ADDRESS &&
         !isValidEthereumAddress(process.env.USDC_CONTRACT_ADDRESS)) {
-        console.error('\n❌ Invalid USDC Contract Address\n');
+        console.error('\n❌ Invalid pUSD Contract Address\n');
         console.error(`Current value: ${process.env.USDC_CONTRACT_ADDRESS}`);
-        console.error('Default value: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174\n');
+        console.error('Default value: 0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb\n');
         console.error('⚠️  Unless you know what you\'re doing, use the default value!\n');
         throw new Error(`Invalid USDC_CONTRACT_ADDRESS format: ${process.env.USDC_CONTRACT_ADDRESS}`);
     }
@@ -278,12 +278,11 @@ export const ENV = {
     TRADE_AGGREGATION_ENABLED: process.env.TRADE_AGGREGATION_ENABLED === 'true',
     TRADE_AGGREGATION_WINDOW_SECONDS: parseInt(process.env.TRADE_AGGREGATION_WINDOW_SECONDS || '300', 10), // 5 minutes default
     RPC_URL: process.env.RPC_URL,
-    USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS,
-    POLYMARKET_EXCHANGE_ADDR: process.env.POLYMARKET_EXCHANGE_ADDR || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E',
+    USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS || '0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb',
+    POLYMARKET_EXCHANGE_ADDR: process.env.POLYMARKET_EXCHANGE_ADDR || '0xE111180000d2663C0091e4f400237545B87B996B',
     // Telegram settings (optional)
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
     MONGODB_URI: process.env.MONGODB_URI,
     WSS_RPC_URL: process.env.WSS_RPC_URL,
-    HTTPS_PROXY: process.env.HTTPS_PROXY,
 };

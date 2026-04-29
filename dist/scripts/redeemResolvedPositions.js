@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import { ethers } from 'ethers';
 import { ENV } from '../config/env';
 import fetchData from '../utils/fetchData';
@@ -25,13 +16,13 @@ const CTF_ABI = [
     'function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] calldata indexSets) external',
     'function balanceOf(address owner, uint256 tokenId) external view returns (uint256)',
 ];
-const loadPositions = (address) => __awaiter(void 0, void 0, void 0, function* () {
+const loadPositions = async (address) => {
     const url = `https://data-api.polymarket.com/positions?user=${address}`;
-    const data = yield fetchData(url);
+    const data = await fetchData(url);
     const positions = Array.isArray(data) ? data : [];
     return positions.filter((pos) => (pos.size || 0) > ZERO_THRESHOLD);
-});
-const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const redeemPosition = async (ctfContract, position) => {
     try {
         // Convert conditionId to bytes32 format
         const conditionIdBytes32 = ethers.utils.hexZeroPad(ethers.BigNumber.from(position.conditionId).toHexString(), 32);
@@ -44,7 +35,7 @@ const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void
         console.log(`   Condition ID: ${conditionIdBytes32}`);
         console.log(`   Index Sets: [${indexSets.join(', ')}]`);
         // Get current gas price from network
-        const feeData = yield ctfContract.provider.getFeeData();
+        const feeData = await ctfContract.provider.getFeeData();
         const gasPrice = feeData.gasPrice || feeData.maxFeePerGas;
         if (!gasPrice) {
             throw new Error('Could not determine gas price');
@@ -52,13 +43,13 @@ const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void
         // Add 20% buffer to ensure transaction goes through
         const adjustedGasPrice = gasPrice.mul(120).div(100);
         console.log(`   Gas price: ${ethers.utils.formatUnits(adjustedGasPrice, 'gwei')} Gwei`);
-        const tx = yield ctfContract.redeemPositions(USDC_ADDRESS, parentCollectionId, conditionIdBytes32, indexSets, {
+        const tx = await ctfContract.redeemPositions(USDC_ADDRESS, parentCollectionId, conditionIdBytes32, indexSets, {
             gasLimit: 500000, // Set a reasonable gas limit
             gasPrice: adjustedGasPrice,
         });
         console.log(`   ⏳ Transaction submitted: ${tx.hash}`);
         console.log(`   ⏳ Waiting for confirmation...`);
-        const receipt = yield tx.wait();
+        const receipt = await tx.wait();
         if (receipt.status === 1) {
             console.log(`   ✅ Redemption successful! Gas used: ${receipt.gasUsed.toString()}`);
             return { success: true };
@@ -73,7 +64,7 @@ const redeemPosition = (ctfContract, position) => __awaiter(void 0, void 0, void
         console.log(`   ❌ Redemption failed: ${errorMessage}`);
         return { success: false, error: errorMessage };
     }
-});
+};
 const logPositionHeader = (position, index, total) => {
     const status = position.curPrice >= RESOLVED_HIGH ? '🎉 WIN' : '❌ LOSS';
     console.log(`\n${index + 1}/${total} ▶ ${status} | ${position.title || position.slug || position.asset}`);
@@ -85,7 +76,7 @@ const logPositionHeader = (position, index, total) => {
     console.log(`   Expected value: $${position.currentValue.toFixed(2)}`);
     console.log(`   Redeemable: ${position.redeemable ? 'YES' : 'NO'}`);
 };
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
+const main = async () => {
     console.log('🚀 Redeeming resolved positions');
     console.log('════════════════════════════════════════════════════');
     console.log(`Wallet: ${PROXY_WALLET}`);
@@ -105,7 +96,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     // Create contract instance
     const ctfContract = new ethers.Contract(CTF_CONTRACT_ADDRESS, CTF_ABI, wallet);
     // Load positions
-    const allPositions = yield loadPositions(PROXY_WALLET);
+    const allPositions = await loadPositions(PROXY_WALLET);
     if (allPositions.length === 0) {
         console.log('\n🎉 No open positions detected for proxy wallet.');
         return;
@@ -150,7 +141,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log(`   ${status} ${pos.title || pos.slug} | ${pos.outcome} | ${pos.size.toFixed(2)} tokens | $${pos.currentValue.toFixed(2)}`);
         });
         // Redeem once for this condition (redeems all positions)
-        const result = yield redeemPosition(ctfContract, positions[0]);
+        const result = await redeemPosition(ctfContract, positions[0]);
         if (result.success) {
             successCount++;
             totalValue += totalPositionValue;
@@ -161,7 +152,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         // Small delay between transactions
         if (conditionIndex < positionsByCondition.size) {
             console.log(`   ⏳ Waiting 2s before next transaction...`);
-            yield new Promise((resolve) => setTimeout(resolve, 2000));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
         }
     }
     console.log('\n════════════════════════════════════════════════════');
@@ -171,7 +162,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Failed: ${failCount}`);
     console.log(`Expected value of redeemed positions: $${totalValue.toFixed(2)}`);
     console.log('════════════════════════════════════════════════════\n');
-});
+};
 main()
     .then(() => process.exit(0))
     .catch((error) => {

@@ -1,24 +1,15 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import express from 'express';
 import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
-import { setupNewUser, findPolymarketProxy } from './setup.js';
+import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup } from './auth.js';
 import bcrypt from 'bcryptjs';
+import Logger from '../utils/logger.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
-import setupProxy from '../utils/setupProxy.js';
-// Global proxy will be initialized inside startServer
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -43,15 +34,15 @@ const swaggerDoc = {
 };
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 // --- Admin Bootstrap ---
-const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
+const bootstrapAdmin = async () => {
     const adminUser = process.env.ADMIN_USER || 'admin';
     const adminPass = process.env.ADMIN_PASSWORD || 'hacker123';
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@polyhacker.com';
     try {
-        let user = yield User.findOne({
+        let user = await User.findOne({
             $or: [{ username: adminUser }, { email: adminEmail }]
         });
-        const hashedPassword = yield bcrypt.hash(adminPass, 10);
+        const hashedPassword = await bcrypt.hash(adminPass, 10);
         if (!user) {
             console.log(`🚀 [BOOTSTRAP] Criando Administrador: ${adminUser}`);
             user = new User({
@@ -61,19 +52,19 @@ const bootstrapAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
                 role: 'admin',
                 step: 'ready'
             });
-            yield user.save();
+            await user.save();
         }
         else {
             console.log(`⚡ [BOOTSTRAP] Validando permissões de administrador: ${adminUser}`);
             user.role = 'admin';
             user.password = hashedPassword; // Forçar sincronia com env
-            yield user.save();
+            await user.save();
         }
     }
     catch (error) {
         console.error('❌ [BOOTSTRAP] Erro crítico:', error);
     }
-});
+};
 // --- API Auth (Public) ---
 app.post('/api/auth/login', login);
 app.post('/api/auth/signup', signup);
@@ -91,18 +82,29 @@ app.get('/api/health', (_req, res) => {
 });
 // --- Protect all other /api routes ---
 app.use('/api', authenticateToken);
-app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+// Middleware to populate fullUser for API routes
+app.use('/api', async (req, res, next) => {
+    if (req.user?.id) {
+        try {
+            req.fullUser = await User.findById(req.user.id);
+        }
+        catch (error) {
+            console.error('Error fetching fullUser:', error);
+        }
+    }
+    next();
+});
+app.get('/api/status', async (req, res) => {
     try {
-        const mongoose = (yield import('mongoose')).default;
-        const totalUsers = yield User.countDocuments();
-        const activeUsers = yield User.countDocuments({ 'config.enabled': true });
+        const mongoose = (await import('mongoose')).default;
+        const totalUsers = await User.countDocuments();
+        const activeUsers = await User.countDocuments({ 'config.enabled': true });
         res.json({
             running: true,
             dbConnected: mongoose.connection.readyState === 1,
             uptime: Math.floor((Date.now() - botStartTime) / 1000),
-            username: ((_a = req.user) === null || _a === void 0 ? void 0 : _a.username) || 'ANONYMOUS',
-            role: ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role) || 'GUEST',
+            username: req.user?.username || 'ANONYMOUS',
+            role: req.user?.role || 'GUEST',
             totalUsers,
             activeUsers,
             previewMode: process.env.PREVIEW_MODE === 'true'
@@ -111,62 +113,62 @@ app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function*
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch metrics' });
     }
-}));
-app.get('/api/config', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/config', authorizeAdmin, async (_req, res) => {
     // Return summary of first few users for dashboard overview
-    const users = yield User.find().limit(5).lean();
+    const users = await User.find().limit(5).lean();
     const config = {
         global: {
             previewMode: process.env.PREVIEW_MODE === 'true',
             fetchInterval: process.env.FETCH_INTERVAL || '10',
             maxOrderSize: process.env.MAX_ORDER_SIZE_USD || '100.0'
         },
-        users: users.map(u => {
-            var _a, _b, _c, _d, _e;
-            return ({
-                chatId: u.chatId,
-                address: (_a = u.wallet) === null || _a === void 0 ? void 0 : _a.address,
-                trader: (_b = u.config) === null || _b === void 0 ? void 0 : _b.traderAddress,
-                strategy: (_c = u.config) === null || _c === void 0 ? void 0 : _c.strategy,
-                size: (_d = u.config) === null || _d === void 0 ? void 0 : _d.copySize,
-                enabled: (_e = u.config) === null || _e === void 0 ? void 0 : _e.enabled,
-                step: u.step
-            });
-        })
+        users: users.map(u => ({
+            chatId: u.chatId,
+            address: u.wallet?.address,
+            trader: u.config?.traderAddress,
+            strategy: u.config?.strategy,
+            size: u.config?.copySize,
+            enabled: u.config?.enabled,
+            step: u.step
+        }))
     };
     res.json(config);
-}));
-app.get('/api/trades', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/trades', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;
-        const { Activity } = yield import('../models/userHistory.js');
-        const dbTrades = yield Activity.find()
+        const { Activity } = await import('../models/userHistory.js');
+        const dbTrades = await Activity.find()
             .sort({ timestamp: -1 })
             .limit(limit)
             .lean();
-        const trades = dbTrades.map(trade => (Object.assign(Object.assign({}, trade), { isCopied: trade.bot === true || (trade.processedBy && trade.processedBy.length > 0) })));
+        const trades = dbTrades.map(trade => ({
+            ...trade,
+            isCopied: trade.bot === true || (trade.processedBy && trade.processedBy.length > 0)
+        }));
         res.json(trades);
     }
     catch (error) {
         console.error('Error fetching trades:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
-}));
-app.get('/api/users', authorizeAdmin, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/users', authorizeAdmin, async (_req, res) => {
     try {
-        const users = yield User.find().lean();
+        const users = await User.find().lean();
         res.json(users);
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch users' });
     }
-}));
-app.get('/api/users/:id', authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
     try {
         const id = req.params.id;
         const user = id.length === 24
-            ? yield User.findById(id).lean()
-            : yield User.findOne({ chatId: id }).lean();
+            ? await User.findById(id).lean()
+            : await User.findOne({ chatId: id }).lean();
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         res.json(user);
@@ -174,8 +176,8 @@ app.get('/api/users/:id', authorizeAdmin, (req, res) => __awaiter(void 0, void 0
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch user' });
     }
-}));
-app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req, res) => {
     try {
         const id = req.params.id;
         const { config, step, username, email, password } = req.body;
@@ -189,11 +191,11 @@ app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, (req, res) 
         if (email !== undefined)
             update.email = email;
         if (password && password.trim() !== '') {
-            update.password = yield bcrypt.hash(password, 10);
+            update.password = await bcrypt.hash(password, 10);
         }
         const user = id.length === 24
-            ? yield User.findByIdAndUpdate(id, update, { new: true })
-            : yield User.findOneAndUpdate({ chatId: id }, update, { new: true });
+            ? await User.findByIdAndUpdate(id, update, { new: true })
+            : await User.findOneAndUpdate({ chatId: id }, update, { new: true });
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         res.json({ success: true, user });
@@ -201,8 +203,8 @@ app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, (req, res) 
     catch (error) {
         res.status(500).json({ error: 'Failed to update user' });
     }
-}));
-app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, async (req, res) => {
     try {
         const id = req.params.id;
         const update = {
@@ -214,44 +216,43 @@ app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, (req, res) =
             }
         };
         const user = id.length === 24
-            ? yield User.findByIdAndUpdate(id, update, { new: true })
-            : yield User.findOneAndUpdate({ chatId: id }, update, { new: true });
+            ? await User.findByIdAndUpdate(id, update, { new: true })
+            : await User.findOneAndUpdate({ chatId: id }, update, { new: true });
         res.json({ success: true, message: 'User reset successfully', user });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to reset user' });
     }
-}));
-app.delete('/api/users/:id', authenticateToken, authorizeAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.delete('/api/users/:id', authenticateToken, authorizeAdmin, async (req, res) => {
     try {
         const id = req.params.id;
         if (id.length === 24) {
-            yield User.findByIdAndDelete(id);
+            await User.findByIdAndDelete(id);
         }
         else {
-            yield User.deleteOne({ chatId: id });
+            await User.deleteOne({ chatId: id });
         }
         res.json({ success: true, message: 'User deleted successfully' });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to delete user' });
     }
-}));
-app.post('/api/push/subscribe', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+});
+app.post('/api/push/subscribe', authenticateToken, async (req, res) => {
     try {
         const { subscription } = req.body;
-        yield User.updateOne({ _id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }, { $set: { pushSubscription: JSON.stringify(subscription) } });
+        await User.updateOne({ _id: req.user?.id }, { $set: { pushSubscription: JSON.stringify(subscription) } });
         res.json({ success: true, message: 'Push subscription saved' });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to save subscription' });
     }
-}));
+});
 // --- Setup Endpoints (Legacy/Single) ---
-app.post('/api/setup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post('/api/setup', async (req, res) => {
     try {
-        const result = yield setupNewUser(req.body);
+        const result = await setupNewUser(req.body);
         res.json(result);
     }
     catch (error) {
@@ -260,10 +261,10 @@ app.post('/api/setup', (req, res) => __awaiter(void 0, void 0, void 0, function*
             error: error instanceof Error ? error.message : 'Setup failed'
         });
     }
-}));
-app.get('/api/setup/wallet', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/setup/wallet', async (req, res) => {
     try {
-        const { ethers } = yield import('ethers');
+        const { ethers } = await import('ethers');
         const wallet = ethers.Wallet.createRandom();
         res.json({
             address: wallet.address,
@@ -276,7 +277,7 @@ app.get('/api/setup/wallet', (req, res) => __awaiter(void 0, void 0, void 0, fun
             error: 'Failed to create wallet'
         });
     }
-}));
+});
 // --- Advanced Configuration ---
 app.get('/api/config/advanced', (_req, res) => {
     const advancedConfig = {
@@ -300,7 +301,7 @@ app.get('/api/config/advanced', (_req, res) => {
     };
     res.json(advancedConfig);
 });
-app.post('/api/config/advanced', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post('/api/config/advanced', async (req, res) => {
     try {
         const config = req.body;
         // Validate and update environment variables
@@ -324,8 +325,8 @@ app.post('/api/config/advanced', (req, res) => __awaiter(void 0, void 0, void 0,
             'USDC_CONTRACT_ADDRESS': config.usdcContract
         };
         // Update .env file
-        const fs = yield import('fs');
-        const path = yield import('path');
+        const fs = await import('fs');
+        const path = await import('path');
         const envPath = path.join(process.cwd(), '.env');
         let envContent = '';
         if (fs.existsSync(envPath)) {
@@ -354,8 +355,8 @@ app.post('/api/config/advanced', (req, res) => __awaiter(void 0, void 0, void 0,
             error: error instanceof Error ? error.message : 'Failed to update configuration'
         });
     }
-}));
-app.post('/api/config/reset', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.post('/api/config/reset', async (_req, res) => {
     try {
         const defaults = {
             'COPY_STRATEGY': 'PERCENTAGE',
@@ -376,8 +377,8 @@ app.post('/api/config/reset', (_req, res) => __awaiter(void 0, void 0, void 0, f
             'RPC_URL': 'https://poly.api.pocket.network',
             'USDC_CONTRACT_ADDRESS': '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
         };
-        const fs = yield import('fs');
-        const path = yield import('path');
+        const fs = await import('fs');
+        const path = await import('path');
         const envPath = path.join(process.cwd(), '.env');
         let envContent = '';
         if (fs.existsSync(envPath)) {
@@ -406,7 +407,7 @@ app.post('/api/config/reset', (_req, res) => __awaiter(void 0, void 0, void 0, f
             error: error instanceof Error ? error.message : 'Failed to reset configuration'
         });
     }
-}));
+});
 app.get('/setup', (_req, res) => {
     const setupHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -883,104 +884,88 @@ refresh();
 setInterval(refresh, 5000);
 </script>
 </body></html>`;
-const hackerStyles = `
+const authStyles = `
 :root {
-  --bg: #050505;
-  --card: #0a0a0a;
-  --border: #1a1a1a;
-  --text: #e0e0e0;
-  --text-dim: #808080;
-  --accent: #00ff41;
-  --accent-blue: #00d1ff;
-  --accent-glow: rgba(0, 255, 65, 0.2);
-  --danger: #ff003c;
-  --warning: #f59e0b;
-  --hacker-font: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { 
   background: var(--bg); 
   color: var(--text); 
-  font-family: 'Outfit', sans-serif; 
-  overflow-x: hidden; 
-  background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #050505 100%);
+  font-family: var(--font-main); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  min-height: 100vh;
 }
-.scanline {
+.auth-card { 
+  width: 100%; 
+  max-width: 420px; 
+  background: var(--card); 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  padding: 40px; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.logo { font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 30px; text-align: center; }
+.logo span { color: var(--accent); }
+.form-group { margin-bottom: 20px; }
+label { display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+input { 
+  width: 100%; 
+  background: #0d1117; 
+  border: 1px solid var(--border); 
+  padding: 12px 16px; 
+  color: #fff; 
+  border-radius: 6px; 
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s;
+}
+input:focus { border-color: var(--accent); }
+.btn-auth {
   width: 100%;
-  height: 100px;
-  background: linear-gradient(0deg, rgba(0, 255, 65, 0.03), transparent);
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  pointer-events: none;
-  animation: scan 8s linear infinite;
-}
-@keyframes scan { from { transform: translateY(-100px); } to { transform: translateY(100vh); } }
-
-.glass {
-  background: rgba(10, 10, 10, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.hacker-glow { box-shadow: 0 0 15px var(--accent-glow); }
-.text-hacker { font-family: var(--hacker-font); color: var(--accent); }
-.btn-hacker {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-family: var(--hacker-font);
-  cursor: pointer;
-  transition: 0.3s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.btn-hacker:hover {
   background: var(--accent);
-  color: #000;
-  box-shadow: 0 0 20px var(--accent-glow);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: 0.2s;
 }
+.btn-auth:hover { background: #2563eb; transform: translateY(-1px); }
+.footer { margin-top: 25px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+.footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
 `;
 const loginHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Entry Point</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; letter-spacing: -1px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent); }
-    input:focus { border-color: var(--accent); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Login</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="loginForm">
       <div class="form-group">
-        <label>ID / EMAIL / USER</label>
-        <input type="text" id="identity" required>
+        <label>Identificação / E-mail</label>
+        <input type="text" id="identity" placeholder="Seu usuário ou e-mail" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="••••••••" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%">Execute_Login</button>
+      <button type="submit" class="btn-auth">Entrar no Sistema</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Não tem acesso? <a href="/signup">Solicitar Credenciais</a>
+      Não tem uma conta? <a href="/signup">Criar Cadastro</a>
     </div>
   </div>
   <script>
@@ -1003,43 +988,30 @@ const signupHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Poly Hacker | Register</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <style>${hackerStyles}
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
-    .logo { font-size: 2rem; font-weight: 800; margin-bottom: 30px; }
-    .logo span { color: var(--accent); }
-    .form-group { text-align: left; margin-bottom: 20px; }
-    label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-family: var(--hacker-font); }
-    input { width: 100%; background: #000; border: 1px solid #222; padding: 12px; color: #fff; border-radius: 4px; border-left: 3px solid var(--accent-blue); }
-    input:focus { border-color: var(--accent-blue); outline: none; }
-    .footer { margin-top: 20px; font-size: 0.8rem; color: var(--text-dim); }
-    .footer a { color: var(--accent-blue); text-decoration: none; }
-  </style>
+  <title>Prediz Copy | Cadastro</title>
+  <style>${authStyles}</style>
 </head>
 <body>
-  <div class="scanline"></div>
-  <div class="auth-card glass hacker-glow" style="box-shadow: 0 0 15px rgba(0, 209, 255, 0.2)">
-    <div class="logo">POLY<span>HACKER</span></div>
+  <div class="auth-card">
+    <div class="logo">PREDIZ<span>COPY</span></div>
     <form id="signupForm">
       <div class="form-group">
-        <label>USERNAME</label>
-        <input type="text" id="username" required>
+        <label>Nome de Usuário</label>
+        <input type="text" id="username" placeholder="Como deseja ser chamado" required>
       </div>
       <div class="form-group">
-        <label>EMAIL</label>
-        <input type="email" id="email" required>
+        <label>E-mail</label>
+        <input type="email" id="email" placeholder="seu@email.com" required>
       </div>
       <div class="form-group">
-        <label>ACCESS_CODE</label>
-        <input type="password" id="password" required>
+        <label>Senha de Acesso</label>
+        <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
       </div>
-      <button type="submit" class="btn-hacker" style="width: 100%; border-color: var(--accent-blue); color: var(--accent-blue)">Initialize_Account</button>
+      <button type="submit" class="btn-auth">Finalizar Cadastro</button>
     </form>
-    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem"></div>
+    <div id="error" style="color: var(--danger); margin-top: 15px; font-size: 0.85rem; text-align: center"></div>
     <div class="footer">
-      Já possui acesso? <a href="/login">Conectar</a>
+      Já possui cadastro? <a href="/login">Fazer Login</a>
     </div>
   </div>
   <script>
@@ -1067,52 +1039,42 @@ const adminDashboardHtml = `<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b0e14;
-  --sidebar: #151921;
-  --card: #1c212b;
-  --border: #2d343f;
-  --text: #e2e8f0;
-  --text-dim: #94a3b8;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --font-main: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
 
 /* Sidebar */
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; transition: 0.3s; z-index: 1000; }
-.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+aside { width: 240px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; transition: 0.3s; z-index: 1000; }
+.logo { padding: 25px; font-size: 1.3rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
-.nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; font-size: 0.95rem; }
+.nav { flex: 1; padding: 15px 0; }
+.nav-item { padding: 12px 25px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; font-size: 0.9rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.03); }
-.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent); }
 
 /* Main Content */
-main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .user-info { display: flex; align-items: center; gap: 12px; }
-.avatar { width: 35px; height: 35px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 0 15px var(--accent-glow); }
+.avatar { width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 40px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); padding: 24px; border-radius: 16px; position: relative; overflow: hidden; }
-.stat-card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.03)); pointer-events: none; }
-.stat-label { color: var(--text-dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-.stat-value { font-size: 2rem; font-weight: 700; color: #fff; }
-.stat-sub { font-size: 0.8rem; margin-top: 8px; font-family: var(--font-mono); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
+.stat-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value { font-size: 1.8rem; font-weight: 700; color: #fff; }
+.stat-sub { font-size: 0.75rem; margin-top: 6px; font-family: monospace; }
 
 /* Tables & Content */
 .section { display: none; width: 100%; }
-.section.active { display: block; animation: fadeIn 0.4s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.section.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-h2 { margin-bottom: 24px; font-size: 1.25rem; font-weight: 700; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+h2 { margin-bottom: 20px; font-size: 1.1rem; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: 16px 24px; color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); letter-spacing: 1px; }
 td { padding: 16px 24px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
@@ -1357,10 +1319,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             <input type="text" id="edit-trader" placeholder="0x...">
           </div>
           <div class="form-group">
-            <label>Endereço Proxy (Polymarket)</label>
-            <input type="text" id="edit-proxyAddress" placeholder="0x...">
-          </div>
-          <div class="form-group">
             <label>Estratégia de Cópia</label>
             <select id="edit-strategy">
               <option value="PERCENTAGE">Percentage (%)</option>
@@ -1543,7 +1501,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         document.getElementById('edit-password').value = ''; // Sempre limpo ao abrir
         
         document.getElementById('edit-trader').value = c.traderAddress || '';
-        document.getElementById('edit-proxyAddress').value = u.wallet?.proxyAddress || '';
         document.getElementById('edit-strategy').value = c.strategy || 'PERCENTAGE';
         document.getElementById('edit-size').value = c.copySize || 0;
         document.getElementById('edit-orderType').value = c.orderType || 'MARKET';
@@ -1569,7 +1526,6 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       const config = {
         traderAddress: document.getElementById('edit-trader').value,
-        proxyAddress: document.getElementById('edit-proxyAddress').value,
         strategy: document.getElementById('edit-strategy').value,
         copySize: parseFloat(document.getElementById('edit-size').value),
         orderType: document.getElementById('edit-orderType').value,
@@ -1700,51 +1656,46 @@ const userDashboardHtml = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prediz Copy Web Bot</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b0e14; --sidebar: #151921; --card: #1c212b; --border: #2d343f;
-  --text: #e2e8f0; --text-dim: #94a3b8; --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
-  --font-main: 'Outfit', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+  --bg: #0b0e14; --sidebar: #11151c; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #3b82f6; 
+  --success: #238636; --warning: #d29922; --danger: #da3633;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; }
-aside { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
-.logo { padding: 30px; font-size: 1.5rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+body { background: var(--bg); color: var(--text); font-family: var(--font-main); display: flex; min-height: 100vh; overflow-x: hidden; }
+aside { width: 240px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+.logo { padding: 25px; font-size: 1.3rem; font-weight: 800; color: #fff; border-bottom: 1px solid var(--border); }
 .logo span { color: var(--accent); }
-.nav { flex: 1; padding: 20px 0; }
-.nav-item { padding: 12px 30px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; font-weight: 500; }
+.nav { flex: 1; padding: 15px 0; }
+.nav-item { padding: 12px 25px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; font-size: 0.9rem; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
-.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
-.nav-item.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
-main { flex: 1; margin-left: 260px; padding: 40px; width: calc(100% - 260px); }
-.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 60px; max-width: 850px; margin: 60px auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: 0.3s; }
-.step-indicator { display: flex; justify-content: space-between; margin-bottom: 40px; }
-.step { width: 35px; height: 35px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-dim); }
-.step.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
-.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
-.form-group { margin-bottom: 20px; }
-label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 0.95rem; }
-input:focus { border-color: var(--accent); outline: none; }
-.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.btn:hover { background: #2563eb; transform: translateY(-1px); }
-.btn-sm { padding: 8px 16px; width: auto; font-size: 0.85rem; }
+.nav-item.active { color: #fff; background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent); }
+main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.wizard-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; max-width: 700px; margin: 40px auto; }
+.form-group { margin-bottom: 15px; }
+label { display: block; color: var(--text-dim); font-size: 0.75rem; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; }
+input, select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; outline: none; }
+input:focus { border-color: var(--accent); }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+.btn:hover { background: #2563eb; }
+.btn-sm { padding: 8px 16px; width: auto; font-size: 0.8rem; }
 .btn-outline { background: transparent; border: 1px solid var(--border); }
 .btn-outline:hover { background: rgba(255,255,255,0.05); }
-.wallet-box { background: var(--bg); border: 1px dashed var(--border); padding: 16px; border-radius: 10px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); margin: 15px 0; word-break: break-all; }
-#message-banner { position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px; font-weight: 600; display: none; z-index: 10000; animation: slideIn 0.3s ease-out; }
-@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-.badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+th { text-align: left; padding: 10px; font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); }
 .status-active { color: var(--success); }
 .status-paused { color: var(--warning); }
-.switch-container { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-.switch-container input { width: 18px; height: 18px; cursor: pointer; }
+.step-indicator { display: flex; justify-content: space-between; margin-bottom: 30px; }
+.step { width: 30px; height: 30px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text-dim); }
+.step.active { border-color: var(--accent); color: var(--accent); }
+.step.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+#message-banner { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; display: none; z-index: 10000; background: var(--accent); color: #fff; }
+.switch-container { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -1758,8 +1709,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     </div>
   </aside>
   <main>
-    <div id="bypass-alert-banner" style="background:var(--danger); color:#fff; padding:8px; text-align:center; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:2px; display:none">⚠️ ATENÇÃO: MODO BYPASS ATIVO - FILTROS DE RISCO DESATIVADOS ⚠️</div>
-    <div id="message-banner"></div>
+    <div id="setup-wizard" class="wizard-card" style="display:none">
         <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
         <div class="step-indicator">
@@ -1884,21 +1834,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     <div class="form-group">
                         <label>Modo de Operação</label>
                         <select id="bot-mode">
-                            <option value="COPY">COPY: Cópia Automática</option>
-                            <option value="MIRROR_100">MIRROR 100%: Cópia Fiel (Sem Filtros)</option>
+                            <option value="COPY">COPY: Cópia Inteligente (Com Filtros)</option>
+                            <option value="MIRROR_100">MIRROR: 100% Espelhamento (Sem Filtros)</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Endereço do Trader Monitorado</label>
                         <input type="text" id="bot-trader" placeholder="0x...">
-                    </div>
-                    <div class="form-group">
-                        <label>Sua Carteira Proxy (Polymarket)</label>
-                        <div style="display:flex; gap:8px">
-                            <input type="text" id="bot-proxyAddress" placeholder="0x..." style="flex:1">
-                            <button class="btn btn-sm btn-outline" onclick="syncProxy()" style="width:auto; white-space:nowrap">Sincronizar</button>
-                        </div>
-                        <small style="color:var(--text-dim)">O bot detecta automaticamente, mas você pode ajustar se o saldo aparecer como $0.00. <a href="https://polymarket.com/settings" target="_blank" style="color:var(--accent)">Ver na Polymarket</a></small>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
@@ -1932,6 +1874,34 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     </div>
                 </div>
 
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>⚡</span> Execução & Filtros de Cópia</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; opacity: 0.5; pointer-events: none; filter: grayscale(1)">
+                        <div class="form-group">
+                            <label>Trigger Delta ($) [Arbitrage]</label>
+                            <input type="number" id="bot-triggerDelta" step="0.001">
+                        </div>
+                        <div class="form-group">
+                            <label>Hedge Ceiling ($) [Arbitrage]</label>
+                            <input type="number" id="bot-hedgeCeiling" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 24px; display: grid; gap: 12px">
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-reverse"> <span>Reverse Copy (Operar contra o Trader)</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Ordens de COMPRA</span>
+                        </label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Ordens de VENDA</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
@@ -2038,11 +2008,19 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div>
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Importar carteira existente via Chave Privada:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Configuração de Carteiras:</p>
                     <div class="form-group">
-                        <input type="password" id="settings-import-pk" placeholder="Chave Privada (0x...)">
+                        <label>Chave Privada (0x...)</label>
+                        <input type="password" id="settings-import-pk" placeholder="0x...">
                     </div>
-                    <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label>Proxy Wallet Address (Gnosis Safe)</label>
+                        <input type="text" id="bot-proxyAddress" placeholder="0x... (Opcional se auto-detectado)">
+                        <small style="color:var(--text-dim); display:block; margin-top:4px">Insira manualmente se o saldo não estiver aparecendo.</small>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 16px">
+                        <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    </div>
                 </div>
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
                     <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
@@ -2102,9 +2080,10 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
         const hasWallet = currentUser.wallet?.address?.length > 20;
         const hasTrader = currentUser.config?.traderAddress?.length > 20;
+        const isMirrorMode = currentUser.config?.mode === 'MIRROR_100';
         const isReady = currentUser.step === 'ready';
 
-        if (!hasWallet || !hasTrader || !isReady) {
+        if (!hasWallet || (!hasTrader && !isMirrorMode && !isReady)) {
             document.getElementById('setup-wizard').style.display = 'block';
             document.querySelectorAll('.tab-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(i => {
@@ -2112,18 +2091,12 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             });
             
             if (!hasWallet) renderStep1();
-            else if (!hasTrader) renderStep2();
+            else if (!hasTrader && !isMirrorMode) renderStep2();
             else renderStep3();
         } else {
             document.getElementById('setup-wizard').style.display = 'none';
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('disabled'));
             switchTab(currentTab);
-            
-            const banner = document.getElementById('bypass-alert-banner');
-            if (banner) {
-                banner.style.display = currentUser.config?.mode === 'MIRROR_100' ? 'block' : 'none';
-            }
-
             renderMainDashboard();
         }
     }
@@ -2165,14 +2138,14 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                         </div>
 
                         <div style="background:rgba(59,130,246,0.1); border:1px solid #3b82f6; padding:16px; border-radius:12px; margin-bottom:20px">
-                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Pr\u00F3ximos Passos na Polymarket:</h5>
+                            <h5 style="color:#3b82f6; margin-bottom:8px; font-size:0.85rem">\uD83D\uDD17 Como Vincular na Polymarket:</h5>
                             <ol style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.4; margin-bottom:12px">
-                                <li>Importe sua <b>Chave Privada</b> no MetaMask.</li>
-                                <li>Conecte na Polymarket para ativar sua <b>Carteira Proxy</b>.</li>
-                                <li>O bot detectar\u00E1 seu saldo automaticamente via Proxy.</li>
+                                <li>Copie sua <b>Chave Privada</b> acima.</li>
+                                <li>No seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
+                                <li>Cole a chave e clique em "Importar".</li>
+                                <li>Abra a Polymarket e clique em <b>"Conectar Carteira"</b>.</li>
                             </ol>
-                            <button onclick="window.open('https://polymarket.com/settings', '_blank')" style="margin-bottom:8px; width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">VERIFICAR NA POLYMARKET</button>
-                            <small style="font-size:0.65rem; color:var(--text-dim); display:block; text-align:center">Se o bot n\u00E3o detectar seu saldo, v\u00E1 em Configura\u00E7\u00F5es e cole o endere\u00E7o da Polymarket.</small>
+                            <button onclick="window.open('https://polymarket.com', '_blank')" style="width:100%; padding:10px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem">ABRIR POLYMARKET AGORA</button>
                         </div>
 
                         <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
@@ -2229,19 +2202,49 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
         document.getElementById('s2').className = 'step active';
         document.getElementById('wizard-title').textContent = 'Passo 2: Trader Alvo';
         document.getElementById('step-content').innerHTML = \`
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endere\u00E7o do trader que deseja copiar. O bot monitorar\u00E1 cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
             <div class="form-group">
-                <label>Endere\u00E7o da Carteira (Polymarket)</label>
+                <label>Endereço da Carteira (Polymarket)</label>
                 <input type="text" id="setup-trader" placeholder="0x..." value="\${currentUser.config?.traderAddress || ''}">
             </div>
             <button class="btn" onclick="nextToStep3(this)">Próximo Passo: Estratégia</button>
+            <div style="margin: 15px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+                <span style="font-size:0.7rem; font-weight:700">MODO MIRROR</span>
+                <div style="flex:1; height:1px; background:var(--border)"></div>
+            </div>
+            <button class="btn btn-outline" onclick="enterMirrorMode(this)">Usar Mirror 100% (Sem Filtros)</button>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Copia exatamente cada trade do alvo, ignorando limites de preço e tamanho.</p>
         \`;
     }
 
+    async function enterMirrorMode(btn) {
+        const addr = document.getElementById('setup-trader').value;
+        if (!addr || addr.length < 40) return showBanner('Informe o Trader para Espelhar', 'warning');
+        btn.disabled = true; btn.textContent = 'Configurando...';
+        try {
+            await fetch('/api/user/update-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    traderAddress: addr, 
+                    mode: 'MIRROR_100', 
+                    strategy: 'PERCENTAGE', 
+                    copySize: 100, 
+                    enabled: true, 
+                    finalize: true 
+                })
+            });
+            loadUser();
+        } catch (e) {
+            showBanner('Erro ao configurar Mirror', 'danger');
+            btn.disabled = false;
+        }
+    }
 
     async function nextToStep3(btn) {
         const addr = document.getElementById('setup-trader').value;
-        if (!addr || addr.length < 40) return showBanner('Endere\u00E7o Inv\u00E1lido', 'warning');
+        if (!addr || addr.length < 40) return showBanner('Endereço Inválido', 'warning');
         btn.disabled = true; btn.textContent = 'Salvando...';
         await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2311,10 +2314,18 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const c = currentUser.config || {};
             const walletAddr = document.getElementById('user-wallet-addr');
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
+            
             const addrDisplay = document.getElementById('trader-addr-display');
+            const isArbitrage = c.mode === 'ARBITRAGE';
+            
             if (addrDisplay) {
-                addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
-                addrDisplay.style.color = 'var(--accent)';
+                if (isArbitrage) {
+                    addrDisplay.textContent = 'MODO ARBITRAGE ATIVO';
+                    addrDisplay.style.color = 'var(--warning)';
+                } else {
+                    addrDisplay.textContent = c.traderAddress ? c.traderAddress.slice(0,12) + '...' + c.traderAddress.slice(-4) : 'Nenhum';
+                    addrDisplay.style.color = 'var(--accent)';
+                }
             }
             
             // Status UI
@@ -2332,6 +2343,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             // Config Fill
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
             setVal('bot-trader', c.traderAddress || '');
+            const tName = document.getElementById('trader-name');
+            if (tName) tName.textContent = c.traderAddress ? (c.traderAddress.slice(0,10) + '...') : 'Nenhum';
             setVal('bot-strategy', c.strategy || 'PERCENTAGE');
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
@@ -2354,8 +2367,8 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             setVal('bot-balanceSl', c.balanceSl || 0);
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
-            setVal('bot-proxyAddress', (currentUser.wallet?.proxyAddress) || '');
             setVal('bot-mode', c.mode || 'COPY');
+            setVal('bot-proxyAddress', currentUser.wallet?.proxyAddress || '');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2448,9 +2461,16 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', '$' + Number(data.balance || 0).toFixed(2));
+            setTxt('stat-exposure', '$' + Number(data.exposure || 0).toFixed(2));
             
+            if (data.proxy) {
+                const pInput = document.getElementById('bot-proxyAddress');
+                if (pInput && !pInput.value) {
+                    pInput.placeholder = data.proxy + ' (Auto-Detectado)';
+                }
+            }
+
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
                 setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
@@ -2485,8 +2505,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDEAB' },
                     'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
                     'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\u274C' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\uD83D\uDD34' }
+                    'PULADO (LIQUIDEZ)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💧' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' }
                 };
                 const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '\uD83D\uDD35' };
 
@@ -2504,7 +2525,7 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">⚡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
@@ -2512,27 +2533,39 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
                     ? \`<a href="https://polymarket.com/event/\${t.eventSlug || t.slug}" target="_blank" style="color:var(--accent); font-size:0.85rem" title="\${t.title}">\${(t.title || t.slug).slice(0,35)}...\${sourceBadge}</a>\`
                     : \`<span style="font-size:0.85rem">\${(t.title || 'Detectando...').slice(0,35)}\${sourceBadge}</span>\`;
 
-                const tooltip = t.executionDetails ? \` title="\${t.executionDetails}"\` : '';
+                const tooltipContent = [
+                    status,
+                    t.executionDetails ? \`Detalhes: \${t.executionDetails}\` : '',
+                    t.myEntryAmount ? \`Entrada: $\${t.myEntryAmount.toFixed(2)}\` : '',
+                    t.myEntryPrice ? \`Preço: \${(t.myEntryPrice*100).toFixed(1)}c\` : '',
+                    t.myExecutedAt ? \`Hora: \${new Date(t.myExecutedAt).toLocaleTimeString()}\` : ''
+                ].filter(Boolean).join(' | ');
 
                 return \`
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                     <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap">\${new Date(t.timestamp).toLocaleString('pt-BR')}</td>
                     <td>\${marketLink}</td>
-                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'\uD83D\uDCC8 COMPRA':'\uD83D\uDCC9 VENDA'}</span></td>
+                    <td><span style="color:\${t.side==='BUY'?'var(--success)':'var(--danger)'}; font-weight:700">\${t.side==='BUY'?'📈 COMPRA':'📉 VENDA'}</span></td>
                     <td style="font-weight:700; color:#fff">$\${(t.usdcSize||0).toFixed(2)}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
+                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+                    <td><span class="badge" title="\${tooltipContent}" style="background:\${style.bg}; color:\${style.color}; cursor:help">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
 
             // Update Trader Info
-            if (trades.length > 0 && trades[0].pseudonym) {
-                const el = document.getElementById('trader-name');
-                if (el) el.textContent = trades[0].pseudonym || 'Desconhecido';
+            if (trades.length > 0) {
+                const first = trades[0];
+                const nameEl = document.getElementById('trader-name');
+                if (nameEl) nameEl.textContent = first.pseudonym || first.name || (currentUser.config?.traderAddress ? currentUser.config.traderAddress.slice(0,10)+'...' : 'Nenhum');
+                
+                const avatarEl = document.getElementById('trader-avatar');
+                if (avatarEl && first.profileImage) {
+                    avatarEl.innerHTML = \`<img src="\${first.profileImage}" style="width:100%; height:100%; border-radius:50%; object-fit:cover">\`;
+                }
             }
         } catch(e) { console.error('Trades refresh fail:', e); }
     }
@@ -2577,9 +2610,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
             mode: document.getElementById('bot-mode').value,
+            proxyAddress: document.getElementById('bot-proxyAddress').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
-            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95,
-            proxyAddress: document.getElementById('bot-proxyAddress').value
+            hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
         };
         const res = await fetch('/api/user/update-config', {
             method: 'POST',
@@ -2598,31 +2631,9 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
     }
 
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
-
-    async function syncProxy() {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = 'Buscando...';
-        try {
-            const res = await fetch('/api/user/me');
-            const data = await res.json();
-            if (data.wallet?.address) {
-                // We ask the backend to re-run detection effectively
-                // But for now we just show what's currently stored or try to fetch
-                showBanner('Sincronização Ativada. O sistema está buscando sua carteira Polymarket...', 'success');
-                loadUser(); 
-            }
-        } catch (e) {
-            showBanner('Erro ao sincronizar', 'danger');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Sincronizar';
-        }
-    }
-
     
     // Auto refresh stats e trades em tempo real
-    setInterval(refreshStats, 30000);
+    setInterval(refreshStats, 5000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
     
@@ -2663,14 +2674,13 @@ td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9r
   </script>
 </body> </html>`;
 // Enrichen AuthRequest with full User data for all /api/user/ routes
-app.use('/api/user/', (req, _res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) {
-        req.fullUser = yield User.findById(req.user.id).lean();
+app.use('/api/user/', async (req, _res, next) => {
+    if (req.user?.id) {
+        req.fullUser = await User.findById(req.user.id).lean();
     }
     next();
-}));
-app.get('/api/user/me', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/user/me', authenticateToken, async (req, res) => {
     const user = req.fullUser;
     res.json(user ? {
         id: user._id,
@@ -2681,27 +2691,24 @@ app.get('/api/user/me', authenticateToken, (req, res) => __awaiter(void 0, void 
         config: user.config,
         step: user.step
     } : { error: 'Not logged in' });
-}));
-app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+});
+app.post('/api/user/generate-wallet', authenticateToken, async (req, res) => {
     try {
-        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+        const user = await User.findById(req.user?.id);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
-        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
+        if (user.config?.enabled) {
             return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
         }
         const newWallet = ethers.Wallet.createRandom();
-        const proxyAddress = yield findPolymarketProxy(newWallet.address);
         user.wallet = {
             address: newWallet.address,
-            privateKey: newWallet.privateKey,
-            proxyAddress: proxyAddress || newWallet.address
+            privateKey: newWallet.privateKey
         };
         // Only set to setup if not already ready (to allow seamless swaps)
         if (user.step !== 'ready')
             user.step = 'setup';
-        yield user.save();
+        await user.save();
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
         res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
     }
@@ -2709,9 +2716,8 @@ app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter
         console.error('[WALLET] Generation error:', e);
         res.status(500).json({ error: 'Failed to generate wallet' });
     }
-}));
-app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+});
+app.post('/api/user/import-wallet', authenticateToken, async (req, res) => {
     try {
         let { privateKey } = req.body;
         if (!privateKey)
@@ -2724,22 +2730,20 @@ app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(v
             return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
         }
         const wallet = new ethers.Wallet(privateKey);
-        const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+        const user = await User.findById(req.user?.id);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
-        if ((_b = user.config) === null || _b === void 0 ? void 0 : _b.enabled) {
+        if (user.config?.enabled) {
             return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
-        const proxyAddress = yield findPolymarketProxy(wallet.address);
         user.wallet = {
             address: wallet.address,
-            privateKey: wallet.privateKey,
-            proxyAddress: proxyAddress || wallet.address
+            privateKey: wallet.privateKey
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready')
             user.step = 'setup';
-        yield user.save();
+        await user.save();
         console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
         res.json({ success: true, address: wallet.address });
     }
@@ -2747,10 +2751,9 @@ app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(v
         console.error('[WALLET] Import error:', e);
         res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
     }
-}));
-app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
+});
+app.post('/api/user/update-config', authenticateToken, async (req, res) => {
+    const user = await User.findById(req.user?.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
     const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
@@ -2764,11 +2767,6 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.strategy = strategy;
     if (copySize !== undefined)
         user.config.copySize = copySize;
-    if (proxyAddress !== undefined) {
-        if (!user.wallet)
-            user.wallet = { address: '', privateKey: '' };
-        user.wallet.proxyAddress = proxyAddress;
-    }
     // Advanced fields
     if (reverseCopy !== undefined)
         user.config.reverseCopy = reverseCopy;
@@ -2820,20 +2818,23 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined)
         user.config.mode = mode;
+    // Wallet settings
+    if (proxyAddress !== undefined && user.wallet) {
+        user.wallet.proxyAddress = proxyAddress;
+    }
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
-    yield user.save();
+    await user.save();
     res.json({ success: true });
-}));
-app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+app.get('/api/user/positions', authenticateToken, async (req, res) => {
     try {
         const user = req.fullUser;
         if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira não configurada' });
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
         }
-        const targetAddress = user.wallet.proxyAddress || user.wallet.address;
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddress}`);
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
         if (!Array.isArray(positionsData)) {
             return res.json([]);
         }
@@ -2865,29 +2866,27 @@ app.get('/api/user/positions', authenticateToken, (req, res) => __awaiter(void 0
         console.error('Error fetching positions:', e);
         res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
     }
-}));
-app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+});
+app.get('/api/user/trades', authenticateToken, async (req, res) => {
     try {
-        const { Activity } = yield import('../models/userHistory.js');
+        const { Activity } = await import('../models/userHistory.js');
         const user = req.fullUser;
-        const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
-        const traderAddress = (_d = (_c = user === null || user === void 0 ? void 0 : user.config) === null || _c === void 0 ? void 0 : _c.traderAddress) === null || _d === void 0 ? void 0 : _d.toLowerCase();
+        const userId = req.user?.id?.toString();
+        const traderAddress = user?.config?.traderAddress?.toLowerCase();
         // Build query: show all trades from trader being monitored, OR any processed by this user
         const query = traderAddress
             ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
             : { processedBy: userId, type: 'TRADE' };
-        const tradesData = yield Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
+        const tradesData = await Activity.find(query).sort({ timestamp: -1 }).limit(50).lean();
         // Enrich with current market price for P&L calculation
-        const enriched = yield Promise.all(tradesData.map((t) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a, _b, _c;
+        const enriched = await Promise.all(tradesData.map(async (t) => {
             let curPrice = null;
             let pnlPercent = null;
             let pnlLabel = '';
             try {
                 if (t.asset) {
-                    const mktRes = yield fetchData(`https://clob.polymarket.com/markets/${t.conditionId}`);
-                    const token = (_a = mktRes === null || mktRes === void 0 ? void 0 : mktRes.tokens) === null || _a === void 0 ? void 0 : _a.find((tk) => tk.token_id === t.asset);
+                    const mktRes = await fetchData(`https://clob.polymarket.com/markets/${t.conditionId}`);
+                    const token = mktRes?.tokens?.find((tk) => tk.token_id === t.asset);
                     if (token) {
                         curPrice = parseFloat(token.price);
                         if (t.price && curPrice !== null) {
@@ -2905,14 +2904,14 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
             }
             catch (_) { /* best-effort */ }
             // Determine this user's execution status
-            const userStatus = userId && ((_b = t.followerStatuses) === null || _b === void 0 ? void 0 : _b[userId]);
+            const userStatus = userId && t.followerStatuses?.[userId];
             let executionStatus;
             let executionDetails = '';
             if (userStatus) {
                 executionStatus = userStatus.status;
                 executionDetails = userStatus.details || '';
             }
-            else if ((_c = t.processedBy) === null || _c === void 0 ? void 0 : _c.includes(userId)) {
+            else if (t.processedBy?.includes(userId)) {
                 executionStatus = 'SUCESSO';
             }
             else {
@@ -2920,8 +2919,8 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
             }
             // Extract user's own execution data
-            const myEntryAmount = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryAmount) || null;
-            const myEntryPrice = (userStatus === null || userStatus === void 0 ? void 0 : userStatus.myEntryPrice) || null;
+            const myEntryAmount = userStatus?.myEntryAmount || null;
+            const myEntryPrice = userStatus?.myEntryPrice || null;
             // Calculate user's real P&L in USD
             let myPnlUSD = null;
             let myPnlLabel = '';
@@ -2953,39 +2952,66 @@ app.get('/api/user/trades', authenticateToken, (req, res) => __awaiter(void 0, v
                 transactionHash: t.transactionHash,
                 executionStatus,
                 executionDetails,
-                isChainDetected: t.isChainDetected || false
+                isChainDetected: t.isChainDetected || false,
+                pseudonym: t.pseudonym,
+                name: t.name,
+                profileImage: t.profileImage
             };
-        })));
+        }));
         res.json(enriched);
     }
     catch (e) {
         console.error('[TRADES]', e);
         res.status(500).json({ error: 'Failed to fetch trades' });
     }
-}));
-app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+});
+app.get('/api/user/stats', authenticateToken, async (req, res) => {
     try {
         const user = req.fullUser;
-        if (!user || !((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address))
+        const eoa = user.wallet?.address;
+        if (!eoa)
             return res.json({ balance: 0, exposure: 0 });
-        const proxyAddress = ((_b = user.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress) || ((_c = user.wallet) === null || _c === void 0 ? void 0 : _c.address);
-        const balance = yield getMyBalance(((_d = user.wallet) === null || _d === void 0 ? void 0 : _d.address) || '', (_e = user.wallet) === null || _e === void 0 ? void 0 : _e.proxyAddress);
-        console.log(`[STATS] User ${user.chatId} Balance: ${balance} (Proxy: ${proxyAddress})`);
-        // Fetch positions to calculate exposure
-        const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${proxyAddress}`);
+        const proxy = await findProxyWallet(user);
+        // Fetch CLOB balance (if client is available)
+        let clobBalance = 0;
+        try {
+            const clobClient = await getClobClientForUser(user);
+            if (clobClient) {
+                clobBalance = await getMyBalance(clobClient);
+            }
+        }
+        catch (clobErr) {
+            console.error(`[STATS] CLOB balance error for ${user.chatId}:`, clobErr);
+        }
+        // Sum balances of EOA and Proxy via FAST RPC
+        const [balEoa, balProxy] = await Promise.all([
+            getMyBalance(eoa),
+            proxy ? getMyBalance(proxy) : Promise.resolve(0)
+        ]);
+        const userIdentifier = user.username || user.chatId || user._id;
+        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
+        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
+        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
+        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
+        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+        const targetAddr = proxy || eoa;
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        res.json({ balance, exposure });
+        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy}, CLOB=${clobBalance} -> Total=${totalBalance}`);
+        res.json({
+            balance: parseFloat(totalBalance.toFixed(4)),
+            exposure: parseFloat(exposure.toFixed(2)),
+            proxy
+        });
     }
     catch (e) {
         console.error('Stats error:', e);
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
-}));
+});
 app.get('/', authenticateToken, (req, res) => {
-    var _a, _b;
-    const userRole = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) || 'follower';
-    console.log(`[DASHBOARD] Routing user ${(_b = req.user) === null || _b === void 0 ? void 0 : _b.username} with role ${userRole}`);
+    const userRole = req.user?.role || 'follower';
+    console.log(`[DASHBOARD] Routing user ${req.user?.username} with role ${userRole}`);
     if (userRole === 'admin') {
         res.type('html').send(adminDashboardHtml);
     }
@@ -2993,31 +3019,13 @@ app.get('/', authenticateToken, (req, res) => {
         res.type('html').send(userDashboardHtml);
     }
 });
-export const startServer = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (port = parseInt(process.env.PORT || '3000')) {
-    var _a;
-    // Initialize global proxy if configured
-    yield setupProxy();
-    yield bootstrapAdmin();
-    // ONE-TIME FIX: User identified proxy wallet mismatch
-    try {
-        const userToFix = yield User.findOne({ "wallet.address": "0x31DC678E3610B6E81C109eFe410fC26434b0748f" });
-        if (userToFix && !((_a = userToFix.wallet) === null || _a === void 0 ? void 0 : _a.proxyAddress)) {
-            console.log(`[FIX] Applying proxy fix for ${userToFix.username || userToFix.chatId}`);
-            if (!userToFix.wallet)
-                userToFix.wallet = { address: "0x31DC678E3610B6E81C109eFe410fC26434b0748f", privateKey: "" };
-            userToFix.wallet.proxyAddress = "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF";
-            yield User.updateOne({ _id: userToFix._id }, { $set: { "wallet.proxyAddress": "0x338d21D48A6e2C38A0Cb3C5304188DB67f40eeDF" } });
-            console.log(`[FIX] Proxy Address updated successfully to 0x338d...`);
-        }
-    }
-    catch (e) {
-        console.error('[FIX] Manual proxy fix failed:', e);
-    }
+export const startServer = async (port = parseInt(process.env.PORT || '3000')) => {
+    await bootstrapAdmin();
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
         console.log(`\nðŸŒ Web UI:  http://0.0.0.0:${port}`);
         console.log(`ðŸ“– Swagger: http://0.0.0.0:${port}/docs`);
         console.log(`ðŸ”Œ API:     http://0.0.0.0:${port}/api/health\n`);
     });
-});
+};
 export default app;

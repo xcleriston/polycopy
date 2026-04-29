@@ -67,17 +67,19 @@ export function calculateOrderSize(config, traderOrderSize, availableBalance, cu
             }
         }
     }
-    // Step 4: Check available balance (with 1% safety buffer)
-    const maxAffordable = availableBalance * 0.99;
+    // Step 4: Check available balance (with 1% safety buffer, except in MIRROR_100 mode)
+    const buffer = config.mode === 'MIRROR_100' ? 1.0 : 0.99;
+    const maxAffordable = availableBalance * buffer;
     if (finalAmount > maxAffordable) {
         finalAmount = maxAffordable;
         reducedByBalance = true;
         reasoning += ` → Reduced to fit balance ($${maxAffordable.toFixed(2)})`;
     }
-    // Step 5: Check minimum order size
-    if (finalAmount < config.minOrderSizeUSD) {
+    // Step 5: Check minimum order size (with small epsilon for float precision)
+    const minCheck = config.mode === 'MIRROR_100' ? 0 : config.minOrderSizeUSD;
+    if (finalAmount < (minCheck - 0.001)) {
         belowMinimum = true;
-        reasoning += ` → Below minimum $${config.minOrderSizeUSD}`;
+        reasoning += ` → Below minimum $${minCheck}`;
         finalAmount = 0; // Don't execute
     }
     return {
@@ -100,10 +102,9 @@ export function calculateOrderSize(config, traderOrderSize, availableBalance, cu
  * - Medium orders: Linear interpolation between copySize and min/max
  */
 function calculateAdaptivePercent(config, traderOrderSize) {
-    var _a, _b, _c;
-    const minPercent = (_a = config.adaptiveMinPercent) !== null && _a !== void 0 ? _a : config.copySize;
-    const maxPercent = (_b = config.adaptiveMaxPercent) !== null && _b !== void 0 ? _b : config.copySize;
-    const threshold = (_c = config.adaptiveThreshold) !== null && _c !== void 0 ? _c : 500;
+    const minPercent = config.adaptiveMinPercent ?? config.copySize;
+    const maxPercent = config.adaptiveMaxPercent ?? config.copySize;
+    const threshold = config.adaptiveThreshold ?? 500;
     if (traderOrderSize >= threshold) {
         // Large order: scale down to minPercent
         // At threshold = minPercent, at 10x threshold = minPercent
