@@ -1,54 +1,43 @@
 import { ENV } from '../config/env.js';
-import { getUserActivityModel, getUserPositionModel } from '../models/userHistory.js';
+import { getUserActivityModel } from '../models/userHistory.js';
 import User from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import Logger from '../utils/logger.js';
+import { processDetectedTrade } from './tradeExecutor.js';
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
-const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
+// Tracking seen trades locally for extreme speed (bypass DB read for de-dupe)
+const seenTradesLocal = new Set();
 const getUniqueTraders = async () => {
     const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
     const addresses = users.map(u => u.config.traderAddress.toLowerCase());
     return Array.from(new Set(addresses));
 };
-const init = async () => {
-    const USER_ADDRESSES = await getUniqueTraders();
-    if (USER_ADDRESSES.length === 0) {
-        Logger.warning('No traders to monitor yet. Connect a user to start.');
-        return;
-    }
-    const counts = [];
-    for (const address of USER_ADDRESSES) {
-        const UserActivity = getUserActivityModel(address);
-        const count = await UserActivity.countDocuments();
-        counts.push(count);
-    }
-    Logger.clearLine();
-    Logger.dbConnection(USER_ADDRESSES, counts);
-    // Initial positions display (optional/legacy)
-    Logger.info(`System monitoring ${USER_ADDRESSES.length} unique trader(s).`);
-};
 const fetchTradeDataForTrader = async (address) => {
     try {
         const UserActivity = getUserActivityModel(address);
-        const UserPosition = getUserPositionModel(address);
-        // Fetch trade activities from Polymarket API
-        const apiUrl = `https://data-api.polymarket.com/activity?user=${address}&type=TRADE`;
+        // FETCH FROM /trades endpoint with CACHE BUSTING for <200ms latency
+        const apiUrl = `https://data-api.polymarket.com/trades?user=${address.toLowerCase()}&limit=5&t=${Date.now()}`;
         const activities = await fetchData(apiUrl);
         if (!Array.isArray(activities) || activities.length === 0) {
             return;
         }
-        // Process each activity
         const cutoffTimestamp = Date.now() / 1000 - TOO_OLD_TIMESTAMP * 3600;
-        for (const activity of activities) {
-            Logger.debug(`[MONITOR] Raw Activity: ${JSON.stringify(activity)}`);
-            if (activity.timestamp < cutoffTimestamp)
+        // Process activities in reverse (oldest first) to ensure correct sequence
+        for (const activity of [...activities].reverse()) {
+            const tradeId = activity.transactionHash || activity.id;
+            if (seenTradesLocal.has(tradeId))
                 continue;
-            const exists = await UserActivity.findOne({
-                transactionHash: activity.transactionHash,
-            }).exec();
-            if (exists)
+            if (activity.timestamp < cutoffTimestamp) {
+                seenTradesLocal.add(tradeId);
                 continue;
-            await UserActivity({
+            }
+            // Check DB as final fallback
+            const exists = await UserActivity.findOne({ transactionHash: activity.transactionHash }).exec();
+            if (exists) {
+                seenTradesLocal.add(tradeId);
+                continue;
+            }
+            const newTrade = new UserActivity({
                 proxyWallet: activity.proxyWallet,
                 timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
@@ -66,52 +55,47 @@ const fetchTradeDataForTrader = async (address) => {
                 eventSlug: activity.eventSlug,
                 outcome: activity.outcome,
                 name: activity.name,
-                pseudonym: activity.pseudonym,
-                bio: activity.bio,
-                profileImage: activity.profileImage,
-                profileImageOptimized: activity.profileImageOptimized,
                 bot: false,
                 botExcutedTime: 0,
-            }).save();
-            Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
+            });
+            await newTrade.save();
+            seenTradesLocal.add(tradeId);
+            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${activity.usdcSize} USDC`);
+            // DIRECT TRIGGER: Bypass tradeExecutor's 100ms DB polling loop
+            processDetectedTrade(newTrade.toObject(), address).catch(e => Logger.error(`Direct execution failed: ${e.message}`));
         }
-        // Positions fetch removed to optimize trade detection speed and avoid 429 rate limits.
-        // Positions are updated by separate UI-driven processes or less frequent syncs.
     }
     catch (error) {
-        Logger.error(`Error fetching data for ${address.slice(0, 6)}...${address.slice(-4)}: ${error}`);
+        if (error.response?.status === 429) {
+            Logger.debug(`[MONITOR] Rate limited for ${address.slice(0, 6)}`);
+        }
+        else {
+            Logger.error(`Error fetching data for ${address.slice(0, 6)}: ${error.message}`);
+        }
     }
 };
-// Parallel fetch for all traders
-const fetchTradeData = async () => {
-    const USER_ADDRESSES = await getUniqueTraders();
-    await Promise.allSettled(USER_ADDRESSES.map(fetchTradeDataForTrader));
-};
-// Track if this is the first run
-let isFirstRun = true;
-// Track if monitor should continue running
 let isRunning = true;
-/**
- * Stop the trade monitor gracefully
- */
 export const stopTradeMonitor = () => {
     isRunning = false;
-    Logger.info('Trade monitor shutdown requested...');
 };
 const tradeMonitor = async () => {
-    await init();
+    Logger.success('🚀 Hyper-Fast Trade Monitor Started (Target: <200ms)');
+    // Cleanup local cache periodically to prevent memory leaks
+    setInterval(() => seenTradesLocal.clear(), 3600000);
     while (isRunning) {
-        const USER_ADDRESSES = await getUniqueTraders();
-        if (USER_ADDRESSES.length > 0) {
-            if (isFirstRun) {
-                Logger.success(`Monitoring ${USER_ADDRESSES.length} unique trader(s) every ${FETCH_INTERVAL}s`);
-                isFirstRun = false;
-            }
-            await fetchTradeData();
+        const startCycle = Date.now();
+        const traders = await getUniqueTraders();
+        if (traders.length > 0) {
+            // Parallel poll with small jitter to avoid burst 429s
+            await Promise.all(traders.map(async (addr, idx) => {
+                await new Promise(r => setTimeout(r, idx * 50)); // Spread requests
+                return fetchTradeDataForTrader(addr);
+            }));
         }
-        if (!isRunning)
-            break;
-        await new Promise((resolve) => setTimeout(resolve, FETCH_INTERVAL * 1000));
+        const elapsed = Date.now() - startCycle;
+        // Target 200ms-500ms polling interval depending on trader count
+        const sleepTime = Math.max(100, 500 - elapsed);
+        await new Promise(r => setTimeout(r, sleepTime));
     }
     Logger.info('Trade monitor stopped');
 };

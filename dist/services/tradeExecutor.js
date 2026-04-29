@@ -18,8 +18,10 @@ const readUnprocessedTrades = async () => {
     // Find trades that haven't been completed by everyone
     return await Activity.find({ bot: false, type: 'TRADE' }).lean();
 };
-const doTrading = async (trade) => {
-    const traderAddress = trade.traderAddress.toLowerCase();
+export const processDetectedTrade = async (trade, traderAddressParam) => {
+    const traderAddress = (traderAddressParam || trade.traderAddress || "").toLowerCase();
+    if (!traderAddress)
+        return;
     // Find all users following this trader in COPY mode
     const followers = await User.find({
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
@@ -125,7 +127,7 @@ const tradeExecutor = async () => {
             Logger.clearLine();
             Logger.header(`⚡ ${trades.length} NEW TRADE${trades.length > 1 ? 'S' : ''} DETECTED`);
             for (const trade of trades) {
-                await doTrading(trade);
+                await processDetectedTrade(trade);
             }
             lastCheck = Date.now();
         }

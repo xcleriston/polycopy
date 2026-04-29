@@ -4,11 +4,12 @@ import { retry } from './retry.js';
 import Logger from './logger.js';
 
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 300000; // 5 minutes
+const CACHE_TTL = 10000; // 10 seconds (for metadata only)
 
 const fetchData = async (url: string) => {
-    // Only cache GET requests for metadata/activity
-    const isCacheable = url.includes('tick-size') || url.includes('markets') || url.includes('activity');
+    // ONLY cache static metadata like tick-size or market list. 
+    // NEVER cache activity or trades.
+    const isCacheable = (url.includes('tick-size') || url.includes('markets')) && !url.includes('activity') && !url.includes('trades');
     
     if (isCacheable && cache.has(url)) {
         const cached = cache.get(url)!;
