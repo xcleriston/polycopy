@@ -3207,7 +3207,7 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);
 
-        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy}, CLOB=${clobBalance} -> Total=${totalBalance}`);
+        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy} -> Total=${totalBalance}`);
         res.json({ 
             balance: parseFloat(totalBalance.toFixed(4)), 
             exposure: parseFloat(exposure.toFixed(2)), 
