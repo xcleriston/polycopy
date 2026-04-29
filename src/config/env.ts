@@ -16,7 +16,6 @@ const validateRequiredEnv = (): void => {
     const required = [
         'USER_ADDRESSES',
         'PROXY_WALLET',
-        'PRIVATE_KEY',
         'CLOB_HTTP_URL',
         'CLOB_WS_URL',
         'RPC_URL',
