@@ -285,4 +285,6 @@ export const ENV = {
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
     MONGODB_URI: process.env.MONGODB_URI,
     WSS_RPC_URL: process.env.WSS_RPC_URL,
+    // Proxy settings (optional - for geoblocking bypass)
+    HTTPS_PROXY: process.env.HTTPS_PROXY,
 };
