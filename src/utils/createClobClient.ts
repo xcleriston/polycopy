@@ -18,11 +18,11 @@ const originalFetch = global.fetch;
 
 // @ts-ignore
 global.fetch = (url, options = {}) => {
+    // @ts-ignore
     return undiciFetch(url, {
         ...options,
-        // @ts-ignore
         dispatcher: socksAgent
-    });
+    } as any);
 };
 
 const clobClientCache: Map<string, ClobClient> = new Map();
