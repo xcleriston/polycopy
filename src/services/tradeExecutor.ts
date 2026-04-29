@@ -41,7 +41,13 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
         'config.mode': { $in: ['COPY', 'MIRROR_100'] }
     });
 
+    console.log(`[DEBUG] Found ${followers.length} followers for trader ${traderAddress}`);
     if (followers.length === 0) {
+        // Log one user for comparison
+        const sample = await User.findOne({ 'config.traderAddress': { $exists: true } });
+        if (sample) {
+            console.log(`[DEBUG] Sample user traderAddress: [${sample.config.traderAddress}] vs target: [${traderAddress}]`);
+        }
         // No active followers, mark trade as done to stop polling
         await Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
         return;
