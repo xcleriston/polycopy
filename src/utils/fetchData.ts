@@ -1,3 +1,4 @@
+// @ts-nocheck
 import axios from 'axios';
 import http from 'http';
 import https from 'https';

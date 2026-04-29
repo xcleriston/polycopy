@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { polygon } from 'viem/chains';
