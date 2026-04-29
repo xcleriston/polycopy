@@ -17,9 +17,23 @@ const MIN_ORDER_SIZE_TOKENS = 1.0;
 const extractOrderError = (response: any): string | undefined => {
     if (!response) return undefined;
     if (typeof response === 'string') return response;
-    if (response.error) return response.error;
-    if (response.errorMsg) return response.errorMsg;
-    if (response.message) return response.message;
+    
+    // Try to find the error message in the response structure
+    let error = response.error || response.errorMsg || response.message || response.error_msg;
+    
+    // Check nested structures if needed
+    if (!error && response.data) {
+        error = response.data.error || response.data.message || response.data.errorMsg;
+    }
+
+    if (error) {
+        let errorStr = String(error);
+        // Add helpful hints for common errors
+        if (errorStr.toLowerCase().includes('invalid signature')) {
+            errorStr += " (Check if your Proxy Wallet and Private Key match your Polymarket profile)";
+        }
+        return errorStr;
+    }
     return undefined;
 };
 

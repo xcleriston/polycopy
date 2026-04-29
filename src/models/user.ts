@@ -11,6 +11,8 @@ export interface IUser extends Document {
         address: string;
         privateKey: string;
         proxyAddress?: string;
+        signatureType?: string;
+        isProxyVerified?: boolean;
     };
     config: {
         mode?: 'COPY' | 'ARBITRAGE' | 'MIRROR_100';
@@ -66,6 +68,8 @@ const UserSchema: Schema = new Schema({
         address: { type: String, index: true },
         privateKey: { type: String },
         proxyAddress: { type: String, index: true },
+        signatureType: { type: String },
+        isProxyVerified: { type: Boolean, default: false },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
