@@ -48,7 +48,7 @@ const fetchTradeDataForTrader = async (address: string) => {
                 continue;
             }
 
-            const newTrade = new UserActivity({
+            const newTrade = UserActivity({
                 proxyWallet: activity.proxyWallet,
                 timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
