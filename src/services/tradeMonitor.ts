@@ -54,15 +54,17 @@ const fetchTradeDataForTrader = async (address: string) => {
                 continue;
             }
 
+            const usdcSize = activity.usdcSize || (parseFloat(activity.size) * parseFloat(activity.price)) || 0;
+
             const newTrade = UserActivity({
                 proxyWallet: activity.proxyWallet,
                 timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
                 type: activity.type,
-                size: activity.size,
-                usdcSize: activity.usdcSize,
+                size: parseFloat(activity.size),
+                usdcSize: usdcSize,
                 transactionHash: activity.transactionHash,
-                price: activity.price,
+                price: parseFloat(activity.price),
                 asset: activity.asset,
                 side: activity.side,
                 outcomeIndex: activity.outcomeIndex,
@@ -80,7 +82,7 @@ const fetchTradeDataForTrader = async (address: string) => {
             seenTradesLocal.add(tradeId);
             
             const detectLatency = (Date.now() / 1000) - (activity.timestamp);
-            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${activity.usdcSize} USDC (Detected in ${detectLatency.toFixed(2)}s)`);
+            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${usdcSize.toFixed(2)} USDC (Detected in ${detectLatency.toFixed(2)}s)`);
             
             // DIRECT TRIGGER: Bypass tradeExecutor's 100ms DB polling loop
             processDetectedTrade(newTrade.toObject(), address).catch(e => 
