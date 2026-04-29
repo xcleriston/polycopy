@@ -2245,7 +2245,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Key validated successfully.</strong> Click Continue to proceed.</div>'
                 + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWallet(\'' + safePk + '\')">Continuar →</button>'
                 + '</div>';
-            document.getElementById('import-wallet-preview').innerHTML = infoCard;
+            const previewEl = document.getElementById('import-wallet-preview');
+            if (previewEl) previewEl.innerHTML = infoCard;
 
         } catch (e) {
             console.error('Validate error:', e);
