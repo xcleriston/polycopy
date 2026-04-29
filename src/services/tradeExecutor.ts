@@ -38,7 +38,6 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
     // Find all users following this trader in COPY mode
     const followers = await User.find({ 
         'config.traderAddress': { $regex: new RegExp(`^${traderAddress}$`, 'i') },
-        'config.enabled': true,
         'config.mode': { $in: ['COPY', 'MIRROR_100'] }
     });
 

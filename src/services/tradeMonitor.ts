@@ -11,9 +11,15 @@ const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const seenTradesLocal = new Set<string>();
 
 const getUniqueTraders = async (): Promise<string[]> => {
-    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
+    // REQUISITO CRÍTICO: Monitorar qualquer um que tenha traderAddress, ignorando travas de status se necessário
+    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' } });
     const addresses = users.map(u => u.config.traderAddress!.toLowerCase());
-    return Array.from(new Set(addresses));
+    const unique = Array.from(new Set(addresses));
+    
+    if (unique.length > 0) {
+        Logger.debug(`[MONITOR] Active Traders: ${unique.join(', ')}`);
+    }
+    return unique;
 };
 
 const fetchTradeDataForTrader = async (address: string) => {
