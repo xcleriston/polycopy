@@ -55,6 +55,15 @@ const fetchTradeDataForTrader = async (address: string) => {
             const exists = await UserActivity.findOne({ transactionHash: activity.transactionHash }).exec();
             if (exists) {
                 seenTradesLocal.add(tradeId);
+                // CRITICAL FIX: If it's very recent (e.g., last 15 mins), try processing it anyway 
+                // in case it was missed by this specific follower during a restart.
+                // The executor has its own de-dupe logic (processedBy array).
+                const ageMinutes = (Date.now() / 1000 - activity.timestamp) / 60;
+                if (ageMinutes < 15) {
+                    processDetectedTrade(exists, address).catch(e => 
+                        Logger.error(`Retry execution failed: ${e.message}`)
+                    );
+                }
                 continue;
             }
 
