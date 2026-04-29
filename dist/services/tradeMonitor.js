@@ -16,7 +16,8 @@ const fetchTradeDataForTrader = async (address) => {
     try {
         const UserActivity = getUserActivityModel(address);
         // FETCH FROM /trades endpoint with CACHE BUSTING for <200ms latency
-        const apiUrl = `https://data-api.polymarket.com/trades?user=${address.toLowerCase()}&limit=5&t=${Date.now()}`;
+        // Note: 'userAddress' is the real-time endpoint, 'user' is often stale.
+        const apiUrl = `https://data-api.polymarket.com/trades?userAddress=${address.toLowerCase()}&limit=5&t=${Date.now()}`;
         const activities = await fetchData(apiUrl);
         if (!Array.isArray(activities) || activities.length === 0) {
             return;
@@ -37,7 +38,7 @@ const fetchTradeDataForTrader = async (address) => {
                 seenTradesLocal.add(tradeId);
                 continue;
             }
-            const newTrade = new UserActivity({
+            const newTrade = UserActivity({
                 proxyWallet: activity.proxyWallet,
                 timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
@@ -60,7 +61,8 @@ const fetchTradeDataForTrader = async (address) => {
             });
             await newTrade.save();
             seenTradesLocal.add(tradeId);
-            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${activity.usdcSize} USDC`);
+            const detectLatency = (Date.now() / 1000) - (activity.timestamp);
+            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${activity.usdcSize} USDC (Detected in ${detectLatency.toFixed(2)}s)`);
             // DIRECT TRIGGER: Bypass tradeExecutor's 100ms DB polling loop
             processDetectedTrade(newTrade.toObject(), address).catch(e => Logger.error(`Direct execution failed: ${e.message}`));
         }
@@ -88,13 +90,13 @@ const tradeMonitor = async () => {
         if (traders.length > 0) {
             // Parallel poll with small jitter to avoid burst 429s
             await Promise.all(traders.map(async (addr, idx) => {
-                await new Promise(r => setTimeout(r, idx * 50)); // Spread requests
+                await new Promise(r => setTimeout(r, idx * 20)); // Reduced jitter to 20ms
                 return fetchTradeDataForTrader(addr);
             }));
         }
         const elapsed = Date.now() - startCycle;
-        // Target 200ms-500ms polling interval depending on trader count
-        const sleepTime = Math.max(100, 500 - elapsed);
+        // Target sub-200ms polling interval
+        const sleepTime = Math.max(50, 100 - elapsed);
         await new Promise(r => setTimeout(r, sleepTime));
     }
     Logger.info('Trade monitor stopped');

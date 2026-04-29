@@ -13,6 +13,8 @@ const RPC_LIST = [
     'https://1rpc.io/matic',
     'https://polygon.llamarpc.com'
 ].filter(Boolean);
+const balanceCache = new Map();
+const BALANCE_CACHE_TTL = 2000; // 2 seconds (matching roxmarket)
 /**
  * Fetches pUSD (Polymarket USD) balance.
  * Supports both ClobClient (accurate for CLOB funds)
@@ -20,6 +22,12 @@ const RPC_LIST = [
  */
 const getMyBalance = async (clientOrAddress) => {
     try {
+        const cacheKey = typeof clientOrAddress === 'string' ? clientOrAddress : 'clob_client';
+        const cached = balanceCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp) < BALANCE_CACHE_TTL) {
+            return cached.balance;
+        }
+        let finalBalance = 0;
         if (typeof clientOrAddress === 'string') {
             const address = clientOrAddress;
             const pusdAddr = ENV.USDC_CONTRACT_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
@@ -31,33 +39,25 @@ const getMyBalance = async (clientOrAddress) => {
                     }, 137);
                     const pusd = new ethers.Contract(pusdAddr, PUSD_ABI, provider);
                     const balance = await pusd.balanceOf(address);
-                    let finalBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
-                    // Division check removed or adjusted as pUSD is also 6 decimals
-                    if (finalBalance > 100000000) {
-                        Logger.warning(`[BALANCE] Suspiciously high pUSD balance ($${finalBalance}) for ${address.slice(0, 6)}. Check decimals.`);
-                    }
+                    finalBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
                     if (finalBalance > 0) {
                         Logger.info(`[BALANCE] Successfully fetched $${finalBalance} pUSD for ${address.slice(0, 6)} via ${rpc}`);
                     }
-                    return finalBalance;
+                    break; // Success
                 }
                 catch (rpcErr) {
                     Logger.warning(`[BALANCE] RPC ${rpc} failed for ${address.slice(0, 6)}: ${rpcErr instanceof Error ? rpcErr.message : 'Unknown'}`);
                     continue;
                 }
             }
-            throw new Error("All RPCs failed");
         }
         else {
-            // ACCURATE CLOB CHECK via V2 SDK
-            // We need an address for getCollateralBalance in V2
-            // We can get it from the client's signer/account if exposed, 
-            // but the caller usually knows the address or the client is initialized for it.
-            // In the SDK, the address might be in client.getAddress() or similar.
             const resp = await clientOrAddress.getBalanceAllowance({ asset_type: AssetType.COLLATERAL });
             const rawBalance = resp.balance || "0";
-            return parseFloat(ethers.utils.formatUnits(rawBalance, 6));
+            finalBalance = parseFloat(ethers.utils.formatUnits(rawBalance, 6));
         }
+        balanceCache.set(cacheKey, { balance: finalBalance, timestamp: Date.now() });
+        return finalBalance;
     }
     catch (e) {
         Logger.error(`[BALANCE] Critical failure for ${typeof clientOrAddress === 'string' ? clientOrAddress : 'Client'}: ${e.message}`);

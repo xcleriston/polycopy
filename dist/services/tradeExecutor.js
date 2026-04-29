@@ -42,8 +42,11 @@ export const processDetectedTrade = async (trade, traderAddressParam) => {
         Logger.header(`👤 FOLLOWER: ${followerId} copying ${traderAddress.slice(0, 6)}...`);
         try {
             const clobClient = await getClobClientForUser(follower);
-            if (!clobClient)
+            if (!clobClient) {
+                Logger.error(`[${followerId}] Could not initialize CLOB client (possibly signature error) - skipping trade`);
+                await Activity.updateOne({ _id: trade._id }, { $set: { [`followerStatuses.${followerId}`]: { status: 'ERRO (CLIENT)', details: 'Falha ao inicializar CLOB client (assinatura inválida?)', timestamp: new Date() } } });
                 continue;
+            }
             const proxyWallet = follower.wallet?.address;
             if (!proxyWallet) {
                 Logger.warning(`[${followerId}] No wallet configured - skipping`);

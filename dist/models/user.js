@@ -10,6 +10,8 @@ const UserSchema = new Schema({
         address: { type: String, index: true },
         privateKey: { type: String },
         proxyAddress: { type: String, index: true },
+        signatureType: { type: String },
+        isProxyVerified: { type: Boolean, default: false },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
