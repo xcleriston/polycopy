@@ -2477,7 +2477,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
     async function importWalletSettings(btn) {
         const pkInput = document.getElementById('settings-import-pk');
+        const proxyInput = document.getElementById('bot-proxyAddress');
         const pk = pkInput.value.trim();
+        const proxyAddress = proxyInput ? proxyInput.value.trim() : '';
         if (!pk) return showBanner('Chave Privada Necessária', 'warning');
         
         btn.disabled = true; 
@@ -2488,7 +2490,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const previewRes = await fetch('/api/user/validate-wallet-preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ privateKey: pk })
+                body: JSON.stringify({ privateKey: pk, proxyAddress })
             });
             const preview = await previewRes.json();
             
@@ -2511,10 +2513,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 + '<tr><td style="padding:8px 0; color:var(--text-dim)">Open Positions:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safePos + '</td></tr>'
                 + '</table>'
                 + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Validação bem-sucedida.</strong> Confirme para atualizar.</div>'
-                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWalletSettings(&quot;' + pk + '&quot;)">Confirmar Atualização →</button>'
+                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWalletSettings(&quot;' + pk + '&quot;, &quot;' + proxyAddress + '&quot;)">Confirmar Atualização →</button>'
                 + '</div>';
             
-            // Add a container for the preview if it doesn't exist, right after the button
             let previewContainer = document.getElementById('settings-import-preview');
             if (!previewContainer) {
                 previewContainer = document.createElement('div');
@@ -2532,14 +2533,14 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
         }
     }
 
-    async function confirmImportWalletSettings(pk) {
+    async function confirmImportWalletSettings(pk, proxyAddress) {
         const btn = document.getElementById('btn-import-settings');
         if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
         try {
             const res = await fetch('/api/user/import-wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ privateKey: pk })
+                body: JSON.stringify({ privateKey: pk, proxyAddress })
             });
             const data = await res.json();
             if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
@@ -2869,28 +2870,34 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
 // Preview endpoint: derives wallet info from PK without saving
 app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        let { privateKey } = req.body;
+        let { privateKey, proxyAddress } = req.body;
         if (!privateKey) return res.status(400).json({ error: 'Private key required' });
         privateKey = privateKey.trim();
         if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
         if (privateKey.length !== 66) return res.status(400).json({ error: 'Chave privada inválida (deve ter 64 hex chars)' });
 
+        if (proxyAddress) proxyAddress = proxyAddress.trim();
+        if (proxyAddress && !proxyAddress.startsWith('0x')) proxyAddress = '0x' + proxyAddress;
+
         const wallet = new ethers.Wallet(privateKey);
         const eoaAddress = wallet.address;
 
-        // Try to detect proxy wallet from Polymarket activity
-        let proxyAddress = null;
-        let walletType = 'EOA';
-        try {
-            const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
-            if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
-                proxyAddress = activity[0].proxyWallet;
-                walletType = 'MetaMask (proxy wallet)';
-            }
-        } catch (_) { /* ignore */ }
+        let detectedProxy = proxyAddress || null;
+        let walletType = proxyAddress ? 'MetaMask (proxy manual)' : 'EOA';
+
+        // Try to detect proxy wallet from Polymarket activity if not provided
+        if (!detectedProxy) {
+            try {
+                const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
+                if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
+                    detectedProxy = activity[0].proxyWallet;
+                    walletType = 'MetaMask (proxy wallet)';
+                }
+            } catch (_) { /* ignore */ }
+        }
 
         // Fetch on-chain pUSD balance of proxy (or EOA)
-        const balanceTarget = proxyAddress || eoaAddress;
+        const balanceTarget = detectedProxy || eoaAddress;
         let onchainBalance = 0;
         try {
             onchainBalance = await getMyBalance(balanceTarget);
@@ -2905,7 +2912,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
         res.json({
             address: eoaAddress,
-            proxyWallet: proxyAddress,
+            proxyWallet: detectedProxy,
             walletType,
             onchainBalance,
             openPositions
@@ -2917,7 +2924,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
 app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, res) => {
     try {
-        let { privateKey } = req.body;
+        let { privateKey, proxyAddress } = req.body;
         if (!privateKey) return res.status(400).json({ error: 'Private key required' });
         
         // Cleanup key and ensure 0x prefix
@@ -2925,20 +2932,25 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
         
         if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
+            return res.status(400).json({ error: 'Chave privada inválida (formato incorreto)' });
         }
+
+        if (proxyAddress) proxyAddress = proxyAddress.trim();
+        if (proxyAddress && !proxyAddress.startsWith('0x')) proxyAddress = '0x' + proxyAddress;
 
         const wallet = new ethers.Wallet(privateKey);
         const eoaAddress = wallet.address;
 
-        // Auto-detect proxy wallet
-        let proxyAddress = undefined;
-        try {
-            const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
-            if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
-                proxyAddress = activity[0].proxyWallet;
-            }
-        } catch (_) { /* ignore */ }
+        // Auto-detect proxy wallet if not provided
+        let detectedProxy = proxyAddress || undefined;
+        if (!detectedProxy) {
+            try {
+                const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
+                if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
+                    detectedProxy = activity[0].proxyWallet;
+                }
+            } catch (_) { /* ignore */ }
+        }
 
         const user = await User.findById(req.user?.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -2950,13 +2962,13 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         user.wallet = {
             address: eoaAddress,
             privateKey: wallet.privateKey,
-            ...(proxyAddress ? { proxyAddress } : {})
+            ...(detectedProxy ? { proxyAddress: detectedProxy } : {})
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready') user.step = 'setup';
         await user.save();
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${proxyAddress || 'None'})`);
-        res.json({ success: true, address: eoaAddress, proxyAddress });
+        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${detectedProxy || 'None'})`);
+        res.json({ success: true, address: eoaAddress, proxyAddress: detectedProxy });
     } catch (e) {
         console.error('[WALLET] Import error:', e);
         res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
