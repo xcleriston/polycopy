@@ -73,7 +73,7 @@ const validateAddresses = (): void => {
     ) {
         console.error('\n❌ Invalid pUSD Contract Address\n');
         console.error(`Current value: ${process.env.USDC_CONTRACT_ADDRESS}`);
-        console.error('Default value: 0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb\n');
+        console.error('Default value: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174\n');
         console.error('⚠️  Unless you know what you\'re doing, use the default value!\n');
         throw new Error(
             `Invalid USDC_CONTRACT_ADDRESS format: ${process.env.USDC_CONTRACT_ADDRESS}`
@@ -335,7 +335,7 @@ export const ENV = {
         10
     ), // 5 minutes default
     RPC_URL: process.env.RPC_URL as string,
-    USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS || '0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb',
+    USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
     POLYMARKET_EXCHANGE_ADDR: process.env.POLYMARKET_EXCHANGE_ADDR || '0xE111180000d2663C0091e4f400237545B87B996B',
     // Telegram settings (optional)
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN as string,

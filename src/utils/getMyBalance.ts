@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ClobClient } from '@polymarket/clob-client-v2';
+import { ClobClient, AssetType } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 
@@ -25,7 +25,7 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
     try {
         if (typeof clientOrAddress === 'string') {
             const address = clientOrAddress;
-            const pusdAddr = ENV.USDC_CONTRACT_ADDRESS || '0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb';
+            const pusdAddr = ENV.USDC_CONTRACT_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
 
             for (const rpc of RPC_LIST) {
                 try {
@@ -60,8 +60,9 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
             // but the caller usually knows the address or the client is initialized for it.
             // In the SDK, the address might be in client.getAddress() or similar.
             
-            const resp = await clientOrAddress.getBalanceAllowance();
-            return parseFloat(resp.balance || "0");
+            const resp = await clientOrAddress.getBalanceAllowance({ asset_type: AssetType.COLLATERAL });
+            const rawBalance = resp.balance || "0";
+            return parseFloat(ethers.utils.formatUnits(rawBalance, 6));
         }
     } catch (e: any) {
         Logger.error(`[BALANCE] Critical failure for ${typeof clientOrAddress === 'string' ? clientOrAddress : 'Client'}: ${e.message}`);

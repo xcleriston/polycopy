@@ -2198,7 +2198,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const safeProxy = preview.proxyWallet || preview.address;
             const safeBal = '$' + Number(preview.onchainBalance || 0).toFixed(2);
             const safePos = String(preview.openPositions);
-            const safePk = pk.replace(/'/g, "\\'");
             const infoCard = '<div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); border-radius:12px; padding:20px; margin-top:16px; animation:fadeIn 0.3s ease">'
                 + '<table style="width:100%; font-size:0.82rem; border-collapse:collapse">'
                 + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Wallet Type:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + preview.walletType + '</td></tr>'
@@ -2208,7 +2207,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 + '<tr><td style="padding:8px 0; color:var(--text-dim)">Open Positions:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safePos + '</td></tr>'
                 + '</table>'
                 + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Key validated successfully.</strong> Click Continue to proceed.</div>'
-                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWallet(\'' + safePk + '\')">Continuar →</button>'
+                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWallet(&quot;' + pk + '&quot;)">Continuar →</button>'
                 + '</div>';
             const previewEl = document.getElementById('import-wallet-preview');
             if (previewEl) previewEl.innerHTML = infoCard;
@@ -2442,18 +2441,86 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     }
 
     async function importWalletSettings(btn) {
-        const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada Necess\u00E1ria', 'warning');
-        btn.disabled = true; btn.textContent = 'Importando...';
-        const res = await fetch('/api/user/import-wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ privateKey: pk })
-        });
-        const data = await res.json();
-        btn.disabled = false; btn.textContent = 'Atualizar Chave Privada';
-        if (res.ok) { showBanner('Carteira Atualizada!', 'success'); loadUser(); }
-        else { showBanner(data.error || 'Falha ao importar', 'danger'); }
+        const pkInput = document.getElementById('settings-import-pk');
+        const proxyInput = document.getElementById('bot-proxyAddress');
+        const pk = pkInput.value.trim();
+        const proxyAddress = proxyInput ? proxyInput.value.trim() : '';
+        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
+        
+        btn.disabled = true; 
+        const originalText = btn.textContent;
+        btn.textContent = 'Validando...';
+        
+        try {
+            const previewRes = await fetch('/api/user/validate-wallet-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: pk, proxyAddress })
+            });
+            const preview = await previewRes.json();
+            
+            if (!previewRes.ok) {
+                showBanner(preview.error || 'Chave Privada Inválida', 'danger');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            const safeProxy = preview.proxyWallet || preview.address;
+            const safeBal = '$' + Number(preview.onchainBalance || 0).toFixed(2);
+            const safePos = String(preview.openPositions);
+            const infoCard = '<div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); border-radius:12px; padding:20px; margin-top:16px; animation:fadeIn 0.3s ease">'
+                + '<table style="width:100%; font-size:0.82rem; border-collapse:collapse">'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Wallet Type:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + preview.walletType + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Your Address (EOA):</td><td style="padding:8px 0 8px 12px; font-family:var(--font-mono); font-size:0.72rem; color:var(--accent); word-break:break-all">' + preview.address + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Polymarket Wallet:</td><td style="padding:8px 0 8px 12px; font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim); word-break:break-all">' + safeProxy + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim)">On-chain USDC:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safeBal + '</td></tr>'
+                + '<tr><td style="padding:8px 0; color:var(--text-dim)">Open Positions:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safePos + '</td></tr>'
+                + '</table>'
+                + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Validação bem-sucedida.</strong> Confirme para atualizar.</div>'
+                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWalletSettings(&quot;' + pk + '&quot;, &quot;' + proxyAddress + '&quot;)">Confirmar Atualização →</button>'
+                + '</div>';
+            
+            let previewContainer = document.getElementById('settings-import-preview');
+            if (!previewContainer) {
+                previewContainer = document.createElement('div');
+                previewContainer.id = 'settings-import-preview';
+                btn.parentNode.parentNode.appendChild(previewContainer);
+            }
+            previewContainer.innerHTML = infoCard;
+
+        } catch (e) {
+            console.error('Validate error:', e);
+            showBanner('Erro de conexão com o servidor', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+
+    async function confirmImportWalletSettings(pk, proxyAddress) {
+        const btn = document.getElementById('btn-import-settings');
+        if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
+        try {
+            const res = await fetch('/api/user/import-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: pk, proxyAddress })
+            });
+            const data = await res.json();
+            if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
+            if (res.ok) { 
+                showBanner('Carteira Atualizada com Sucesso!', 'success'); 
+                const previewContainer = document.getElementById('settings-import-preview');
+                if (previewContainer) previewContainer.innerHTML = '';
+                document.getElementById('settings-import-pk').value = '';
+                setTimeout(() => loadUser(), 800);
+            }
+            else { showBanner(data.error || 'Falha ao importar', 'danger'); }
+        } catch (e) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
+            showBanner('Erro de conexão com o servidor', 'danger');
+        }
     }
 
     async function generateWalletSettings(btn) {
@@ -2765,7 +2832,7 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req, res) => {
 // Preview endpoint: derives wallet info from PK without saving
 app.post('/api/user/validate-wallet-preview', authenticateToken, async (req, res) => {
     try {
-        let { privateKey } = req.body;
+        let { privateKey, proxyAddress } = req.body;
         if (!privateKey)
             return res.status(400).json({ error: 'Private key required' });
         privateKey = privateKey.trim();
@@ -2773,21 +2840,27 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req, res
             privateKey = '0x' + privateKey;
         if (privateKey.length !== 66)
             return res.status(400).json({ error: 'Chave privada inválida (deve ter 64 hex chars)' });
+        if (proxyAddress)
+            proxyAddress = proxyAddress.trim();
+        if (proxyAddress && !proxyAddress.startsWith('0x'))
+            proxyAddress = '0x' + proxyAddress;
         const wallet = new ethers.Wallet(privateKey);
         const eoaAddress = wallet.address;
-        // Try to detect proxy wallet from Polymarket activity
-        let proxyAddress = null;
-        let walletType = 'EOA';
-        try {
-            const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
-            if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
-                proxyAddress = activity[0].proxyWallet;
-                walletType = 'MetaMask (proxy wallet)';
+        let detectedProxy = proxyAddress || null;
+        let walletType = proxyAddress ? 'MetaMask (proxy manual)' : 'EOA';
+        // Try to detect proxy wallet from Polymarket public-profile if not provided
+        if (!detectedProxy) {
+            try {
+                const profile = await fetchData(`https://gamma-api.polymarket.com/public-profile?address=${eoaAddress}`);
+                if (profile && profile.proxyWallet && profile.proxyWallet.toLowerCase() !== eoaAddress.toLowerCase()) {
+                    detectedProxy = profile.proxyWallet;
+                    walletType = 'MetaMask (proxy wallet)';
+                }
             }
+            catch (_) { /* ignore */ }
         }
-        catch (_) { /* ignore */ }
         // Fetch on-chain pUSD balance of proxy (or EOA)
-        const balanceTarget = proxyAddress || eoaAddress;
+        const balanceTarget = detectedProxy || eoaAddress;
         let onchainBalance = 0;
         try {
             onchainBalance = await getMyBalance(balanceTarget);
@@ -2803,7 +2876,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req, res
         catch (_) { /* ignore */ }
         res.json({
             address: eoaAddress,
-            proxyWallet: proxyAddress,
+            proxyWallet: detectedProxy,
             walletType,
             onchainBalance,
             openPositions
@@ -2815,7 +2888,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req, res
 });
 app.post('/api/user/import-wallet', authenticateToken, async (req, res) => {
     try {
-        let { privateKey } = req.body;
+        let { privateKey, proxyAddress } = req.body;
         if (!privateKey)
             return res.status(400).json({ error: 'Private key required' });
         // Cleanup key and ensure 0x prefix
@@ -2823,25 +2896,42 @@ app.post('/api/user/import-wallet', authenticateToken, async (req, res) => {
         if (!privateKey.startsWith('0x'))
             privateKey = '0x' + privateKey;
         if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
+            return res.status(400).json({ error: 'Chave privada inválida (formato incorreto)' });
         }
+        if (proxyAddress)
+            proxyAddress = proxyAddress.trim();
+        if (proxyAddress && !proxyAddress.startsWith('0x'))
+            proxyAddress = '0x' + proxyAddress;
         const wallet = new ethers.Wallet(privateKey);
+        const eoaAddress = wallet.address;
+        // Auto-detect proxy wallet if not provided
+        let detectedProxy = proxyAddress || undefined;
+        if (!detectedProxy) {
+            try {
+                const profile = await fetchData(`https://gamma-api.polymarket.com/public-profile?address=${eoaAddress}`);
+                if (profile && profile.proxyWallet && profile.proxyWallet.toLowerCase() !== eoaAddress.toLowerCase()) {
+                    detectedProxy = profile.proxyWallet;
+                }
+            }
+            catch (_) { /* ignore */ }
+        }
         const user = await User.findById(req.user?.id);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
         }
         user.wallet = {
-            address: wallet.address,
-            privateKey: wallet.privateKey
+            address: eoaAddress,
+            privateKey: wallet.privateKey,
+            ...(detectedProxy ? { proxyAddress: detectedProxy } : {})
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready')
             user.step = 'setup';
         await user.save();
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
-        res.json({ success: true, address: wallet.address });
+        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${detectedProxy || 'None'})`);
+        res.json({ success: true, address: eoaAddress, proxyAddress: detectedProxy });
     }
     catch (e) {
         console.error('[WALLET] Import error:', e);
@@ -3067,7 +3157,8 @@ app.get('/api/user/stats', authenticateToken, async (req, res) => {
         const eoa = user.wallet?.address;
         if (!eoa)
             return res.json({ balance: 0, exposure: 0 });
-        const proxy = await findProxyWallet(user);
+        const proxyInfo = await findProxyWallet(user);
+        const proxy = proxyInfo?.address || null;
         // Fetch CLOB balance (if client is available)
         let clobBalance = 0;
         try {
@@ -3085,11 +3176,7 @@ app.get('/api/user/stats', authenticateToken, async (req, res) => {
             proxy ? getMyBalance(proxy) : Promise.resolve(0)
         ]);
         const userIdentifier = user.username || user.chatId || user._id;
-        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
-        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
-        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
-        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
-        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+        const totalBalance = balEoa + balProxy + clobBalance;
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);

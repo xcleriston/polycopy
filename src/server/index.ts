@@ -3190,7 +3190,8 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const eoa = user.wallet?.address;
         if (!eoa) return res.json({ balance: 0, exposure: 0 });
 
-        const proxy = await findProxyWallet(user);
+        const proxyInfo = await findProxyWallet(user);
+        const proxy = proxyInfo?.address || null;
         
         // Fetch CLOB balance (if client is available)
         let clobBalance = 0;
@@ -3211,12 +3212,7 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         
         const userIdentifier = user.username || user.chatId || user._id;
         
-        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
-        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
-        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
-        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
-        
-        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+        const totalBalance = balEoa + balProxy + clobBalance;
 
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);

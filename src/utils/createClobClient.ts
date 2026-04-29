@@ -11,23 +11,39 @@ const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
 
 const clobClientCache: Map<string, ClobClient> = new Map();
 
-export const findProxyWallet = async (eoaOrUser: string | any): Promise<string | null> => {
+export interface ProxyInfo {
+    address: string;
+    type: SignatureTypeV2;
+}
+
+export const findProxyWallet = async (eoaOrUser: string | any): Promise<ProxyInfo | null> => {
     const eoa = typeof eoaOrUser === 'string' ? eoaOrUser : eoaOrUser?.wallet?.address;
     if (!eoa) return null;
 
     if (typeof eoaOrUser === 'object' && eoaOrUser?.wallet?.proxyAddress) {
-        return eoaOrUser.wallet.proxyAddress;
+        return { 
+            address: eoaOrUser.wallet.proxyAddress, 
+            type: SignatureTypeV2.POLY_GNOSIS_SAFE // Default for manual
+        };
     }
 
     try {
-        const url = `https://data-api.polymarket.com/activity?user=${eoa.toLowerCase()}&type=TRADE`;
-        const activities = await fetchData(url);
-        if (Array.isArray(activities) && activities.length > 0) {
-            const proxy = activities[0].proxyWallet;
-            if (proxy && proxy !== eoa) {
-                Logger.info(`[PROXY] Detected Gnosis Safe for ${eoa.slice(0, 6)}: ${proxy}`);
-                return proxy;
+        const url = `https://gamma-api.polymarket.com/public-profile?address=${eoa.toLowerCase()}`;
+        const profile = await fetchData(url);
+        if (profile && profile.proxyWallet && profile.proxyWallet.toLowerCase() !== eoa.toLowerCase()) {
+            const proxy = profile.proxyWallet;
+            const wType = (profile.walletType || "").toLowerCase();
+            
+            // Detect signature type based on profile walletType
+            // Type 1 = POLY_PROXY (Email, Google, Magic)
+            // Type 2 = POLY_GNOSIS_SAFE (MetaMask + Proxy)
+            let type = SignatureTypeV2.POLY_GNOSIS_SAFE;
+            if (wType.includes('magic') || wType.includes('email') || wType.includes('google')) {
+                type = SignatureTypeV2.POLY_PROXY;
             }
+
+            Logger.info(`[PROXY] Detected Proxy ${proxy} (Type: ${type}) for ${eoa.slice(0, 6)}`);
+            return { address: proxy, type };
         }
     } catch (e) {
         Logger.error(`[PROXY] Error detecting proxy for ${eoa}: ${e}`);
@@ -41,14 +57,14 @@ export const getClobClientForUser = async (user: any): Promise<ClobClient | null
     const cacheKey = user.wallet.address.toLowerCase();
     if (clobClientCache.has(cacheKey)) return clobClientCache.get(cacheKey)!;
 
-    const detectedProxy = await findProxyWallet(user);
+    const proxyInfo = await findProxyWallet(user);
     
-    const client = await createClobClient(user.wallet.privateKey, detectedProxy || undefined);
+    const client = await createClobClient(user.wallet.privateKey, proxyInfo?.address, proxyInfo?.type);
     clobClientCache.set(cacheKey, client);
     return client;
 };
 
-const createClobClient = async (customPk?: string, proxyAddress?: string): Promise<ClobClient> => {
+const createClobClient = async (customPk?: string, proxyAddress?: string, forcedSigType?: SignatureTypeV2): Promise<ClobClient> => {
     const host = CLOB_HTTP_URL;
     const pk = (customPk || PRIVATE_KEY) as `0x${string}`;
 
@@ -61,8 +77,7 @@ const createClobClient = async (customPk?: string, proxyAddress?: string): Promi
         transport: http(ENV.RPC_URL)
     });
 
-    // In V2, SignatureTypeV2.POLY_GNOSIS_SAFE is often used for Gnosis Safe
-    const signatureType = proxyAddress ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA;
+    const signatureType = forcedSigType ?? (proxyAddress ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA);
     
     Logger.info(`[CLOB] Initializing for ${account.address} with SigType: ${signatureType}`);
 

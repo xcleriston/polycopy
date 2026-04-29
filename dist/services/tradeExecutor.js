@@ -66,7 +66,8 @@ const doTrading = async (trade) => {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
             }
             else {
-                const targetAddr = (await findProxyWallet(follower)) || follower.wallet?.address || '';
+                const proxyInfo = await findProxyWallet(follower);
+                const targetAddr = proxyInfo?.address || follower.wallet?.address || '';
                 const my_positions = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
                 const user_positions = await fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
                 const my_position = my_positions.find((position) => position.conditionId === trade.conditionId);
