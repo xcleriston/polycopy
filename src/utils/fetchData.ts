@@ -1,7 +1,13 @@
 import axios from 'axios';
+import http from 'http';
+import https from 'https';
 import { ENV } from '../config/env.js';
 import { retry } from './retry.js';
 import Logger from './logger.js';
+
+// Connection pooling to reduce handshake latency (matching roxmarket's low-latency approach)
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
 
 const cache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 10000; // 10 seconds (for metadata only)
@@ -25,8 +31,12 @@ const fetchData = async (url: string) => {
         async () => {
             const response = await axios.get(url, {
                 timeout,
+                httpAgent,
+                httpsAgent,
                 headers: {
-                    'User-Agent': 'polycopy/2.0 (Node.js)',
+                    // Browser-like User-Agent to bypass restrictive Polymarket API caching (matching roxmarket)
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/json',
                 },
                 family: 4,
             });
