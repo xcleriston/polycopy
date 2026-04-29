@@ -28,6 +28,8 @@ import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient
 
 console.log('✅ All imports completed!');
 const app = express();
+console.log('🛡️ Setting up Security Headers...');
+console.log('🛡️ Setting up Security Headers...');
 app.use(express.json());
 app.use(cookieParser());
 
@@ -40,6 +42,29 @@ app.use((req, res, next) => {
 });
 
 let botStartTime = Date.now();
+
+// ... (swagger skipped for brevity)
+
+// --- Admin Bootstrap ---
+const bootstrapAdmin = async () => {
+    console.log('👑 [BOOTSTRAP] Starting Admin Bootstrap...');
+    // ...
+};
+
+console.log('💾 Connecting to MongoDB...');
+import mongoose from 'mongoose';
+mongoose.connect(ENV.MONGODB_URI || 'mongodb://127.0.0.1:27017/polycopy')
+    .then(() => {
+        console.log('✅ [DB] Connected to MongoDB');
+        bootstrapAdmin();
+    })
+    .catch(err => console.error('❌ [DB] Error:', err));
+
+const PORT = 3000;
+console.log(`🌐 Starting Server on port ${PORT}...`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 [SERVER] Rodando na porta ${PORT}`);
+});
 
 // --- Swagger API Docs ---
 const swaggerDoc = {
