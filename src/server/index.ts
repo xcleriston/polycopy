@@ -1,3 +1,4 @@
+console.log('🚀 [SYSTEM] Starting Polycopy Server...');
 import express, { Request, Response } from 'express';
 import { ethers } from 'ethers';
 import swaggerUi from 'swagger-ui-express';
