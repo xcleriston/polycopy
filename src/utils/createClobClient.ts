@@ -6,8 +6,24 @@ import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 import fetchData from './fetchData.js';
 
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { fetch as undiciFetch } from 'undici';
+
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
+
+// Setup global fetch proxy for the entire process (affects @polymarket/clob-client-v2)
+const socksAgent = new SocksProxyAgent('socks5h://127.0.0.1:40000');
+const originalFetch = global.fetch;
+
+// @ts-ignore
+global.fetch = (url, options = {}) => {
+    return undiciFetch(url, {
+        ...options,
+        // @ts-ignore
+        dispatcher: socksAgent
+    });
+};
 
 const clobClientCache: Map<string, ClobClient> = new Map();
 
