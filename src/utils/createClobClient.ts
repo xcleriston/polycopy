@@ -65,7 +65,6 @@ export const getClobClientForUser = async (user: any): Promise<ClobClient | null
     const cacheKey = user.wallet.address.toLowerCase();
     if (clobClientCache.has(cacheKey)) return clobClientCache.get(cacheKey)!;
 
-    // 1. Check if user has verified info in DB
     let proxyInfo: ProxyInfo | null = null;
     if (user.wallet.proxyAddress && user.wallet.signatureType && user.wallet.isProxyVerified) {
         proxyInfo = {
@@ -73,29 +72,12 @@ export const getClobClientForUser = async (user: any): Promise<ClobClient | null
             type: user.wallet.signatureType as SignatureTypeV2
         };
     } else {
-        // 2. Detect via Gamma API
         proxyInfo = await findProxyWallet(user);
-        
-        // 3. Persist to DB if found or explicitly confirmed EOA
-        try {
-            const User = (await import('../models/user.js')).default;
-            await User.updateOne(
-                { _id: user._id },
-                { 
-                    $set: { 
-                        'wallet.proxyAddress': proxyInfo?.address || null,
-                        'wallet.signatureType': proxyInfo?.type || SignatureTypeV2.EOA,
-                        'wallet.isProxyVerified': true
-                    } 
-                }
-            );
-        } catch (err) {
-            Logger.warning(`[PROXY] Could not persist proxy info for ${user._id}: ${err}`);
-        }
     }
     
     try {
-        const client = await createClobClient(user.wallet.privateKey, proxyInfo?.address, proxyInfo?.type);
+        // IMPORTANT: Never use Builder creds for user balance/dashboard info
+        const client = await createClobClient(user.wallet.privateKey, proxyInfo?.address, proxyInfo?.type, false);
         clobClientCache.set(cacheKey, client);
         return client;
     } catch (err) {
@@ -104,7 +86,7 @@ export const getClobClientForUser = async (user: any): Promise<ClobClient | null
     }
 };
 
-const createClobClient = async (customPk?: string, proxyAddress?: string, forcedSigType?: SignatureTypeV2): Promise<ClobClient> => {
+const createClobClient = async (customPk?: string, proxyAddress?: string, forcedSigType?: SignatureTypeV2, useBuilderCreds: boolean = false): Promise<ClobClient> => {
     const host = CLOB_HTTP_URL;
     const pk = (customPk || PRIVATE_KEY) as `0x${string}`;
 
@@ -119,8 +101,6 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
 
     const signatureType = forcedSigType ?? (proxyAddress ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA);
     
-    Logger.info(`[CLOB] Initializing for ${account.address.slice(0,6)} with SigType: ${signatureType} ${proxyAddress ? `(Proxy: ${proxyAddress.slice(0,6)})` : '(EOA)'}`);
-
     let client = new ClobClient({
         host,
         chain: Chain.POLYGON,
@@ -128,38 +108,26 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
         signatureType,
     });
 
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-    
-    // We only silence if NOT in debug mode
-    if (process.env.DEBUG !== 'true') {
-        console.log = function () {};
-        console.error = function () {};
-    }
-
     try {
-        // Use Builder credentials if provided (matching roxmarket's high-performance approach)
-        if (ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
+        // Use Builder credentials ONLY if explicitly requested and available
+        if (useBuilderCreds && ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
             Logger.info(`[CLOB] Using Builder credentials for ${account.address.slice(0,6)}`);
-            const builderCreds = {
-                key: ENV.POLY_BUILDER_API_KEY,
-                secret: ENV.POLY_BUILDER_SECRET,
-                passphrase: ENV.POLY_BUILDER_PASSPHRASE,
-            };
-            client = new ClobClient({
+            return new ClobClient({
                 host,
                 chain: Chain.POLYGON,
                 signer: walletClient,
-                creds: builderCreds,
+                creds: {
+                    key: ENV.POLY_BUILDER_API_KEY,
+                    secret: ENV.POLY_BUILDER_SECRET,
+                    passphrase: ENV.POLY_BUILDER_PASSPHRASE,
+                },
                 signatureType,
             });
-            return client;
         }
 
-        // Standard path: Derive or use existing credentials
+        // Standard path: Use derived or existing credentials for the user
         const creds = await client.createOrDeriveApiKey();
-        
-        client = new ClobClient({
+        return new ClobClient({
             host,
             chain: Chain.POLYGON,
             signer: walletClient,

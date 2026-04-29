@@ -58,13 +58,19 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
         Logger.header(`👤 FOLLOWER: ${followerId} copying ${traderAddress.slice(0, 6)}...`);
 
         try {
-            const clobClient = await getClobClientForUser(follower);
-            if (!clobClient) {
-                Logger.error(`[${followerId}] Could not initialize CLOB client (possibly signature error) - skipping trade`);
-                await Activity.updateOne(
-                    { _id: trade._id },
-                    { $set: { [`followerStatuses.${followerId}`]: { status: 'ERRO (CLIENT)', details: 'Falha ao inicializar CLOB client (assinatura inválida?)', timestamp: new Date() } } }
-                );
+            // 1. User Client (For Balance/Positions - MUST be user-authenticated)
+            const clobClientBalance = await getClobClientForUser(follower);
+            
+            // 2. Execution Client (For POSTing orders - MUST be Builder-authenticated for performance)
+            const clobClientExecute = await createClobClient(
+                follower.wallet?.privateKey, 
+                follower.wallet?.proxyAddress, 
+                follower.wallet?.signatureType as any, 
+                true // FORCE BUILDER CREDENTIALS
+            );
+
+            if (!clobClientBalance || !clobClientExecute) {
+                Logger.error(`[${followerId}] Could not initialize CLOB clients - skipping trade`);
                 continue;
             }
             
@@ -117,7 +123,7 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
                 const [balEoa, balProxy, clobBalance] = await Promise.all([
                     getMyBalance(follower.wallet?.address || ''),
                     targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0),
-                    getMyBalance(clobClient)
+                    getMyBalance(clobClientBalance) // USE BALANCE CLIENT
                 ]);
                 
                 // Priority for execution: CLOB internal balance. Fallback to sum of others.
@@ -130,18 +136,18 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
                 Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (CLOB: ${clobBalance}, RPC: ${balProxy || balEoa})`);
                 Logger.balance(my_balance, user_balance, followerId);
 
-                // Execute the trade with FOLLOWER'S config
+                // Execute the trade with BUILDER CLIENT
                 await postOrder(
-                    clobClient,
+                    clobClientExecute,
                     trade.side === 'BUY' ? 'buy' : 'sell',
                     my_position,
                     user_position,
                     trade,
                     my_balance,
                     followerId,
-                    follower.config, // Pass individual user config
-                    my_positions, // Pass all positions for exposure calculation
-                    targetAddr // Pass proxyAddress
+                    follower.config,
+                    my_positions,
+                    targetAddr
                 );
             }
         } catch (error) {
