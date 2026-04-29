@@ -4,7 +4,7 @@
         "target": "es2022" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */,
 
         /* Modules */
-        "module": "esnext" /* Specify what module code is generated. */,
+        "module": "node16" /* Specify what module code is generated. */,
         "moduleResolution": "node16",
         "rootDir": "./src" /* Specify the root folder within your source files. */,
         "types": ["node"],                                      /* Specify type package names to be included without being referenced in a source file. */
