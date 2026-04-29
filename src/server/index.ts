@@ -3193,16 +3193,26 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         const proxyInfo = await findProxyWallet(user);
         const proxy = proxyInfo?.address || null;
         
-        // Sum balances of EOA and Proxy via FAST RPC (Rox Markets style)
+        // 1. Fetch internal Polymarket (CLOB) balance - ESSENTIAL for SaaS
+        let clobBalance = 0;
+        try {
+            const clobClient = await getClobClientForUser(user);
+            if (clobClient) {
+                clobBalance = await getMyBalance(clobClient);
+            }
+        } catch (err) {
+            console.error(`[STATS] CLOB fetch failed:`, err);
+        }
+
+        // 2. Fetch on-chain (RPC) balance as fallback/complement
         const [balEoa, balProxy] = await Promise.all([
             getMyBalance(eoa),
             proxy ? getMyBalance(proxy) : Promise.resolve(0)
         ]);
         
         const userIdentifier = user.username || user.chatId || user._id;
-        
-        // Priority: Only use Proxy balance if it exists, otherwise EOA (matching user request)
-        const totalBalance = proxy ? (balProxy || 0) : (balEoa || 0);
+        // Priority: CLOB Balance (internal) is what trades. RPC is secondary.
+        const totalBalance = clobBalance > 0 ? clobBalance : (proxy ? (balProxy || 0) : (balEoa || 0));
 
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);

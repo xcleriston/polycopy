@@ -114,17 +114,20 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
                     (position: UserPositionInterface) => position.conditionId === trade.conditionId
                 );
 
-                const [balEoa, balProxy] = await Promise.all([
+                const [balEoa, balProxy, clobBalance] = await Promise.all([
                     getMyBalance(follower.wallet?.address || ''),
-                    targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0)
+                    targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(clobClient)
                 ]);
-                const my_balance = (targetAddr !== follower.wallet?.address) ? (balProxy || 0) : (balEoa || 0);
+                
+                // Priority for execution: CLOB internal balance. Fallback to sum of others.
+                const my_balance = clobBalance > 0 ? clobBalance : (targetAddr !== follower.wallet?.address ? (balProxy || 0) : (balEoa || 0));
 
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);
                 }, 0);
 
-                Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (EOA: ${balEoa}, Proxy: ${balProxy})`);
+                Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (CLOB: ${clobBalance}, RPC: ${balProxy || balEoa})`);
                 Logger.balance(my_balance, user_balance, followerId);
 
                 // Execute the trade with FOLLOWER'S config
