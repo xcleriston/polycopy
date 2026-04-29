@@ -2476,18 +2476,85 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     }
 
     async function importWalletSettings(btn) {
-        const pk = document.getElementById('settings-import-pk').value;
-        if (!pk) return showBanner('Chave Privada Necess\u00E1ria', 'warning');
-        btn.disabled = true; btn.textContent = 'Importando...';
-        const res = await fetch('/api/user/import-wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ privateKey: pk })
-        });
-        const data = await res.json();
-        btn.disabled = false; btn.textContent = 'Atualizar Chave Privada';
-        if (res.ok) { showBanner('Carteira Atualizada!', 'success'); loadUser(); }
-        else { showBanner(data.error || 'Falha ao importar', 'danger'); }
+        const pkInput = document.getElementById('settings-import-pk');
+        const pk = pkInput.value.trim();
+        if (!pk) return showBanner('Chave Privada Necessária', 'warning');
+        
+        btn.disabled = true; 
+        const originalText = btn.textContent;
+        btn.textContent = 'Validando...';
+        
+        try {
+            const previewRes = await fetch('/api/user/validate-wallet-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: pk })
+            });
+            const preview = await previewRes.json();
+            
+            if (!previewRes.ok) {
+                showBanner(preview.error || 'Chave Privada Inválida', 'danger');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            const safeProxy = preview.proxyWallet || preview.address;
+            const safeBal = '$' + Number(preview.onchainBalance || 0).toFixed(2);
+            const safePos = String(preview.openPositions);
+            const infoCard = '<div style="background:rgba(16,185,129,0.05); border:1px solid var(--success); border-radius:12px; padding:20px; margin-top:16px; animation:fadeIn 0.3s ease">'
+                + '<table style="width:100%; font-size:0.82rem; border-collapse:collapse">'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Wallet Type:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + preview.walletType + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Your Address (EOA):</td><td style="padding:8px 0 8px 12px; font-family:var(--font-mono); font-size:0.72rem; color:var(--accent); word-break:break-all">' + preview.address + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim); white-space:nowrap">Polymarket Wallet:</td><td style="padding:8px 0 8px 12px; font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim); word-break:break-all">' + safeProxy + '</td></tr>'
+                + '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0; color:var(--text-dim)">On-chain USDC:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safeBal + '</td></tr>'
+                + '<tr><td style="padding:8px 0; color:var(--text-dim)">Open Positions:</td><td style="padding:8px 0 8px 12px; color:var(--text); font-weight:600">' + safePos + '</td></tr>'
+                + '</table>'
+                + '<div style="margin-top:16px; background:rgba(16,185,129,0.1); border-radius:6px; padding:10px 14px; font-size:0.8rem; color:var(--success); display:flex; align-items:center; gap:8px"><span>✅</span> <strong>Validação bem-sucedida.</strong> Confirme para atualizar.</div>'
+                + '<button class="btn" style="margin-top:16px; width:100%" onclick="confirmImportWalletSettings(&quot;' + pk + '&quot;)">Confirmar Atualização →</button>'
+                + '</div>';
+            
+            // Add a container for the preview if it doesn't exist, right after the button
+            let previewContainer = document.getElementById('settings-import-preview');
+            if (!previewContainer) {
+                previewContainer = document.createElement('div');
+                previewContainer.id = 'settings-import-preview';
+                btn.parentNode.parentNode.appendChild(previewContainer);
+            }
+            previewContainer.innerHTML = infoCard;
+
+        } catch (e) {
+            console.error('Validate error:', e);
+            showBanner('Erro de conexão com o servidor', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+
+    async function confirmImportWalletSettings(pk) {
+        const btn = document.getElementById('btn-import-settings');
+        if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
+        try {
+            const res = await fetch('/api/user/import-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: pk })
+            });
+            const data = await res.json();
+            if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
+            if (res.ok) { 
+                showBanner('Carteira Atualizada com Sucesso!', 'success'); 
+                const previewContainer = document.getElementById('settings-import-preview');
+                if (previewContainer) previewContainer.innerHTML = '';
+                document.getElementById('settings-import-pk').value = '';
+                setTimeout(() => loadUser(), 800);
+            }
+            else { showBanner(data.error || 'Falha ao importar', 'danger'); }
+        } catch (e) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
+            showBanner('Erro de conexão com o servidor', 'danger');
+        }
     }
 
     async function generateWalletSettings(btn) {
@@ -2862,22 +2929,34 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         }
 
         const wallet = new ethers.Wallet(privateKey);
+        const eoaAddress = wallet.address;
+
+        // Auto-detect proxy wallet
+        let proxyAddress = undefined;
+        try {
+            const activity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoaAddress.toLowerCase()}&type=TRADE&limit=1`);
+            if (Array.isArray(activity) && activity.length > 0 && activity[0].proxyWallet && activity[0].proxyWallet !== eoaAddress) {
+                proxyAddress = activity[0].proxyWallet;
+            }
+        } catch (_) { /* ignore */ }
+
         const user = await User.findById(req.user?.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
         
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
         }
 
         user.wallet = {
-            address: wallet.address,
-            privateKey: wallet.privateKey
+            address: eoaAddress,
+            privateKey: wallet.privateKey,
+            ...(proxyAddress ? { proxyAddress } : {})
         };
         // Keep ready state if swapping wallet
         if (user.step !== 'ready') user.step = 'setup';
         await user.save();
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
-        res.json({ success: true, address: wallet.address });
+        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${proxyAddress || 'None'})`);
+        res.json({ success: true, address: eoaAddress, proxyAddress });
     } catch (e) {
         console.error('[WALLET] Import error:', e);
         res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
