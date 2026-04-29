@@ -142,9 +142,9 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
         if (ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
             Logger.info(`[CLOB] Using Builder credentials for ${account.address.slice(0,6)}`);
             const builderCreds = {
-                apiKey: ENV.POLY_BUILDER_API_KEY,
-                apiSecret: ENV.POLY_BUILDER_SECRET,
-                apiPassphrase: ENV.POLY_BUILDER_PASSPHRASE,
+                key: ENV.POLY_BUILDER_API_KEY,
+                secret: ENV.POLY_BUILDER_SECRET,
+                passphrase: ENV.POLY_BUILDER_PASSPHRASE,
             };
             client = new ClobClient({
                 host,
