@@ -108,6 +108,15 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
         signatureType,
     });
 
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    
+    // We only silence if NOT in debug mode
+    if (process.env.DEBUG !== 'true') {
+        console.log = function () {};
+        console.error = function () {};
+    }
+
     try {
         // Use Builder credentials ONLY if explicitly requested and available
         if (useBuilderCreds && ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
@@ -134,7 +143,6 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, forced
             creds,
             signatureType,
         });
-        return client;
     } catch (err: any) {
         // Restore console to log the error properly
         console.log = originalConsoleLog;
