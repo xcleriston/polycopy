@@ -118,7 +118,7 @@ export const processDetectedTrade = async (trade: any, traderAddressParam?: stri
                     getMyBalance(follower.wallet?.address || ''),
                     targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0)
                 ]);
-                const my_balance = (balEoa || 0) + (balProxy || 0);
+                const my_balance = (targetAddr !== follower.wallet?.address) ? (balProxy || 0) : (balEoa || 0);
 
                 const user_balance = user_positions.reduce((total: number, pos: UserPositionInterface) => {
                     return total + (pos.currentValue || 0);

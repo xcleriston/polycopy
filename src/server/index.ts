@@ -3201,7 +3201,8 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
         
         const userIdentifier = user.username || user.chatId || user._id;
         
-        const totalBalance = (balEoa || 0) + (balProxy || 0);
+        // Priority: Only use Proxy balance if it exists, otherwise EOA (matching user request)
+        const totalBalance = proxy ? (balProxy || 0) : (balEoa || 0);
 
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
