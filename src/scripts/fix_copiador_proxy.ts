@@ -15,7 +15,7 @@ async function fixCopiador() {
         { new: true }
     );
     
-    if (result) {
+    if (result && result.wallet) {
         console.log(`✅ Success! User ${result.username} updated.`);
         console.log(`EOA: ${result.wallet.address}`);
         console.log(`Proxy: ${result.wallet.proxyAddress}`);

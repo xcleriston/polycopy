@@ -1,4 +1,4 @@
-import { ClobClient } from '@polymarket/clob-client';
+import { ClobClient, AssetType } from '@polymarket/clob-client';
 import { SignatureType } from '@polymarket/order-utils';
 import { ethers } from 'ethers';
 import mongoose from 'mongoose';
@@ -34,9 +34,9 @@ async function testClobWithProxy() {
     
     try {
         const resp = await client.getBalanceAllowance({
-            asset_type: 'collateral',
-            funder: proxy as any
-        });
+            asset_type: AssetType.COLLATERAL,
+            funder: proxy
+        } as any);
         console.log("CLOB Response:", JSON.stringify(resp, null, 2));
     } catch (e: any) {
         console.error("CLOB Error:", e.message);

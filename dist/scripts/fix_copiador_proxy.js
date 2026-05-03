@@ -17,7 +17,7 @@ function fixCopiador() {
         const eoa = '0xC25C4CECd118E1F90b8D7fb41f19e1E9ef687FF3';
         const proxy = '0xa73803ec2116e5154EE39cAE4A35b21F8fd7e03B';
         const result = yield User.findOneAndUpdate({ 'wallet.address': eoa }, { $set: { 'wallet.proxyAddress': proxy } }, { new: true });
-        if (result) {
+        if (result && result.wallet) {
             console.log(`✅ Success! User ${result.username} updated.`);
             console.log(`EOA: ${result.wallet.address}`);
             console.log(`Proxy: ${result.wallet.proxyAddress}`);

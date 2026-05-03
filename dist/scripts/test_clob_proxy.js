@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { ClobClient } from '@polymarket/clob-client';
+import { ClobClient, AssetType } from '@polymarket/clob-client';
 import { SignatureType } from '@polymarket/order-utils';
 import { ethers } from 'ethers';
 import mongoose from 'mongoose';
@@ -28,8 +28,8 @@ function testClobWithProxy() {
         console.log(`Testing CLOB Balance for EOA ${wallet.address} with Proxy ${proxy}`);
         try {
             const resp = yield client.getBalanceAllowance({
-                asset_type: 'collateral',
-                funder: proxy // Explicitly pass funder
+                asset_type: AssetType.COLLATERAL,
+                funder: proxy
             });
             console.log("CLOB Response:", JSON.stringify(resp, null, 2));
         }
