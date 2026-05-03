@@ -3036,6 +3036,8 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
          * Polymarket CLOB balance is usually the same as your EOA or Proxy USDC balance.
          * If using a Proxy, CLOB balance tracks the Proxy. If not, it tracks the EOA.
          */
+        const userIdentifier = user.username || user.chatId || user._id;
+        
         let totalBalance = 0;
         if (proxy) {
             // EOA + Max of Proxy balance sources
