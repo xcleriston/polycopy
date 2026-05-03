@@ -3009,7 +3009,12 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
 
         const proxy = await findProxyWallet(user);
         
-        // Fetch CLOB balance (if client is available)
+        // Fetch balances from RPC (fast and reliable)
+        const [balEoa, balProxy] = await Promise.all([
+            getMyBalance(eoa),
+            proxy ? getMyBalance(proxy) : Promise.resolve(0)
+        ]);
+
         let clobBalance = 0;
         try {
             const clobClient = await getClobClientForUser(user);
@@ -3017,24 +3022,29 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
                 clobBalance = await getMyBalance(clobClient);
             }
         } catch (clobErr) {
-            console.error(`[STATS] CLOB balance error for ${user.chatId}:`, clobErr);
+            console.error(`[STATS] CLOB balance error for ${user.chatId}: ${clobErr}`);
         }
 
-        // Sum balances of EOA and Proxy via FAST RPC
-        const [balEoa, balProxy] = await Promise.all([
-            getMyBalance(eoa),
-            proxy ? getMyBalance(proxy) : Promise.resolve(0)
-        ]);
-        
-        const userIdentifier = user.username || user.chatId || user._id;
-        
         // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
-        let finalBalEoa = balEoa > 100000 ? balEoa / 1000000 : balEoa;
-        let finalBalProxy = balProxy > 100000 ? balProxy / 1000000 : balProxy;
-        let finalClob = clobBalance > 100000 ? clobBalance / 1000000 : clobBalance;
-        
-        const totalBalance = finalBalEoa + finalBalProxy + finalClob;
+        // Note: getMyBalance already does some conversion, but we double-check here for safety.
+        let finalBalEoa = balEoa > 1000000 ? balEoa / 1000000 : balEoa;
+        let finalBalProxy = balProxy > 1000000 ? balProxy / 1000000 : balProxy;
+        let finalClob = clobBalance > 1000000 ? clobBalance / 1000000 : clobBalance;
 
+        /**
+         * AVOID DOUBLE COUNTING:
+         * Polymarket CLOB balance is usually the same as your EOA or Proxy USDC balance.
+         * If using a Proxy, CLOB balance tracks the Proxy. If not, it tracks the EOA.
+         */
+        let totalBalance = 0;
+        if (proxy) {
+            // EOA + Max of Proxy balance sources
+            totalBalance = finalBalEoa + Math.max(finalBalProxy, finalClob);
+        } else {
+            // Max of EOA balance sources
+            totalBalance = Math.max(finalBalEoa, finalClob);
+        }
+        
         const targetAddr = proxy || eoa;
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum: number, pos: any) => sum + (pos.currentValue || 0), 0);

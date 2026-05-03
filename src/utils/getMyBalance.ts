@@ -56,12 +56,24 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
             throw new Error("All RPCs failed");
         } else {
             // ACCURATE CLOB CHECK
+            const funder = (clientOrAddress as any).orderBuilder?.funderAddress;
+            Logger.debug(`[BALANCE] Fetching CLOB balance for funder: ${funder || 'Signer'}`);
+            
             const balanceData = await clientOrAddress.getBalanceAllowance({
-                asset_type: "COLLATERAL" as any
-            });
+                asset_type: "COLLATERAL" as any,
+                funder: funder as any
+            } as any);
+            
+            Logger.debug(`[BALANCE] CLOB Raw Response: ${JSON.stringify(balanceData)}`);
+            
             const val = parseFloat(balanceData.balance || "0");
-            // If balance is suspiciously high (e.g. > 100M), it's likely raw units (6 decimals)
-            if (val > 100000000) return val / 1000000;
+            
+            // IMPROVED DECIMAL HANDLING: 
+            // If the value is huge (>1M), it's definitely raw units (6 decimals)
+            // If it's small, we assume it's already in human-readable USDC
+            if (val > 1000000) {
+                return val / 1000000;
+            }
             return val;
         }
     } catch (e: any) {
