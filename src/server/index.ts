@@ -2735,6 +2735,14 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         // Only set to setup if not already ready (to allow seamless swaps)
         if (user.step !== 'ready') user.step = 'setup';
         await user.save();
+        
+        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        try {
+            await getClobClientForUser(user);
+        } catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+        }
+
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
         res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
     } catch (e) {
@@ -2771,6 +2779,14 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         // Keep ready state if swapping wallet
         if (user.step !== 'ready') user.step = 'setup';
         await user.save();
+
+        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        try {
+            await getClobClientForUser(user);
+        } catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+        }
+
         console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
         res.json({ success: true, address: wallet.address });
     } catch (e) {

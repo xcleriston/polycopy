@@ -11,6 +11,12 @@ export interface IUser extends Document {
         address: string;
         privateKey: string;
         proxyAddress?: string;
+        clobCreds?: {
+            key: string;
+            secret: string;
+            passphrase: string;
+            derivedAt: Date;
+        };
     };
     config: {
         mode?: 'COPY' | 'ARBITRAGE' | 'MIRROR_100';
@@ -66,6 +72,12 @@ const UserSchema: Schema = new Schema({
         address: { type: String, index: true },
         privateKey: { type: String },
         proxyAddress: { type: String, index: true },
+        clobCreds: {
+            key: { type: String },
+            secret: { type: String },
+            passphrase: { type: String },
+            derivedAt: { type: Date, default: Date.now },
+        },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },
