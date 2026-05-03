@@ -9,10 +9,13 @@ const EXCHANGE_ABI = [
     "event OrderFilled(bytes32 indexed orderHash, address indexed maker, address indexed taker, uint256 makerAssetId, uint256 takerAssetId, uint256 makerAmountFilled, uint256 takerAmountFilled, uint256 fee)"
 ];
 
-const POLYMARKET_EXCHANGE_ADDR = ENV.POLYMARKET_EXCHANGE_ADDR;
+const POLYMARKET_EXCHANGE_ADDRS = (ENV.POLYMARKET_EXCHANGE_ADDRS || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E,0xe2222d279d744050d28e00520010520000310F59').split(',').map(a => a.trim().toLowerCase());
 
-// Global cache for trader proxy addresses
+// Global cache for trader proxy addresses and monitored addresses
 const proxyCache = new Map<string, string | null>();
+let monitoredTradersCache: string[] = [];
+let lastCacheUpdate = 0;
+const CACHE_REFRESH_MS = 30000; // 30 seconds
 
 export const startChainMonitor = async () => {
     if (!ENV.WSS_RPC_URL) {
@@ -40,14 +43,20 @@ export const startChainMonitor = async () => {
             setTimeout(startChainMonitor, waitTime);
         });
 
-        const contract = new ethers.Contract(POLYMARKET_EXCHANGE_ADDR, EXCHANGE_ABI, provider);
+        // Create contracts for each exchange address
+        const contracts = POLYMARKET_EXCHANGE_ADDRS.map(addr => new ethers.Contract(addr, EXCHANGE_ABI, provider));
 
         Logger.success('⚡ Connected to Polygon WebSocket for real-time monitoring');
+        
+        setInterval(() => {
+            Logger.info('💓 Chain Monitor Heartbeat: Service is active');
+        }, 1800000);
 
-        contract.on("OrderFilled", async (...args) => {
-            try {
-                const event = args[args.length - 1];
-                const eventArgs = event.args || {};
+        contracts.forEach(contract => {
+            contract.on("OrderFilled", async (...args) => {
+                try {
+                    const event = args[args.length - 1];
+                    const eventArgs = event.args || {};
                 const { maker, taker, makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled } = eventArgs;
 
                 // Safe tx hash extraction — location varies between ethers v5 versions
@@ -60,24 +69,35 @@ export const startChainMonitor = async () => {
 
                 const makerAddr = maker.toLowerCase();
                 const takerAddr = taker.toLowerCase();
-
-                const monitoredTraders = await User.distinct('config.traderAddress', { 'config.enabled': true });
-                const monitoredLower = (monitoredTraders as string[]).map((t: string) => t.toLowerCase());
-
-                // Fetch Proxy addresses for traders (cached globally in the service)
-                for (const trader of monitoredLower) {
-                    if (!proxyCache.has(trader)) {
-                        try {
-                            const profile = await fetchData(`https://data-api.polymarket.com/user?address=${trader}`);
-                            if (profile?.proxyWallet) {
-                                proxyCache.set(trader, profile.proxyWallet.toLowerCase());
-                                Logger.info(`[CHAIN] Cached Proxy for ${trader}: ${profile.proxyWallet}`);
-                            } else {
-                                proxyCache.set(trader, null);
+                
+                // Update monitored traders and detect proxies
+                if (Date.now() - lastCacheUpdate > CACHE_REFRESH_MS) {
+                    const traders = await User.distinct('config.traderAddress', { 'config.enabled': true });
+                    monitoredTradersCache = (traders as string[]).map(t => t.toLowerCase());
+                    
+                    for (const trader of monitoredTradersCache) {
+                        if (!proxyCache.has(trader)) {
+                            try {
+                                const actUrl = `https://data-api.polymarket.com/activity?user=${trader}&type=TRADE`;
+                                const activities = await fetchData(actUrl);
+                                if (Array.isArray(activities) && activities.length > 0) {
+                                    const proxy = activities[0].proxyWallet;
+                                    if (proxy && proxy.toLowerCase() !== trader) {
+                                        proxyCache.set(trader, proxy.toLowerCase());
+                                        Logger.info(`[CHAIN] Detected Proxy for ${trader}: ${proxy}`);
+                                    } else {
+                                        proxyCache.set(trader, null);
+                                    }
+                                }
+                            } catch (e) {
+                                Logger.debug(`[CHAIN] Proxy detection failed for ${trader}: ${e}`);
                             }
-                        } catch (e) {}
+                        }
                     }
+                    lastCacheUpdate = Date.now();
                 }
+                
+                const monitoredLower = monitoredTradersCache;
 
                 const allTargets = [...monitoredLower, ...Array.from(proxyCache.values()).filter(v => v !== null) as string[]];
 
@@ -147,6 +167,7 @@ export const startChainMonitor = async () => {
             } catch (err) {
                 Logger.error(`Chain event processing error: ${err}`);
             }
+            });
         });
 
         // Keep-alive heartbeat handled by provider.on("error") above

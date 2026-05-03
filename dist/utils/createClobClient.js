@@ -13,6 +13,7 @@ import { SignatureType } from '@polymarket/order-utils';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 import fetchData from './fetchData.js';
+import User from '../models/user.js';
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL;
 // Cache for CLOB clients
@@ -21,7 +22,15 @@ const clobClientCache = new Map();
  * Attempts to find the Gnosis Safe proxy wallet linked to an EOA
  * by checking past trading activity on Polymarket.
  */
-export const findProxyWallet = (eoa) => __awaiter(void 0, void 0, void 0, function* () {
+export const findProxyWallet = (eoaOrUser) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const eoa = typeof eoaOrUser === 'string' ? eoaOrUser : (_a = eoaOrUser === null || eoaOrUser === void 0 ? void 0 : eoaOrUser.wallet) === null || _a === void 0 ? void 0 : _a.address;
+    if (!eoa)
+        return null;
+    // If it's a user object and has a manual proxy address, use it
+    if (typeof eoaOrUser === 'object' && ((_b = eoaOrUser === null || eoaOrUser === void 0 ? void 0 : eoaOrUser.wallet) === null || _b === void 0 ? void 0 : _b.proxyAddress)) {
+        return eoaOrUser.wallet.proxyAddress;
+    }
     try {
         const url = `https://data-api.polymarket.com/activity?user=${eoa.toLowerCase()}&type=TRADE`;
         const activities = yield fetchData(url);
@@ -39,29 +48,69 @@ export const findProxyWallet = (eoa) => __awaiter(void 0, void 0, void 0, functi
     return null;
 });
 export const getClobClientForUser = (user) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c, _d, _e;
     if (!((_a = user.wallet) === null || _a === void 0 ? void 0 : _a.privateKey))
         return null;
     const cacheKey = user.wallet.address.toLowerCase();
     if (clobClientCache.has(cacheKey))
         return clobClientCache.get(cacheKey);
-    // Detect proxy wallet for this user
-    const detectedProxy = yield findProxyWallet(user.wallet.address);
-    const client = yield createClobClient(user.wallet.privateKey, detectedProxy || undefined);
+    const detectedProxy = yield findProxyWallet(user);
+    // Persist detected proxy to DB if not already saved
+    if (detectedProxy && user.wallet && user.wallet.proxyAddress !== detectedProxy) {
+        try {
+            yield User.findByIdAndUpdate(user._id, {
+                $set: { 'wallet.proxyAddress': detectedProxy }
+            });
+            user.wallet.proxyAddress = detectedProxy; // Update local object too
+            Logger.info(`[PROXY] Persisted detected proxy for ${user.wallet.address.slice(0, 8)}: ${detectedProxy}`);
+        }
+        catch (e) {
+            Logger.error(`[PROXY] Failed to persist proxy: ${e}`);
+        }
+    }
+    // Check if we already have credentials in the DB
+    if (((_c = (_b = user.wallet) === null || _b === void 0 ? void 0 : _b.clobCreds) === null || _c === void 0 ? void 0 : _c.key) && ((_e = (_d = user.wallet) === null || _d === void 0 ? void 0 : _d.clobCreds) === null || _e === void 0 ? void 0 : _e.secret)) {
+        Logger.info(`[CLOB] Using persisted credentials for ${user.wallet.address.slice(0, 8)}`);
+        const client = yield createClobClient(user.wallet.privateKey, detectedProxy || undefined, user.wallet.clobCreds);
+        clobClientCache.set(cacheKey, client);
+        return client;
+    }
+    const { client, creds } = yield createClobClientAndDerive(user.wallet.privateKey, detectedProxy || undefined);
+    // Persist credentials to DB
+    if (creds && user._id) {
+        try {
+            yield User.findByIdAndUpdate(user._id, {
+                $set: {
+                    'wallet.clobCreds': Object.assign(Object.assign({}, creds), { derivedAt: new Date() })
+                }
+            });
+            Logger.info(`[CLOB] Persisted new credentials for ${user.wallet.address.slice(0, 8)}`);
+        }
+        catch (e) {
+            Logger.error(`[CLOB] Failed to persist credentials: ${e}`);
+        }
+    }
     clobClientCache.set(cacheKey, client);
     return client;
 });
-const createClobClient = (customPk, proxyAddress) => __awaiter(void 0, void 0, void 0, function* () {
+const createClobClient = (customPk, proxyAddress, creds) => __awaiter(void 0, void 0, void 0, function* () {
     const chainId = 137;
     const host = CLOB_HTTP_URL;
     const pk = customPk || PRIVATE_KEY;
     if (!pk)
         throw new Error('PRIVATE_KEY is required to create CLOB client');
     const wallet = new ethers.Wallet(pk);
-    const signatureType = SignatureType.EOA;
-    Logger.info(`[CLOB] Creating EOA client for ${wallet.address.slice(0, 8)}${proxyAddress ? ` (Proxy: ${proxyAddress.slice(0, 8)})` : ''}...`);
-    let clobClient = new ClobClient(host, chainId, wallet, undefined, signatureType, undefined, proxyAddress // Set proxyAddress if found
-    );
+    const signatureType = proxyAddress ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    return new ClobClient(host, chainId, wallet, creds, signatureType, proxyAddress, proxyAddress);
+});
+const createClobClientAndDerive = (customPk, proxyAddress) => __awaiter(void 0, void 0, void 0, function* () {
+    const chainId = 137;
+    const host = CLOB_HTTP_URL;
+    const pk = customPk || PRIVATE_KEY;
+    const wallet = new ethers.Wallet(pk);
+    const signatureType = proxyAddress ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
+    Logger.info(`[CLOB] Deriving credentials for ${wallet.address.slice(0, 8)}...`);
+    let clobClient = new ClobClient(host, chainId, wallet, undefined, signatureType, proxyAddress, proxyAddress);
     // Suppress console output during API key creation
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
@@ -72,13 +121,13 @@ const createClobClient = (customPk, proxyAddress) => __awaiter(void 0, void 0, v
         if (!creds.key) {
             creds = yield clobClient.deriveApiKey();
         }
-        clobClient = new ClobClient(host, chainId, wallet, creds, signatureType, undefined, proxyAddress);
+        const client = yield createClobClient(customPk, proxyAddress, creds);
+        return { client, creds };
     }
     finally {
         // Restore console functions
         console.log = originalConsoleLog;
         console.error = originalConsoleError;
     }
-    return clobClient;
 });
 export default createClobClient;

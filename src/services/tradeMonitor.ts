@@ -50,7 +50,6 @@ const fetchTradeDataForTrader = async (address: string) => {
         // Process each activity
         const cutoffTimestamp = Date.now() / 1000 - TOO_OLD_TIMESTAMP * 3600;
         for (const activity of activities) {
-            Logger.debug(`[MONITOR] Raw Activity: ${JSON.stringify(activity)}`);
             if (activity.timestamp < cutoffTimestamp) continue;
 
             const exists = await UserActivity.findOne({

@@ -67,17 +67,19 @@ export function calculateOrderSize(config, traderOrderSize, availableBalance, cu
             }
         }
     }
-    // Step 4: Check available balance (with 1% safety buffer)
-    const maxAffordable = availableBalance * 0.99;
+    // Step 4: Check available balance (with 1% safety buffer, except in MIRROR_100 mode)
+    const buffer = config.mode === 'MIRROR_100' ? 1.0 : 0.99;
+    const maxAffordable = availableBalance * buffer;
     if (finalAmount > maxAffordable) {
         finalAmount = maxAffordable;
         reducedByBalance = true;
         reasoning += ` → Reduced to fit balance ($${maxAffordable.toFixed(2)})`;
     }
-    // Step 5: Check minimum order size
-    if (finalAmount < config.minOrderSizeUSD) {
+    // Step 5: Check minimum order size (with small epsilon for float precision)
+    const minCheck = config.mode === 'MIRROR_100' ? 0 : config.minOrderSizeUSD;
+    if (finalAmount < (minCheck - 0.001)) {
         belowMinimum = true;
-        reasoning += ` → Below minimum $${config.minOrderSizeUSD}`;
+        reasoning += ` → Below minimum $${minCheck}`;
         finalAmount = 0; // Don't execute
     }
     return {

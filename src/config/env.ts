@@ -336,7 +336,7 @@ export const ENV = {
     ), // 5 minutes default
     RPC_URL: process.env.RPC_URL as string,
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS as string,
-    POLYMARKET_EXCHANGE_ADDR: process.env.POLYMARKET_EXCHANGE_ADDR || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E',
+    POLYMARKET_EXCHANGE_ADDRS: process.env.POLYMARKET_EXCHANGE_ADDRS,
     // Telegram settings (optional)
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN as string,
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID as string,

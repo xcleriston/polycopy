@@ -44,6 +44,10 @@ class Logger {
         console.log(chalk.blue('ℹ'), message);
         this.writeToFile(`INFO: ${message}`);
     }
+    static debug(message) {
+        console.log(chalk.gray('🔍'), chalk.gray(message));
+        this.writeToFile(`DEBUG: ${message}`);
+    }
     static success(message) {
         console.log(chalk.green('✓'), message);
         this.writeToFile(`SUCCESS: ${message}`);

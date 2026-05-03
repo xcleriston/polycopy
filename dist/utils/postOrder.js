@@ -50,12 +50,13 @@ const recordStatus = (activityId, followerId, status, details, extra) => __await
     }
 });
 const postOrder = (clobClient_1, condition_1, my_position_1, user_position_1, trade_1, my_balance_1, followerId_1, userConfig_1, ...args_1) => __awaiter(void 0, [clobClient_1, condition_1, my_position_1, user_position_1, trade_1, my_balance_1, followerId_1, userConfig_1, ...args_1], void 0, function* (clobClient, condition, my_position, user_position, trade, // Use any for raw activity data access
-my_balance, followerId, userConfig, my_positions = [] // Optional positions for exposure check
+my_balance, followerId, userConfig, my_positions = [], // Optional positions for exposure check
+proxyAddress // New argument
 ) {
-    // Create a complete strategy config using defaults + user overrides
-    const config = Object.assign({ strategy: userConfig.strategy || CopyStrategy.PERCENTAGE, copySize: userConfig.copySize || 10.0, maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '100'), minOrderSizeUSD: 1.0, tradeMultiplier: 1.0 }, userConfig);
+    // Force 100% copy if in MIRROR_100 mode
+    const isMirror100 = userConfig.mode === 'MIRROR_100';
+    const config = Object.assign({ strategy: isMirror100 ? CopyStrategy.PERCENTAGE : (userConfig.strategy || CopyStrategy.PERCENTAGE), copySize: isMirror100 ? 100.0 : (userConfig.copySize || 10.0), maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '500'), minOrderSizeUSD: isMirror100 ? 0 : 1.0, tradeMultiplier: 1.0, buyAtMin: isMirror100 ? true : !!userConfig.buyAtMin }, userConfig);
     // 1. Pre-execution Filters (Bypassed in MIRROR_100)
-    const isMirror100 = config.mode === 'MIRROR_100';
     const tradePrice = trade.price;
     const tradeSizeUSD = trade.usdcSize;
     if (!isMirror100) {
@@ -176,7 +177,8 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
             orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
         }
-        if (orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
+        const minOrderCheck = config.mode === 'MIRROR_100' ? 0 : (config.minOrderSizeUSD || 0);
+        if (orderCalc.finalAmount < (minOrderCheck - 0.001)) {
             Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
             yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
             return;
@@ -223,6 +225,7 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
             const orderBook = yield clobClient.getOrderBook(trade.asset);
             if (!orderBook.asks || orderBook.asks.length === 0) {
                 Logger.warning(`[${followerId}] No asks available`);
+                yield recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de venda (asks) no book');
                 break;
             }
             const minPriceAsk = orderBook.asks.reduce((min, ask) => {
@@ -234,8 +237,8 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 yield recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
                 break;
             }
-            if (remaining < MIN_ORDER_SIZE_USD)
-                break;
+            if (remaining < 0.05)
+                break; // Dust limit
             const maxOrderSize = parseFloat(minPriceAsk.size) * parseFloat(minPriceAsk.price);
             const orderSize = Math.min(remaining, maxOrderSize);
             const order_arges = {
@@ -244,8 +247,16 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 amount: orderSize,
                 price: parseFloat(minPriceAsk.price),
             };
-            const signedOrder = yield clobClient.createMarketOrder(order_arges);
-            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+            // If using a proxy, we MUST specify the proxy as the maker and correct signature type
+            if (proxyAddress) {
+                order_arges.maker = proxyAddress;
+                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
+            }
+            const isLimit = trade.orderType === 'LIMIT' || orderSize < 1.0;
+            const signedOrder = isLimit
+                ? yield clobClient.createOrder(order_arges)
+                : yield clobClient.createMarketOrder(order_arges);
+            const resp = yield clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
             if (resp.success === true) {
                 retry = 0;
                 const tokensBought = order_arges.amount / order_arges.price;
@@ -298,8 +309,11 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
         let totalSoldTokens = 0;
         while (remaining > 0 && retry < retryLimit) {
             const orderBook = yield clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0)
+            if (!orderBook.bids || orderBook.bids.length === 0) {
+                Logger.warning(`[${followerId}] No bids available`);
+                yield recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de compra (bids) no book');
                 break;
+            }
             const maxPriceBid = orderBook.bids.reduce((max, bid) => {
                 return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
             }, orderBook.bids[0]);
@@ -312,8 +326,15 @@ my_balance, followerId, userConfig, my_positions = [] // Optional positions for 
                 amount: sellAmount,
                 price: parseFloat(maxPriceBid.price),
             };
-            const signedOrder = yield clobClient.createMarketOrder(order_arges);
-            const resp = yield clobClient.postOrder(signedOrder, OrderType.FOK);
+            if (proxyAddress) {
+                order_arges.maker = proxyAddress;
+                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
+            }
+            const isLimit = trade.orderType === 'LIMIT' || order_arges.amount < 1.0;
+            const signedOrder = isLimit
+                ? yield clobClient.createOrder(order_arges)
+                : yield clobClient.createMarketOrder(order_arges);
+            const resp = yield clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
             if (resp.success === true) {
                 retry = 0;
                 totalSoldTokens += order_arges.amount;

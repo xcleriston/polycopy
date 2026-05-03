@@ -4,7 +4,7 @@ import { retry } from './retry.js';
 import Logger from './logger.js';
 
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 300000; // 5 minutes
+const CACHE_TTL = 2000; // 2 seconds (aggressive for <2s detection)
 
 const fetchData = async (url: string) => {
     // Only cache GET requests for metadata/activity
@@ -25,7 +25,11 @@ const fetchData = async (url: string) => {
             const response = await axios.get(url, {
                 timeout,
                 headers: {
-                    'User-Agent': 'polycopy/2.0 (Node.js)',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Origin': 'https://polymarket.com',
+                    'Referer': 'https://polymarket.com/',
                 },
                 family: 4,
             });

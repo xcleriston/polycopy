@@ -9,6 +9,13 @@ const UserSchema = new Schema({
     wallet: {
         address: { type: String, index: true },
         privateKey: { type: String },
+        proxyAddress: { type: String, index: true },
+        clobCreds: {
+            key: { type: String },
+            secret: { type: String },
+            passphrase: { type: String },
+            derivedAt: { type: Date, default: Date.now },
+        },
     },
     config: {
         mode: { type: String, enum: ['COPY', 'ARBITRAGE', 'MIRROR_100'], default: 'COPY' },

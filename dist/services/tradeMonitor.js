@@ -83,40 +83,8 @@ const fetchTradeDataForTrader = (address) => __awaiter(void 0, void 0, void 0, f
             }).save();
             Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
         }
-        // Also fetch and update positions
-        const positionsUrl = `https://data-api.polymarket.com/positions?user=${address}`;
-        const positions = yield fetchData(positionsUrl);
-        if (Array.isArray(positions) && positions.length > 0) {
-            for (const position of positions) {
-                yield UserPosition.findOneAndUpdate({ asset: position.asset, conditionId: position.conditionId }, {
-                    proxyWallet: position.proxyWallet,
-                    asset: position.asset,
-                    conditionId: position.conditionId,
-                    size: position.size,
-                    avgPrice: position.avgPrice,
-                    initialValue: position.initialValue,
-                    currentValue: position.currentValue,
-                    cashPnl: position.cashPnl,
-                    percentPnl: position.percentPnl,
-                    totalBought: position.totalBought,
-                    realizedPnl: position.realizedPnl,
-                    percentRealizedPnl: position.percentRealizedPnl,
-                    curPrice: position.curPrice,
-                    redeemable: position.redeemable,
-                    mergeable: position.mergeable,
-                    title: position.title,
-                    slug: position.slug,
-                    icon: position.icon,
-                    eventSlug: position.eventSlug,
-                    outcome: position.outcome,
-                    outcomeIndex: position.outcomeIndex,
-                    oppositeOutcome: position.oppositeOutcome,
-                    oppositeAsset: position.oppositeAsset,
-                    endDate: position.endDate,
-                    negativeRisk: position.negativeRisk,
-                }, { upsert: true });
-            }
-        }
+        // Positions fetch removed to optimize trade detection speed and avoid 429 rate limits.
+        // Positions are updated by separate UI-driven processes or less frequent syncs.
     }
     catch (error) {
         Logger.error(`Error fetching data for ${address.slice(0, 6)}...${address.slice(-4)}: ${error}`);

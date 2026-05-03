@@ -14,10 +14,11 @@ import { setupNewUser } from './setup.js';
 import cookieParser from 'cookie-parser';
 import { authenticateToken, authorizeAdmin, login, signup } from './auth.js';
 import bcrypt from 'bcryptjs';
+import Logger from '../utils/logger.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
-import { findProxyWallet } from '../utils/createClobClient.js';
+import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -2019,11 +2020,19 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
                 <div>
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Importar carteira existente via Chave Privada:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Configuração de Carteiras:</p>
                     <div class="form-group">
-                        <input type="password" id="settings-import-pk" placeholder="Chave Privada (0x...)">
+                        <label>Chave Privada (0x...)</label>
+                        <input type="password" id="settings-import-pk" placeholder="0x...">
                     </div>
-                    <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    <div class="form-group" style="margin-top: 16px">
+                        <label>Proxy Wallet Address (Gnosis Safe)</label>
+                        <input type="text" id="bot-proxyAddress" placeholder="0x... (Opcional se auto-detectado)">
+                        <small style="color:var(--text-dim); display:block; margin-top:4px">Insira manualmente se o saldo não estiver aparecendo.</small>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 16px">
+                        <button id="btn-import-settings" class="btn btn-outline btn-sm" onclick="importWalletSettings(this)">Atualizar Chave Privada</button>
+                    </div>
                 </div>
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
                     <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
@@ -2346,6 +2355,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             // Config Fill
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
             setVal('bot-trader', c.traderAddress || '');
+            const tName = document.getElementById('trader-name');
+            if (tName) tName.textContent = c.traderAddress ? (c.traderAddress.slice(0,10) + '...') : 'Nenhum';
             setVal('bot-strategy', c.strategy || 'PERCENTAGE');
             setVal('bot-size', c.copySize || 10);
             setVal('bot-maxExposure', c.maxExposure || 500);
@@ -2369,6 +2380,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             setVal('bot-triggerDelta', c.triggerDelta || 0.005);
             setVal('bot-hedgeCeiling', c.hedgeCeiling || 0.95);
             setVal('bot-mode', c.mode || 'COPY');
+            setVal('bot-proxyAddress', currentUser.wallet?.proxyAddress || '');
             
             const botBuyAtMin = document.getElementById('bot-buyAtMin');
             if (botBuyAtMin) botBuyAtMin.checked = !!c.buyAtMin;
@@ -2461,9 +2473,16 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             const res = await fetch('/api/user/stats');
             const data = await res.json();
             const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-            setTxt('stat-balance', \`$\${(data.balance || 0).toFixed(2)}\`);
-            setTxt('stat-exposure', \`$\${(data.exposure || 0).toFixed(2)}\`);
+            setTxt('stat-balance', '$' + Number(data.balance || 0).toFixed(2));
+            setTxt('stat-exposure', '$' + Number(data.exposure || 0).toFixed(2));
             
+            if (data.proxy) {
+                const pInput = document.getElementById('bot-proxyAddress');
+                if (pInput && !pInput.value) {
+                    pInput.placeholder = data.proxy + ' (Auto-Detectado)';
+                }
+            }
+
             if (currentUser.config?.traderAddress) {
                 const addr = currentUser.config.traderAddress;
                 setTxt('stat-trader', addr.slice(0,6) + '...' + addr.slice(-4));
@@ -2498,8 +2517,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                     'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDEAB' },
                     'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
                     'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\u274C' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '\uD83D\uDD34' }
+                    'PULADO (LIQUIDEZ)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💧' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' }
                 };
                 const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '\uD83D\uDD35' };
 
@@ -2590,6 +2610,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             maxMarketCount: parseInt(document.getElementById('bot-maxMarketCount').value) || 0,
             minMarketLiquidity: parseFloat(document.getElementById('bot-minMarketLiquidity').value) || 0,
             mode: document.getElementById('bot-mode').value,
+            proxyAddress: document.getElementById('bot-proxyAddress').value,
             triggerDelta: parseFloat(document.getElementById('bot-triggerDelta').value) || 0.005,
             hedgeCeiling: parseFloat(document.getElementById('bot-hedgeCeiling').value) || 0.95
         };
@@ -2612,7 +2633,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
     
     // Auto refresh stats e trades em tempo real
-    setInterval(refreshStats, 30000);
+    setInterval(refreshStats, 5000);
     setInterval(refreshTrades, 5000);
     setInterval(refreshPositions, 15000);
     
@@ -2690,6 +2711,13 @@ app.post('/api/user/generate-wallet', authenticateToken, (req, res) => __awaiter
         if (user.step !== 'ready')
             user.step = 'setup';
         yield user.save();
+        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        try {
+            yield getClobClientForUser(user);
+        }
+        catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+        }
         console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
         res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
     }
@@ -2726,6 +2754,13 @@ app.post('/api/user/import-wallet', authenticateToken, (req, res) => __awaiter(v
         if (user.step !== 'ready')
             user.step = 'setup';
         yield user.save();
+        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        try {
+            yield getClobClientForUser(user);
+        }
+        catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+        }
         console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
         res.json({ success: true, address: wallet.address });
     }
@@ -2739,7 +2774,7 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
     const user = yield User.findById((_a = req.user) === null || _a === void 0 ? void 0 : _a.id);
     if (!user)
         return res.status(404).json({ error: 'User not found' });
-    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode } = req.body;
+    const { traderAddress, enabled, strategy, copySize, reverseCopy, orderType, slippageBuy, slippageSell, tpPercent, slPercent, balanceSl, triggerDelta, hedgeCeiling, minPrice, maxPrice, minTradeSize, maxTradeSize, copyBuy, copySell, maxExposure, buyAtMin, maxPerMarket, maxPerToken, totalSpendLimit, sniperModeSec, lastMinuteModeSec, maxMarketCount, minMarketLiquidity, mode, proxyAddress } = req.body;
     if (!user.config)
         user.config = { enabled: false, strategy: 'PERCENTAGE', copySize: 10.0, traderAddress: '' };
     if (traderAddress !== undefined)
@@ -2801,6 +2836,10 @@ app.post('/api/user/update-config', authenticateToken, (req, res) => __awaiter(v
         user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined)
         user.config.mode = mode;
+    // Wallet settings
+    if (proxyAddress !== undefined && user.wallet) {
+        user.wallet.proxyAddress = proxyAddress;
+    }
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
@@ -2950,18 +2989,51 @@ app.get('/api/user/stats', authenticateToken, (req, res) => __awaiter(void 0, vo
         const eoa = (_a = user.wallet) === null || _a === void 0 ? void 0 : _a.address;
         if (!eoa)
             return res.json({ balance: 0, exposure: 0 });
-        const proxy = yield findProxyWallet(eoa);
-        // Sum balances of EOA and Proxy via FAST RPC
+        const proxy = yield findProxyWallet(user);
+        // Fetch balances from RPC (fast and reliable)
         const [balEoa, balProxy] = yield Promise.all([
             getMyBalance(eoa),
             proxy ? getMyBalance(proxy) : Promise.resolve(0)
         ]);
-        const balance = balEoa + balProxy;
-        console.log(`[STATS] User ${user.chatId} Total Balance: ${balance} (EOA: ${balEoa}, Proxy: ${balProxy})`);
+        let clobBalance = 0;
+        try {
+            const clobClient = yield getClobClientForUser(user);
+            if (clobClient) {
+                clobBalance = yield getMyBalance(clobClient);
+            }
+        }
+        catch (clobErr) {
+            console.error(`[STATS] CLOB balance error for ${user.chatId}: ${clobErr}`);
+        }
+        // AGGRESSIVE SAFEGUARD: If any component is > 100k, it's almost certainly raw units (6 decimals)
+        // Note: getMyBalance already does some conversion, but we double-check here for safety.
+        let finalBalEoa = balEoa > 1000000 ? balEoa / 1000000 : balEoa;
+        let finalBalProxy = balProxy > 1000000 ? balProxy / 1000000 : balProxy;
+        let finalClob = clobBalance > 1000000 ? clobBalance / 1000000 : clobBalance;
+        /**
+         * AVOID DOUBLE COUNTING:
+         * Polymarket CLOB balance is usually the same as your EOA or Proxy USDC balance.
+         * If using a Proxy, CLOB balance tracks the Proxy. If not, it tracks the EOA.
+         */
+        const userIdentifier = user.username || user.chatId || user._id;
+        let totalBalance = 0;
+        if (proxy) {
+            // EOA + Max of Proxy balance sources
+            totalBalance = finalBalEoa + Math.max(finalBalProxy, finalClob);
+        }
+        else {
+            // Max of EOA balance sources
+            totalBalance = Math.max(finalBalEoa, finalClob);
+        }
         const targetAddr = proxy || eoa;
         const positionsData = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
         const exposure = (positionsData || []).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        res.json({ balance, exposure });
+        Logger.debug(`[STATS_API] Components for ${userIdentifier}: EOA=${balEoa}, Proxy=${balProxy}, CLOB=${clobBalance} -> Total=${totalBalance}`);
+        res.json({
+            balance: parseFloat(totalBalance.toFixed(4)),
+            exposure: parseFloat(exposure.toFixed(2)),
+            proxy
+        });
     }
     catch (e) {
         console.error('Stats error:', e);
