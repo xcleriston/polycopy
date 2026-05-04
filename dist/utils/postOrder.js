@@ -69,7 +69,7 @@ export const postOrder = (clobClient_1, effectiveCondition_1, my_position_1, use
             let orderSize = orderCalc.finalAmount;
             // ABSOLUTE BYPASS FOR MIRROR MODE
             if (!isMirror100 && orderSize <= 0) {
-                yield recordStatus(trade._id, followerId, 'PULADO', orderCalc.reasoning);
+                yield recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
                 return { success: false, error: orderCalc.reasoning };
             }
             else if (isMirror100) {
@@ -120,8 +120,10 @@ export const postOrder = (clobClient_1, effectiveCondition_1, my_position_1, use
         }
         else if (effectiveCondition === 'sell') {
             // Sell logic simplified to mirror trader's action directly
-            if (!my_position)
+            if (!my_position) {
+                yield recordStatus(trade._id, followerId, 'PULADO (SEM POSIÇÃO)', 'Você não possui posição aberta neste mercado para vender.');
                 return { success: false, error: 'Sem posição para vender' };
+            }
             let trader_sell_percent = 1.0;
             if (user_position && user_position.size > 0) {
                 trader_sell_percent = Math.min(1.0, trade.size / user_position.size);
