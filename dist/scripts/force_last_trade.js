@@ -8,52 +8,49 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import mongoose from 'mongoose';
+import { User } from '../models/user.js';
 import { Activity } from '../models/userHistory.js';
-import User from '../models/user.js';
-import { postOrder, recordStatus } from '../utils/postOrder.js';
-import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
-import getMyBalance from '../utils/getMyBalance.js';
+import { createClobClient } from '../utils/createClobClient.js';
+import { postOrder } from '../utils/postOrder.js';
+import { updateActivityStatus } from '../utils/activityLog.js';
 import * as dotenv from 'dotenv';
 dotenv.config();
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose.connect(process.env.MONGODB_URI);
         console.log('🚀 [WAR-MODE] Forçando execução direta do último trade...');
-        const trade = yield Activity.findOne({
-            slug: 'nhl-min-col-2026-05-03',
-            side: 'BUY'
-        }).sort({ timestamp: -1 });
-        if (!trade) {
-            console.log('❌ Trade não encontrado.');
-            yield mongoose.connection.close();
-            return;
+        const activity = yield Activity.findOne({ type: 'TRADE' }).sort({ timestamp: -1 });
+        if (!activity) {
+            console.log('❌ Nenhum trade encontrado.');
+            process.exit(1);
         }
-        const follower = yield User.findById("69dfe485f83e34811ecef999");
-        if (!follower) {
-            console.log('❌ Usuário não encontrado.');
-            yield mongoose.connection.close();
-            return;
+        const user = yield User.findOne({ traderAddress: '0x30756778f6579308D639a04620A865bC4782A979' });
+        if (!user) {
+            console.log('❌ Usuário Ivan Xavier não encontrado.');
+            process.exit(1);
         }
-        console.log(`🎯 Processando para ${follower.username}...`);
-        const clobClient = yield getClobClientForUser(follower);
-        const proxyAddr = yield findProxyWallet(follower);
-        const my_balance = yield getMyBalance(clobClient);
-        const result = yield postOrder(clobClient, 'buy', null, // No position for this test
-        null, // No user position for this test
-        trade, my_balance, follower._id.toString(), follower.config, [], proxyAddr);
+        console.log(`🎯 Processando para Ivan Xavier...`);
+        const clobClient = yield createClobClient(user);
+        if (!clobClient) {
+            console.log('❌ Falha ao criar ClobClient.');
+            process.exit(1);
+        }
+        const result = yield postOrder(clobClient, user, {
+            tokenId: activity.slug, // Usando slug como fallback se o tokenId não estiver no meta
+            price: activity.entryPrice || 0.5,
+            side: activity.side,
+            size: 1, // Tamanho fixo para teste
+            isMirror: true,
+            activityId: activity._id ? activity._id.toString() : undefined,
+        });
         if (result.success) {
-            console.log('✅ SUCESSO REAL! Gravando no banco...');
-            yield recordStatus(trade._id, follower._id.toString(), 'SUCESSO', 'Forçado manualmente via TaskForce', {
-                processed: true,
-                myEntryAmount: result.amount,
-                myEntryPrice: result.price,
-                myExecutedAt: new Date()
-            });
+            console.log(`✅ SUCESSO REAL! OrderID: ${result.orderId}`);
+            yield updateActivityStatus(activity._id ? activity._id.toString() : '', "SUCESSO", `Forçado manualmente via TaskForce`);
         }
         else {
-            console.log(`❌ FALHA REAL: ${result.error}`);
+            console.log(`❌ FALHA: ${result.error}`);
         }
         yield mongoose.connection.close();
     });
 }
-run();
+run().catch(console.error);
