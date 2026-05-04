@@ -64,7 +64,7 @@ const bootstrapAdmin = async () => {
             });
             await user.save();
         } else {
-            console.log(`⚡ [BOOTSTRAP] Validando permissÃµes de administrador: ${adminUser}`);
+            console.log(`⚡ [BOOTSTRAP] Validando permissões de administrador: ${adminUser}`);
             user.role = 'admin';
             user.password = hashedPassword; // Forçar sincronia com env
             await user.save();
@@ -720,7 +720,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
           <th>Estratégia</th>
           <th>Status</th>
           <th>Ativo?</th>
-          <th>AçÃµes</th>
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody id="user-body">
@@ -773,7 +773,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
     </div>
     <div class="modal-footer">
       <button class="action-btn" onclick="closeModal()">Cancelar</button>
-      <button class="save-btn" onclick="saveUserConfig()">Salvar AlteraçÃµes</button>
+      <button class="save-btn" onclick="saveUserConfig()">Salvar Alterações</button>
     </div>
   </div>
 </div>
@@ -832,8 +832,8 @@ async function refresh() {
             </label>
           </td>
           <td>
-            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">âš™ï¸</button>
-            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">ðŸ”„</button>
+            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">⚙️</button>
+            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">🔍„</button>
             <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">ðŸ—‘ï¸</button>
           </td>
         </tr>
@@ -1166,7 +1166,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         <span>ðŸ‘¥</span> Gerenciar Usuários
       </div>
       <div class="nav-item" onclick="showSection('config', this)">
-        <span>âš™ï¸</span> ConfiguraçÃµes Globais
+        <span>⚙️</span> Configurações Globais
       </div>
       <div class="nav-item" onclick="showSection('logs', this)">
         <span>ðŸ“œ</span> Logs de Trading
@@ -1247,7 +1247,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
               <th>Estratégia / Trader</th>
               <th>Status Bot</th>
               <th>Ativo?</th>
-              <th>AçÃµes</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody id="user-body"></tbody>
@@ -1298,7 +1298,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       </div>
       <div class="card" style="padding: 24px; margin-top: 30px; display: flex; gap: 15px">
         <button onclick="saveGlobalConfig()" class="btn btn-accent" style="padding: 12px 30px">Aplicar Mudanças Globais</button>
-        <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para PadrÃµes</button>
+        <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para Padrões</button>
       </div>
     </div>
 
@@ -1328,7 +1328,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
   <div id="modal-edit" class="modal">
     <div class="modal-content">
       <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
-        <span>âš™ï¸</span> Configurar Membro SaaS
+        <span>⚙️</span> Configurar Membro SaaS
       </h2>
       <input type="hidden" id="edit-chatId">
       
@@ -1429,7 +1429,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       <div class="modal-footer">
         <button onclick="closeModal()" class="btn">Cancelar</button>
-        <button onclick="commitUserEdit()" class="btn btn-accent" style="padding-left: 30px; padding-right: 30px">Aplicar ConfiguraçÃµes</button>
+        <button onclick="commitUserEdit()" class="btn btn-accent" style="padding-left: 30px; padding-right: 30px">Aplicar Configurações</button>
       </div>
     </div>
   </div>
@@ -1615,11 +1615,11 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       });
       
       if (res.ok) {
-        showBanner('ConfiguraçÃµes do Membro Atualizadas', 'success');
+        showBanner('Configurações do Membro Atualizadas', 'success');
         closeModal();
         refresh();
       } else {
-        showBanner('Falha ao atualizar configuraçÃµes', 'danger');
+        showBanner('Falha ao atualizar configurações', 'danger');
       }
     }
 
@@ -1679,7 +1679,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
-      if (res.ok) showBanner('ConfiguraçÃµes Globais Aplicadas', 'success');
+      if (res.ok) showBanner('Configurações Globais Aplicadas', 'success');
     }
 
     function formatUptime(s) {
@@ -1766,15 +1766,15 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
   <aside>
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
-      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>ðŸ¤–</span> Meu RobÃ´</div>
-      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>ðŸ“</span> PosiçÃµes Abertas</div>
-      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>âš™ï¸</span> ConfiguraçÃµes</div>
-      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>ðŸš«</span> Sair</div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>ðŸ“</span> Posições Abertas</div>
+      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚫</span> Sair</div>
     </div>
   </aside>
   <main>
     <div id="setup-wizard" class="wizard-card" style="display:none">
-        <h2 id="wizard-title" style="margin-bottom: 8px">ðŸ¤– Configuração Inicial</h2>
+        <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configuração Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua cópia automática.</p>
         <div class="step-indicator">
             <div id="s1" class="step active">1</div>
@@ -1788,7 +1788,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px">
             <div>
                 <h1 style="font-size: 1.8rem">Dashboard <span>Bot</span></h1>
-                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operaçÃµes em tempo real.</p>
+                <p style="color: var(--text-dim); font-size: 0.9rem">Acompanhe suas operações em tempo real.</p>
             </div>
             <div id="bot-status-container" style="display: flex; align-items: center; gap: 20px">
                 <div style="text-align: right">
@@ -1810,7 +1810,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
                 <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">📊</div>
                 <div>
-                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em PosiçÃµes</div>
+                    <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em Posições</div>
                     <div id="stat-exposure" style="font-weight: 700; font-size: 1.1rem; color: var(--success)">$0.00</div>
                 </div>
             </div>
@@ -1832,7 +1832,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
                     </div>
                 </div>
-                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">ConfiguraçÃµes do Bot</button>
+                <button class="btn btn-sm btn-outline" onclick="switchTab('config')" style="width: auto; padding: 10px 20px">Configurações do Bot</button>
             </div>
         </div>
 
@@ -1861,8 +1861,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     </div>
 
     <div id="tab-positions" class="tab-view" style="display: none">
-        <h1 style="margin-bottom: 10px">Suas PosiçÃµes <span>Abertas</span></h1>
-        <p style="color: var(--text-dim); margin-bottom: 30px">Visualize seus tokens ativos e como andam em tempo real. O TP/SL usará essas informaçÃµes.</p>
+        <h1 style="margin-bottom: 10px">Suas Posições <span>Abertas</span></h1>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Visualize seus tokens ativos e como andam em tempo real. O TP/SL usará essas informações.</p>
         
         <div class="card">
             <div style="overflow-x: auto">
@@ -1879,7 +1879,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                         </tr>
                     </thead>
                     <tbody id="user-positions-body">
-                        <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posiçÃµes...</td></tr>
+                        <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posições...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1887,7 +1887,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
     </div>
 
     <div id="tab-config" class="tab-view" style="display: none">
-        <h1 style="margin-bottom: 10px">ConfiguraçÃµes <span>Avançadas</span></h1>
+        <h1 style="margin-bottom: 10px">Configurações <span>Avançadas</span></h1>
         <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parÃ¢metros de risco e execução do seu bot.</p>
 
         <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
@@ -2048,7 +2048,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 <div class="form-group">
                     <label>Máximo de Mercados SimultÃ¢neos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
                     <input type="number" id="bot-maxMarketCount" step="1" placeholder="Ex: 10">
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso você já esteja em posiçÃµes de muitos mercados.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso você já esteja em posições de muitos mercados.</small>
                 </div>
                 <div class="form-group">
                     <label>Liquidez Mínima do Mercado ($USD) <span style="font-size:0.7em;color:var(--text-dim)">(0 = Zero)</span></label>
@@ -2067,7 +2067,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 </div>
             </div>
             <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
-                âš ï¸ <strong>RobÃ´ em Operação:</strong> Você precisa desativar o robÃ´ no dashboard principal para alterar a carteira.
+                âš ï¸ <strong>Robô em Operação:</strong> Você precisa desativar o robô no dashboard principal para alterar a carteira.
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
@@ -2551,7 +2551,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">ðŸ” Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2561,7 +2561,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 // Status styling
                 const statusStyles = {
                     'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '\u2705' },
-                    'ðŸ” PREVIEW': { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa',        icon: '\uD83D\uDD0D' },
+                    '🔍 PREVIEW': { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa',        icon: '\uD83D\uDD0D' },
                     'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '\u26A1' },
                     'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCB8' },
                     'PULADO (EXPOSIÃ‡ÃƒO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCCA' },
