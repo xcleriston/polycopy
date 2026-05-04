@@ -153,6 +153,9 @@ const doTrading = async (trade: any) => {
                     my_balance,
                     followerId,
                     follower.config, // Pass individual user config
+                    my_positions,
+                    targetAddr
+                );
                 // Final mark as processed with status in ONE ATOMIC CALL
                 await recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
                     processed: true // This will signal the executor to add to processedBy
