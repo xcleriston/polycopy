@@ -52,6 +52,36 @@ export const startChainMonitor = async () => {
             Logger.info('💓 Chain Monitor Heartbeat: Service is active');
         }, 1800000);
 
+        // Background Cache Refresh
+        setInterval(async () => {
+            try {
+                const traders = await User.find({ 'config.enabled': true }).lean();
+                monitoredTradersCache = traders.map(u => u.config.traderAddress.toLowerCase());
+                
+                for (const trader of monitoredTradersCache) {
+                    if (!proxyCache.has(trader)) {
+                        const actUrl = `https://data-api.polymarket.com/activity?user=${trader}&type=TRADE`;
+                        const activities = await fetchData(actUrl);
+                        if (Array.isArray(activities) && activities.length > 0) {
+                            const proxy = activities[0].proxyWallet;
+                            if (proxy && proxy.toLowerCase() !== trader) {
+                                proxyCache.set(trader, proxy.toLowerCase());
+                                Logger.info(`[CHAIN] Detected Proxy for ${trader}: ${proxy}`);
+                            } else {
+                                proxyCache.set(trader, null);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                Logger.error(`[CHAIN] Cache refresh failed: ${e}`);
+            }
+        }, CACHE_REFRESH_MS);
+
+        // Initial load
+        const initialTraders = await User.find({ 'config.enabled': true }).lean();
+        monitoredTradersCache = initialTraders.map(u => u.config.traderAddress.toLowerCase());
+
         contracts.forEach(contract => {
             contract.on("OrderFilled", async (...args) => {
                 try {
@@ -59,43 +89,12 @@ export const startChainMonitor = async () => {
                     const eventArgs = event.args || {};
                 const { maker, taker, makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled } = eventArgs;
 
-                // Safe tx hash extraction — location varies between ethers v5 versions
                 const txHash: string | undefined = event?.transactionHash || event?.log?.transactionHash || event?.hash;
 
-                if (!maker || !taker || !txHash) {
-                    Logger.warning('⚠️ Incomplete event data received, skipping...');
-                    return;
-                }
+                if (!maker || !taker || !txHash) return;
 
                 const makerAddr = maker.toLowerCase();
                 const takerAddr = taker.toLowerCase();
-                
-                // Update monitored traders and detect proxies
-                if (Date.now() - lastCacheUpdate > CACHE_REFRESH_MS) {
-                    const traders = await User.distinct('config.traderAddress', { 'config.enabled': true });
-                    monitoredTradersCache = (traders as string[]).map(t => t.toLowerCase());
-                    
-                    for (const trader of monitoredTradersCache) {
-                        if (!proxyCache.has(trader)) {
-                            try {
-                                const actUrl = `https://data-api.polymarket.com/activity?user=${trader}&type=TRADE`;
-                                const activities = await fetchData(actUrl);
-                                if (Array.isArray(activities) && activities.length > 0) {
-                                    const proxy = activities[0].proxyWallet;
-                                    if (proxy && proxy.toLowerCase() !== trader) {
-                                        proxyCache.set(trader, proxy.toLowerCase());
-                                        Logger.info(`[CHAIN] Detected Proxy for ${trader}: ${proxy}`);
-                                    } else {
-                                        proxyCache.set(trader, null);
-                                    }
-                                }
-                            } catch (e) {
-                                Logger.debug(`[CHAIN] Proxy detection failed for ${trader}: ${e}`);
-                            }
-                        }
-                    }
-                    lastCacheUpdate = Date.now();
-                }
                 
                 const monitoredLower = monitoredTradersCache;
 
@@ -142,10 +141,20 @@ export const startChainMonitor = async () => {
                         const newActivity = await Activity.create(activityData);
                         Logger.success(`🚀 Instant copy triggered for ${finalTrader.slice(0, 6)} via Blockchain Event`);
                         
-                        // Async enrichment
+                        // Async enrichment - try both token_id and condition_id paths
                         (async () => {
                             try {
-                                const metaUrl = `https://gamma-api.polymarket.com/events?condition_id=${activityData.conditionId}`;
+                                // First try to get market info via token_id
+                                const tokenUrl = `https://clob.polymarket.com/markets/${activityData.conditionId}`;
+                                const tokenInfo = await fetchData(tokenUrl);
+                                
+                                let finalConditionId = activityData.conditionId;
+                                if (tokenInfo && tokenInfo.condition_id) {
+                                    finalConditionId = tokenInfo.condition_id;
+                                    await Activity.updateOne({ _id: newActivity._id }, { $set: { asset: activityData.conditionId, conditionId: finalConditionId } });
+                                }
+
+                                const metaUrl = `https://gamma-api.polymarket.com/events?condition_id=${finalConditionId}`;
                                 const metadata = await fetchData(metaUrl);
                                 if (Array.isArray(metadata) && metadata.length > 0) {
                                     const m = metadata[0];
