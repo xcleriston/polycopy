@@ -11,4 +11,4 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Force redeploy
-RAILWAY_DEPLOY_TRIGGER = "force-redeploy-$(date +%s)"
+RAILWAY_DEPLOY_TRIGGER = "1714856632"
