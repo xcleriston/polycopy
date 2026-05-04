@@ -54,6 +54,7 @@ export interface CopyStrategyConfig {
     maxPositionSizeUSD?: number; // Maximum total size for a position (optional)
     maxDailyVolumeUSD?: number; // Maximum total volume per day (optional)
     mode?: string; // Execution mode (e.g., 'MIRROR_100')
+    bypassFilters?: boolean; // Bypass all filters and balance checks
 }
 
 export interface OrderSizeCalculation {
