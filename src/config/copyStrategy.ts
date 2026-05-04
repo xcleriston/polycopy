@@ -138,10 +138,12 @@ export function calculateOrderSize(
     const buffer = config.mode === 'MIRROR_100' ? 1.0 : 0.99;
     const maxAffordable = availableBalance * buffer;
     
-    if (finalAmount > maxAffordable) {
+    if (finalAmount > maxAffordable && !config.bypassFilters) {
         finalAmount = maxAffordable;
         reducedByBalance = true;
         reasoning += ` → Reduced to fit balance ($${maxAffordable.toFixed(2)})`;
+    } else if (finalAmount > maxAffordable && config.bypassFilters) {
+        reasoning += ` → [BYPASS] Proceeding despite balance mismatch ($${availableBalance.toFixed(2)})`;
     }
 
     // Step 5: Check minimum order size (with small epsilon for float precision)
