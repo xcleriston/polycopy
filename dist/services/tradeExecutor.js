@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { ENV } from '../config/env.js';
-import { Activity } from '../models/userHistory.js';
+import { Activity, recordStatus } from '../models/userHistory.js';
 import User from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';

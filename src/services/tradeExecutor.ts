@@ -1,7 +1,7 @@
 import { ClobClient } from '@polymarket/clob-client';
 import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
 import { ENV } from '../config/env.js';
-import { Activity, getUserActivityModel, IUserActivity } from '../models/userHistory.js';
+import { Activity, getUserActivityModel, IUserActivity, recordStatus } from '../models/userHistory.js';
 import User, { IUser } from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';
