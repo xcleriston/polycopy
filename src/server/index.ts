@@ -2978,7 +2978,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 executionStatus = userStatus.status;
                 executionDetails = userStatus.details || '';
             } else if (t.processedBy?.includes(userId)) {
-                executionStatus = 'SUCESSO';
+                executionStatus = 'PULADO / PROCESSADO';
             } else {
                 // Was detected but not attempted for this user yet or not their trader
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';

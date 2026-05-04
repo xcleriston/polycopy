@@ -77,7 +77,7 @@ export const postOrder = async (
 
             // ABSOLUTE BYPASS FOR MIRROR MODE
             if (!isMirror100 && orderSize <= 0) {
-                await recordStatus(trade._id, followerId, 'PULADO', orderCalc.reasoning);
+                await recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
                 return { success: false, error: orderCalc.reasoning };
             } else if (isMirror100) {
                 orderSize = trade.usdcSize; // Force exact trader size
@@ -133,7 +133,10 @@ export const postOrder = async (
             }
         } else if (effectiveCondition === 'sell') {
             // Sell logic simplified to mirror trader's action directly
-            if (!my_position) return { success: false, error: 'Sem posição para vender' };
+            if (!my_position) {
+                await recordStatus(trade._id, followerId, 'PULADO (SEM POSIÇÃO)', 'Você não possui posição aberta neste mercado para vender.');
+                return { success: false, error: 'Sem posição para vender' };
+            }
 
             let trader_sell_percent = 1.0;
             if (user_position && user_position.size > 0) {
