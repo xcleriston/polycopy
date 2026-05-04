@@ -112,12 +112,22 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.info(`[${followerId}] Consolidating Balance: $${my_balance.toFixed(2)} (EOA: ${balEoa}, Proxy: ${balProxy}, CLOB: ${clobBalance})`);
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
-                yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, // Pass individual user config
+                const result = yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, // Pass individual user config
                 my_positions, targetAddr);
-                // Final mark as processed with status in ONE ATOMIC CALL
-                yield recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
-                    processed: true // This will signal the executor to add to processedBy
-                });
+                if (result.success) {
+                    // Final mark as processed with status in ONE ATOMIC CALL
+                    yield recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
+                        processed: true,
+                        myEntryAmount: result.amount,
+                        myEntryPrice: result.price,
+                        myExecutedAt: new Date()
+                    });
+                }
+                else {
+                    // It already recorded status inside postOrder for most cases, 
+                    // but we mark as processed to avoid loops
+                    yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
+                }
             }
         }
         catch (error) {

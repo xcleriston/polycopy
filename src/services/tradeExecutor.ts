@@ -144,7 +144,7 @@ const doTrading = async (trade: any) => {
                 Logger.balance(my_balance, user_balance, followerId);
 
                 // Execute the trade with FOLLOWER'S config
-                await postOrder(
+                const result = await postOrder(
                     clobClient,
                     trade.side === 'BUY' ? 'buy' : 'sell',
                     my_position,
@@ -156,10 +156,23 @@ const doTrading = async (trade: any) => {
                     my_positions,
                     targetAddr
                 );
-                // Final mark as processed with status in ONE ATOMIC CALL
-                await recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
-                    processed: true // This will signal the executor to add to processedBy
-                });
+
+                if (result.success) {
+                    // Final mark as processed with status in ONE ATOMIC CALL
+                    await recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
+                        processed: true,
+                        myEntryAmount: result.amount,
+                        myEntryPrice: result.price,
+                        myExecutedAt: new Date()
+                    });
+                } else {
+                    // It already recorded status inside postOrder for most cases, 
+                    // but we mark as processed to avoid loops
+                    await Activity.updateOne(
+                        { _id: trade._id },
+                        { $addToSet: { processedBy: followerId } }
+                    );
+                }
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);

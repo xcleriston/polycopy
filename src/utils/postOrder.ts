@@ -1,42 +1,30 @@
-import { ClobClient, OrderType, Side } from '@polymarket/clob-client';
-import { ENV } from '../config/env.js';
-import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
-import { Activity, getUserActivityModel } from '../models/userHistory.js';
-import User from '../models/user.js';
-import Logger from './logger.js';
-import { calculateOrderSize, getTradeMultiplier, CopyStrategy, CopyStrategyConfig } from '../config/copyStrategy.js';
-import telegram from './telegram.js';
-import fetchData from './fetchData.js';
+import { Side, OrderType } from "@polymarket/clob-sdk";
+import { User } from "../models/user.js";
+import { Activity } from "../models/userHistory.js";
+import Logger from "./logger.js";
+import telegram from "./telegram.js";
+import { calculateOrderSize } from "../config/copyStrategy.js";
 
-const SLIPPAGE_TOLERANCE = parseFloat(process.env.SLIPPAGE_TOLERANCE || '0.05');
-
-// Polymarket minimum order sizes
 const MIN_ORDER_SIZE_USD = 1.0;
-const MIN_ORDER_SIZE_TOKENS = 1.0;
+const MIN_ORDER_SIZE_TOKENS = 0.1;
 
-const extractOrderError = (response: unknown): string | undefined => {
-    if (!response) return undefined;
-    if (typeof response === 'string') return response;
-    if (typeof response === 'object') {
-        const data = response as Record<string, unknown>;
-        const directError = data.error;
-        if (typeof directError === 'string') return directError;
-        if (typeof data.errorMsg === 'string') return data.errorMsg;
-        if (typeof data.message === 'string') return data.message;
-    }
-    return undefined;
+const extractOrderError = (resp: any): string => {
+    if (resp.error) return resp.error;
+    if (typeof resp === 'string') return resp;
+    return JSON.stringify(resp);
 };
 
 const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boolean => {
     if (!message) return false;
-    const lower = message.toLowerCase();
-    return lower.includes('not enough balance') || lower.includes('allowance');
+    const msg = message.toLowerCase();
+    return msg.includes("insufficient balance") || 
+           msg.includes("insufficient allowance") || 
+           msg.includes("not enough usdc");
 };
 
 export const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
         const { processed, ...restExtra } = extra || {};
-        
         const updateData: any = {
             [`followerStatuses.${followerId}`]: { 
                 status, 
@@ -45,359 +33,133 @@ export const recordStatus = async (activityId: string, followerId: string, statu
                 ...restExtra 
             }
         };
-        
         const updateQuery: any = { $set: updateData };
         if (processed) {
             updateQuery.$addToSet = { processedBy: followerId };
         }
-        
-        await Activity.updateOne(
-            { _id: activityId },
-            updateQuery
-        );
-        Logger.info(`[STATUS] Recorded "${status}" for follower ${followerId} on activity ${activityId} (processed: ${!!processed})`);
+        await Activity.updateOne({ _id: activityId }, updateQuery);
+        Logger.info(`[STATUS] Recorded "${status}" for follower ${followerId} (processed: ${!!processed})`);
     } catch (e) {
         Logger.error(`Failed to record status for ${followerId}: ${e}`);
     }
 };
 
-const postOrder = async (
-    clobClient: ClobClient,
-    condition: string,
-    my_position: UserPositionInterface | undefined,
-    user_position: UserPositionInterface | undefined,
-    trade: any, // Use any for raw activity data access
+export const postOrder = async (
+    clobClient: any,
+    effectiveCondition: 'buy' | 'sell',
+    my_position: any,
+    user_position: any,
+    trade: any,
     my_balance: number,
     followerId: string,
-    userConfig: any,
-    my_positions: UserPositionInterface[] = [], // Optional positions for exposure check
-    proxyAddress?: string // New argument
+    config: any,
+    my_positions: any[],
+    proxyAddress?: string,
+    retryLimit: number = 3
 ) => {
-    // Force 100% copy if in MIRROR_100 mode
-    const isMirror100 = userConfig.mode === 'MIRROR_100';
-    const config = {
-        strategy: isMirror100 ? CopyStrategy.PERCENTAGE : ((userConfig.strategy as CopyStrategy) || CopyStrategy.PERCENTAGE),
-        copySize: isMirror100 ? 100.0 : (userConfig.copySize || 10.0),
-        maxOrderSizeUSD: parseFloat(process.env.MAX_ORDER_SIZE_USD || '500'),
-        minOrderSizeUSD: isMirror100 ? 0 : 1.0, // Disable internal min check for Mirror
-        tradeMultiplier: 1.0,
-        buyAtMin: isMirror100 ? true : !!userConfig.buyAtMin, // Always buy at least minimum in mirror mode
-        ...userConfig
-    };
-
-    // 1. Pre-execution Filters (Bypassed in MIRROR_100)
-    const tradePrice = trade.price;
-    const tradeSizeUSD = trade.usdcSize;
-
-    if (!isMirror100) {
-
-    // Side filter
-    if (condition === 'buy' && config.copyBuy === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopyBuy is OFF`);
-        await recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Compra desativada nas configurações');
-        return;
-    }
-    if (condition === 'sell' && config.copySell === false) {
-        Logger.info(`[${followerId}] 🚫 Skipped: CopySell is OFF`);
-        await recordStatus(trade._id, followerId, 'PULADO (LADO)', 'Venda desativada nas configurações');
-        return;
-    }
-
-    // Price filter
-    if (config.minPrice > 0 && tradePrice < config.minPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} below min $${config.minPrice}`);
-        await recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} abaixo do mínimo $${config.minPrice}`);
-        return;
-    }
-    if (config.maxPrice > 0 && tradePrice > config.maxPrice) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Price $${tradePrice} above max $${config.maxPrice}`);
-        await recordStatus(trade._id, followerId, 'PULADO (PREÇO)', `Preço $${tradePrice} acima do máximo $${config.maxPrice}`);
-        return;
-    }
-
-    // Trade size filter
-    if (config.minTradeSize > 0 && tradeSizeUSD < config.minTradeSize) {
-        Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} below min $${config.minTradeSize}`);
-        await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} abaixo do mínimo $${config.minTradeSize}`);
-        return;
-    }
-        if (config.maxTradeSize > 0 && tradeSizeUSD > config.maxTradeSize) {
-            Logger.info(`[${followerId}] 🚫 Skipped: Trade size $${tradeSizeUSD} above max $${config.maxTradeSize}`);
-            await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho $${tradeSizeUSD} acima do máximo $${config.maxTradeSize}`);
-            return;
-        }
-    }
-
-    // 2. Reverse Copy Logic
-    let effectiveCondition = condition;
-    if (config.reverseCopy === true) {
-        effectiveCondition = condition === 'buy' ? 'sell' : 'buy';
-        Logger.info(`[${followerId}] 🔄 REVERSE COPY: Flipping ${condition.toUpperCase()} to ${effectiveCondition.toUpperCase()}`);
-    }
-
-    const slippage = config.slippage || SLIPPAGE_TOLERANCE;
-    const retryLimit = parseInt(process.env.RETRY_LIMIT || '3');
-
-    if (effectiveCondition === 'buy') {
-        Logger.info(`[${followerId}] Executing BUY strategy...`);
-
-        // Phase 5 Advanced Filters (Bypassed in MIRROR_100)
-        if (!isMirror100 && ((config.maxMarketCount && config.maxMarketCount > 0) || 
-            (config.sniperModeSec && config.sniperModeSec > 0) || 
-            (config.lastMinuteModeSec && config.lastMinuteModeSec > 0) || 
-            (config.minMarketLiquidity && config.minMarketLiquidity > 0))) {
+    try {
+        const isMirror100 = config.mode === 'MIRROR_100';
+        
+        if (effectiveCondition === 'buy') {
+            Logger.info(`[${followerId}] Executing BUY strategy...`);
             
-            // 1. Max Markets check
-            if (config.maxMarketCount > 0) {
-                const uniqueConditionIds = new Set(my_positions.map(p => p.conditionId));
-                if (!uniqueConditionIds.has(trade.conditionId) && uniqueConditionIds.size >= config.maxMarketCount) {
-                    const reason = `Limite de Mercados Simultâneos atingido (${uniqueConditionIds.size} >= ${config.maxMarketCount})`;
-                    Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-                    await recordStatus(trade._id, followerId, 'PULADO (FASE 5)', reason);
-                    return;
-                }
-            }
-
-            // 2. Fetch Gamma Market Data for Time & Liquidity
-            if (config.sniperModeSec > 0 || config.lastMinuteModeSec > 0 || config.minMarketLiquidity > 0) {
-                try {
-                     const marketDataArr = await fetchData(`https://gamma-api.polymarket.com/events?id=${trade.asset || trade.conditionId}`);
-                     // Gamma events endpoint uses IDs or we can query markets directly
-                     // Fallback to markets if events fails or we just use markets condition_id
-                     const marketsArr = await fetchData(`https://gamma-api.polymarket.com/markets?condition_id=${trade.conditionId}`);
-                     
-                     if (marketsArr && marketsArr.length > 0) {
-                         const metadata = marketsArr[0];
-                         
-                         // Anti-Scam Liquidity (Volume as Fallback)
-                         const liquidity = metadata.liquidityNum || metadata.volume24hr || 0;
-                         if (config.minMarketLiquidity > 0 && liquidity < config.minMarketLiquidity) {
-                             const reason = `Liquidez/Volume ($${liquidity.toFixed(0)}) menor que o exigido ($${config.minMarketLiquidity})`;
-                             Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-                             await recordStatus(trade._id, followerId, 'PULADO (ANTI-SCAM)', reason);
-                             return;
-                         }
-
-                         const nowMs = Date.now();
-                         const tradeTime = trade.timestamp > 2000000000 ? trade.timestamp : trade.timestamp * 1000;
-
-                         // Sniper Mode
-                         if (config.sniperModeSec > 0 && metadata.startDate) {
-                             const startMs = new Date(metadata.startDate).getTime();
-                             const diffSec = (tradeTime - startMs) / 1000;
-                             if (diffSec > config.sniperModeSec) {
-                                 const reason = `Sniper Mode: Trade ocorreu ${diffSec.toFixed(0)}s após início (Máx aprovado: ${config.sniperModeSec}s)`;
-                                 Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-                                 await recordStatus(trade._id, followerId, 'PULADO (SNIPER)', reason);
-                                 return;
-                             }
-                         }
-
-                         // Last Minute Mode
-                         if (config.lastMinuteModeSec > 0 && metadata.endDate) {
-                             const endMs = new Date(metadata.endDate).getTime();
-                             const diffSecToClose = (endMs - tradeTime) / 1000;
-                             // Notice: endDate on Gamma API might be set far into the future (e.g. 2100) if no known end date exists.
-                             if (diffSecToClose > config.lastMinuteModeSec && endMs < 4102444800000) {
-                                  const reason = `Last Minute Mode: Mercado demorará ${diffSecToClose.toFixed(0)}s para fechar (Mín exigido: ${config.lastMinuteModeSec}s)`;
-                                  Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-                                  await recordStatus(trade._id, followerId, 'PULADO (LAST MINUTE)', reason);
-                                  return;
-                             }
-                         }
-                     }
-                } catch (err) {
-                     Logger.warning(`[${followerId}] Falha ao checar Fase 5 Metadata: ${err}`);
-                }
-            }
-        }
-
-        // Get current position size 
-        const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
-
-        const orderCalc = calculateOrderSize(
-            config,
-            trade.usdcSize,
-            my_balance,
-            currentPositionValue
-        );
-
-        Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
-
-        // Check Buy at Min
-        if (config.buyAtMin && orderCalc.finalAmount > 0 && orderCalc.finalAmount < MIN_ORDER_SIZE_USD) {
-            orderCalc.finalAmount = MIN_ORDER_SIZE_USD;
-            orderCalc.reasoning += ` -> Ajustado para mínimo de $${MIN_ORDER_SIZE_USD} (BuyAtMin ON)`;
-        }
-
-        const minOrderCheck = config.mode === 'MIRROR_100' ? 0 : (config.minOrderSizeUSD || 0);
-        if (orderCalc.finalAmount < (minOrderCheck - 0.001)) {
-            Logger.warning(`[${followerId}] ❌ Cannot execute: ${orderCalc.reasoning}`);
-            await recordStatus(trade._id, followerId, 'PULADO (ESTRATÉGIA)', orderCalc.reasoning);
-            return;
-        }
-
-        // 3. Exposure and Spend Checks (Bypassed in MIRROR_100)
-        if (!isMirror100) {
-        const totalExposure = my_positions.reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxExposure > 0 && (totalExposure + orderCalc.finalAmount) > config.maxExposure) {
-            const reason = `Exposição máxima excedida ($${totalExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxExposure})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-
-        // F1.2 Max Per Market
-        const marketExposure = my_positions.filter(p => p.conditionId === trade.conditionId).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerMarket > 0 && (marketExposure + orderCalc.finalAmount) > config.maxPerMarket) {
-            const reason = `Max por Mercado excedido ($${marketExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerMarket})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-
-        // F1.3 Max Per Token
-        const tokenExposure = my_positions.filter(p => p.asset === trade.asset).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
-        if (config.maxPerToken > 0 && (tokenExposure + orderCalc.finalAmount) > config.maxPerToken) {
-            const reason = `Max por Token excedido ($${tokenExposure.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.maxPerToken})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-
-        // F1.5 Total Spend Limit
-        const userRec = await User.findById(followerId);
-        const totalSpent = userRec?.totalSpentUSD || 0;
-        if (config.totalSpendLimit > 0 && (totalSpent + orderCalc.finalAmount) > config.totalSpendLimit) {
-            const reason = `Limite geral de gasto da conta atingido ($${totalSpent.toFixed(2)} + $${orderCalc.finalAmount.toFixed(2)} > $${config.totalSpendLimit})`;
-            Logger.warning(`[${followerId}] 🚫 Skipped: ${reason}`);
-            await recordStatus(trade._id, followerId, 'PULADO (EXPOSIÇÃO)', reason);
-            return;
-        }
-        }
-
-        let remaining = orderCalc.finalAmount;
-        let retry = 0;
-        let totalBoughtTokens = 0;
-
-        while (remaining > 0 && retry < retryLimit) {
-            const orderBook = await clobClient.getOrderBook(trade.asset);
-            if (!orderBook.asks || orderBook.asks.length === 0) {
-                Logger.warning(`[${followerId}] No asks available`);
-                await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de venda (asks) no book');
-                break;
-            }
-
-            const minPriceAsk = orderBook.asks.reduce((min: any, ask: any) => {
-                return parseFloat(ask.price) < parseFloat(min.price) ? ask : min;
-            }, orderBook.asks[0]);
-
-            if (!isMirror100 && parseFloat(minPriceAsk.price) - slippage > trade.price) {
-                const reason = `Slippage muito alto ($${minPriceAsk.price} vs alvo $${trade.price})`;
-                Logger.warning(`[${followerId}] ${reason} - skipping trade`);
-                await recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', reason);
-                break;
-            }
-
-            if (remaining < 0.05) break; // Dust limit
-
-            const maxOrderSize = parseFloat(minPriceAsk.size) * parseFloat(minPriceAsk.price);
-            const orderSize = Math.min(remaining, maxOrderSize);
-
-            const order_arges: any = {
-                side: Side.BUY,
-                tokenID: trade.asset,
-                amount: orderSize,
-                price: parseFloat(minPriceAsk.price),
-            };
-
-            // If using a proxy, we MUST specify the proxy as the maker and correct signature type
-            if (proxyAddress) {
-                order_arges.maker = proxyAddress;
-                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
-            }
-
-            const isLimit = (trade as any).orderType === 'LIMIT' || orderSize < 1.0;
-            const signedOrder = isLimit 
-                ? await clobClient.createOrder(order_arges)
-                : await clobClient.createMarketOrder(order_arges);
-                
-            const resp = await clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
+            const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
+            const orderCalc = calculateOrderSize(config, trade.usdcSize, my_balance, currentPositionValue);
             
-            if (resp.success === true) {
-                retry = 0;
-                const tokensBought = order_arges.amount / order_arges.price;
-                totalBoughtTokens += tokensBought;
-                Logger.orderResult(true, `[${followerId}] Bought $${order_arges.amount.toFixed(2)}`);
-                telegram.tradeExecuted(followerId, 'BUY', order_arges.amount, order_arges.price, trade.slug || trade.title || 'Market');
-                remaining -= order_arges.amount;
-                await recordStatus(trade._id, followerId, 'SUCESSO', `Comprado $${order_arges.amount.toFixed(2)}`, {
-                    myEntryAmount: order_arges.amount,
-                    myEntryPrice: order_arges.price,
-                    myExecutedAt: new Date(),
-                });
+            Logger.info(`[${followerId}] 📊 ${orderCalc.reasoning}`);
 
-                // Update total spent
-                await User.updateOne(
-                    { _id: followerId },
-                    { $inc: { totalSpentUSD: order_arges.amount } }
-                );
-            } else {
-                const errorMessage = extractOrderError(resp);
-                if (isInsufficientBalanceOrAllowanceError(errorMessage)) {
-                    await recordStatus(trade._id, followerId, 'ERRO (SALDO)', errorMessage || 'Saldo ou Allowance insuficiente');
+            if (orderCalc.finalAmount <= 0) {
+                await recordStatus(trade._id, followerId, 'PULADO', orderCalc.reasoning);
+                return { success: false, error: orderCalc.reasoning };
+            }
+
+            let remaining = orderCalc.finalAmount;
+            let retry = 0;
+
+            while (remaining > 0.90 && retry < retryLimit) {
+                const orderBook = await clobClient.getOrderBook(trade.asset);
+                const asks = orderBook.asks || [];
+                if (asks.length === 0) {
+                    await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Sem asks no book');
                     break;
                 }
-                retry += 1;
-                Logger.warning(`[${followerId}] Order failed (${retry}/${retryLimit}): ${errorMessage}`);
-                if (retry >= retryLimit) {
-                    await recordStatus(trade._id, followerId, 'ERRO (API)', errorMessage || 'Erro ao postar ordem');
+
+                const minPriceAsk = asks.reduce((min: any, ask: any) => parseFloat(ask.price) < parseFloat(min.price) ? ask : min, asks[0]);
+                
+                // Slippage check (except in MIRROR_100)
+                if (!isMirror100 && parseFloat(minPriceAsk.price) - 0.05 > trade.price) {
+                    await recordStatus(trade._id, followerId, 'PULADO (SLIPPAGE)', `Preço ${minPriceAsk.price} muito alto vs ${trade.price}`);
+                    break;
+                }
+
+                const orderSize = Math.min(remaining, parseFloat(minPriceAsk.size) * parseFloat(minPriceAsk.price));
+                if (orderSize < 0.90) break;
+
+                const order_args: any = {
+                    side: Side.BUY,
+                    tokenID: trade.asset,
+                    amount: orderSize,
+                    price: parseFloat(minPriceAsk.price),
+                };
+
+                if (proxyAddress) {
+                    order_args.maker = proxyAddress;
+                    order_args.signatureType = 2;
+                }
+
+                const isLimit = (trade as any).orderType === 'LIMIT' || orderSize < 1.0;
+                const signedOrder = isLimit 
+                    ? await clobClient.createOrder(order_args)
+                    : await clobClient.createMarketOrder(order_args);
+                    
+                const resp = await clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
+                
+                if (resp.success) {
+                    await User.updateOne({ _id: followerId }, { $inc: { totalSpentUSD: orderSize } });
+                    Logger.orderResult(true, `[${followerId}] Bought $${orderSize.toFixed(2)}`);
+                    telegram.tradeExecuted(followerId, 'BUY', orderSize, order_args.price, trade.slug || trade.title);
+                    
+                    return {
+                        success: true,
+                        amount: orderSize,
+                        price: order_args.price
+                    };
+                } else {
+                    const err = extractOrderError(resp);
+                    if (isInsufficientBalanceOrAllowanceError(err)) {
+                        await recordStatus(trade._id, followerId, 'ERRO (SALDO)', err);
+                        return { success: false, error: err };
+                    }
+                    retry++;
+                    if (retry >= retryLimit) {
+                        await recordStatus(trade._id, followerId, 'ERRO (API)', err);
+                        return { success: false, error: err };
+                    }
                 }
             }
-        }
-        
-        // Update specific meta-fields for THIS follower's execution if needed
-        // Since we share the same activity record, we can't save myBoughtSize there easily for multiple followers
-        // TODO: Consider a separate Execution model for better tracking
-    } else if (effectiveCondition === 'sell') {
-        Logger.info(`[${followerId}] Executing SELL strategy...`);
-        if (!my_position) {
-            Logger.warning(`[${followerId}] No position to sell`);
-            return;
-        }
+        } else if (effectiveCondition === 'sell') {
+            Logger.info(`[${followerId}] Executing SELL strategy...`);
+            if (!my_position) return { success: false, error: 'Sem posição para vender' };
 
-        // Simpler sell logic for multi-user: proportional sell based on position size
-        let trader_sell_percent = 1.0;
-        if (user_position) {
-            trader_sell_percent = trade.size / (user_position.size + trade.size);
-        }
-        
-        let remaining = my_position.size * trader_sell_percent;
+            let trader_sell_percent = 1.0;
+            if (user_position) {
+                trader_sell_percent = trade.size / (user_position.size + trade.size);
+            }
+            let remaining = my_position.size * trader_sell_percent;
+            if (remaining < MIN_ORDER_SIZE_TOKENS) return { success: false, error: 'Quantidade insuficiente' };
 
-        if (remaining < MIN_ORDER_SIZE_TOKENS) {
-            Logger.warning(`[${followerId}] Sell amount too small`);
-            return;
-        }
-
-        let retry = 0;
-        let totalSoldTokens = 0;
-
-        while (remaining > 0 && retry < retryLimit) {
             const orderBook = await clobClient.getOrderBook(trade.asset);
-            if (!orderBook.bids || orderBook.bids.length === 0) {
-                Logger.warning(`[${followerId}] No bids available`);
-                await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Nenhuma oferta de compra (bids) no book');
-                break;
+            const bids = orderBook.bids || [];
+            if (bids.length === 0) {
+                await recordStatus(trade._id, followerId, 'PULADO (LIQUIDEZ)', 'Sem bids no book');
+                return { success: false, error: 'Sem liquidez' };
             }
 
-            const maxPriceBid = orderBook.bids.reduce((max: any, bid: any) => {
-                return parseFloat(bid.price) > parseFloat(max.price) ? bid : max;
-            }, orderBook.bids[0]);
-
+            const maxPriceBid = bids.reduce((max: any, bid: any) => parseFloat(bid.price) > parseFloat(max.price) ? bid : max, bids[0]);
             const sellAmount = Math.min(remaining, parseFloat(maxPriceBid.size));
-            if (sellAmount < MIN_ORDER_SIZE_TOKENS) break;
+            if (sellAmount < MIN_ORDER_SIZE_TOKENS) return { success: false, error: 'Abaixo do mínimo' };
 
-            const order_arges: any = {
+            const order_args: any = {
                 side: Side.SELL,
                 tokenID: trade.asset,
                 amount: sellAmount,
@@ -405,26 +167,29 @@ const postOrder = async (
             };
 
             if (proxyAddress) {
-                order_arges.maker = proxyAddress;
-                order_arges.signatureType = 2; // POLY_GNOSIS_SAFE
+                order_args.maker = proxyAddress;
+                order_args.signatureType = 2;
             }
-            
-            const isLimit = (trade as any).orderType === 'LIMIT' || order_arges.amount < 1.0;
+
+            const isLimit = (trade as any).orderType === 'LIMIT' || (sellAmount * order_args.price) < 1.0;
             const signedOrder = isLimit 
-                ? await clobClient.createOrder(order_arges)
-                : await clobClient.createMarketOrder(order_arges);
+                ? await clobClient.createOrder(order_args)
+                : await clobClient.createMarketOrder(order_args);
                 
             const resp = await clobClient.postOrder(signedOrder, isLimit ? OrderType.GTC : OrderType.FOK);
-            if (resp.success === true) {
-                retry = 0;
-                totalSoldTokens += order_arges.amount;
-                Logger.orderResult(true, `[${followerId}] Sold ${order_arges.amount} tokens`);
-                telegram.tradeExecuted(followerId, 'SELL', order_arges.amount * order_arges.price, order_arges.price, trade.slug || trade.title || 'Market');
-                remaining -= order_arges.amount;
-            } else {
-                retry += 1;
+            if (resp.success) {
+                telegram.tradeExecuted(followerId, 'SELL', sellAmount * order_args.price, order_args.price, trade.slug || trade.title);
+                return {
+                    success: true,
+                    amount: sellAmount * order_args.price,
+                    price: order_args.price
+                };
             }
         }
+        return { success: false, error: 'Fim do fluxo sem execução' };
+    } catch (error: any) {
+        Logger.error(`[${followerId}] CRITICAL: ${error.message}`);
+        return { success: false, error: error.message };
     }
 };
 
