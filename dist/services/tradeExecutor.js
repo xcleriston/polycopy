@@ -18,6 +18,7 @@ import { broadcastTrade } from '../utils/push.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
+import { calculateOrderSize } from '../config/copyStrategy.js';
 // Check daily loss per user (wallet)
 const checkDailyLoss = (proxyWallet, chatId) => __awaiter(void 0, void 0, void 0, function* () {
     // Legacy logic simplified for multi-user
@@ -28,7 +29,7 @@ const readUnprocessedTrades = () => __awaiter(void 0, void 0, void 0, function* 
     return yield Activity.find({ bot: false, type: 'TRADE' }).lean();
 });
 const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const traderAddress = trade.traderAddress.toLowerCase();
     // Find all users following this trader in COPY mode
     const followers = yield User.find({
@@ -74,16 +75,35 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
             });
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
+                // SIMULATE CALCULATION FOR DISPLAY
+                const targetAddr = (yield findProxyWallet(follower)) || ((_b = follower.wallet) === null || _b === void 0 ? void 0 : _b.address) || '';
+                const [balEoa, balProxy, clobBalance] = yield Promise.all([
+                    getMyBalance(((_c = follower.wallet) === null || _c === void 0 ? void 0 : _c.address) || ''),
+                    targetAddr !== ((_d = follower.wallet) === null || _d === void 0 ? void 0 : _d.address) ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(clobClient)
+                ]);
+                const my_balance = balEoa + balProxy + clobBalance;
+                // Get current position size 
+                const my_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
+                const my_position = my_positions.find((p) => p.conditionId === trade.conditionId);
+                const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
+                const orderCalc = calculateOrderSize(Object.assign(Object.assign({}, follower.config), { mode: follower.config.mode || 'MIRROR_100', strategy: follower.config.strategy || 'PERCENTAGE' }), trade.usdcSize, my_balance, currentPositionValue);
+                yield recordStatus(trade._id, followerId, '🔍 PREVIEW', `Simulação: Compraria $${orderCalc.finalAmount.toFixed(2)}`, {
+                    myEntryAmount: orderCalc.finalAmount,
+                    myEntryPrice: trade.price,
+                    myExecutedAt: new Date(),
+                    isPreview: true
+                });
             }
             else {
-                const targetAddr = (yield findProxyWallet(follower)) || ((_b = follower.wallet) === null || _b === void 0 ? void 0 : _b.address) || '';
+                const targetAddr = (yield findProxyWallet(follower)) || ((_e = follower.wallet) === null || _e === void 0 ? void 0 : _e.address) || '';
                 const my_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
                 const user_positions = yield fetchData(`https://data-api.polymarket.com/positions?user=${traderAddress}`);
                 const my_position = my_positions.find((position) => position.conditionId === trade.conditionId);
                 const user_position = user_positions.find((position) => position.conditionId === trade.conditionId);
                 const [balEoa, balProxy, clobBalance] = yield Promise.all([
-                    getMyBalance(((_c = follower.wallet) === null || _c === void 0 ? void 0 : _c.address) || ''),
-                    targetAddr !== ((_d = follower.wallet) === null || _d === void 0 ? void 0 : _d.address) ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(((_f = follower.wallet) === null || _f === void 0 ? void 0 : _f.address) || ''),
+                    targetAddr !== ((_g = follower.wallet) === null || _g === void 0 ? void 0 : _g.address) ? getMyBalance(targetAddr) : Promise.resolve(0),
                     getMyBalance(clobClient)
                 ]);
                 const my_balance = balEoa + balProxy + clobBalance;
@@ -110,7 +130,7 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
         const stillMissing = followers.filter(f => !latestTrade.processedBy.includes(f.chatId || f._id.toString()));
         if (stillMissing.length === 0) {
             yield Activity.updateOne({ _id: trade._id }, { $set: { bot: true } });
-            Logger.info(`✅ Trade ${(_e = trade.transactionHash) === null || _e === void 0 ? void 0 : _e.slice(0, 8)} fully processed for all ${followers.length} followers.`);
+            Logger.info(`✅ Trade ${(_h = trade.transactionHash) === null || _h === void 0 ? void 0 : _h.slice(0, 8)} fully processed for all ${followers.length} followers.`);
             // Notify web followers via Push
             yield broadcastTrade(traderAddress, trade);
         }

@@ -2509,6 +2509,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 // Status styling
                 const statusStyles = {
                     'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '\u2705' },
+                    '🔍 PREVIEW': { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa',        icon: '\uD83D\uDD0D' },
                     'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '\u26A1' },
                     'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCB8' },
                     'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCCA' },

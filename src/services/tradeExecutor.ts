@@ -15,6 +15,7 @@ const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PREVIEW_MODE = process.env.PREVIEW_MODE === 'true';
 
 import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
+import { calculateOrderSize } from '../config/copyStrategy.js';
 
 // Check daily loss per user (wallet)
 const checkDailyLoss = async (proxyWallet: string, chatId: string): Promise<boolean> => {
@@ -89,6 +90,34 @@ const doTrading = async (trade: any) => {
 
             if (PREVIEW_MODE) {
                 Logger.info(`🔍 PREVIEW MODE — trade logged for user ${followerId} but NOT executed`);
+                
+                // SIMULATE CALCULATION FOR DISPLAY
+                const targetAddr = (await findProxyWallet(follower)) || follower.wallet?.address || '';
+                const [balEoa, balProxy, clobBalance] = await Promise.all([
+                    getMyBalance(follower.wallet?.address || ''),
+                    targetAddr !== follower.wallet?.address ? getMyBalance(targetAddr) : Promise.resolve(0),
+                    getMyBalance(clobClient)
+                ]);
+                const my_balance = balEoa + balProxy + clobBalance;
+                
+                // Get current position size 
+                const my_positions: UserPositionInterface[] = await fetchData(`https://data-api.polymarket.com/positions?user=${targetAddr}`);
+                const my_position = my_positions.find((p: any) => p.conditionId === trade.conditionId);
+                const currentPositionValue = my_position ? my_position.size * my_position.avgPrice : 0;
+
+                const orderCalc = calculateOrderSize(
+                    { ...follower.config, mode: follower.config.mode || 'MIRROR_100', strategy: follower.config.strategy || 'PERCENTAGE' } as any,
+                    trade.usdcSize,
+                    my_balance,
+                    currentPositionValue
+                );
+
+                await recordStatus(trade._id, followerId, '🔍 PREVIEW', `Simulação: Compraria $${orderCalc.finalAmount.toFixed(2)}`, {
+                    myEntryAmount: orderCalc.finalAmount,
+                    myEntryPrice: trade.price,
+                    myExecutedAt: new Date(),
+                    isPreview: true
+                });
             } else {
                 const targetAddr = (await findProxyWallet(follower)) || follower.wallet?.address || '';
                 const my_positions: UserPositionInterface[] = await fetchData(
