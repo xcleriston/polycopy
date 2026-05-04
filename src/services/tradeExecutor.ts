@@ -67,12 +67,8 @@ const doTrading = async (trade: any) => {
                 continue;
             }
 
-            // Mark user as processing immediately (atomic-ish update)
-            await Activity.updateOne(
-                { _id: trade._id }, 
-                { $addToSet: { processedBy: followerId } }
-            );
-
+            // We will mark as processed AFTER attempt or final skip
+            
             // Calculate E2E Latency
             const polymarketTime = trade.timestamp > 2000000000 ? trade.timestamp / 1000 : trade.timestamp;
             const latencySeconds = (Date.now() / 1000) - (polymarketTime / 1000);
@@ -160,9 +156,20 @@ const doTrading = async (trade: any) => {
                     my_positions, // Pass all positions for exposure calculation
                     targetAddr // Pass proxyAddress
                 );
+                // Final mark as processed
+                await Activity.updateOne(
+                    { _id: trade._id }, 
+                    { $addToSet: { processedBy: followerId } }
+                );
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
+            // Also mark as processed on error to avoid infinite retry loops unless it's a transient network error
+            const errStr = error?.toString().toLowerCase() || '';
+            if (!errStr.includes('network') && !errStr.includes('timeout') && !errStr.includes('429')) {
+                await Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
+                await recordStatus(trade._id, followerId, 'ERRO (EXECUÇÃO)', errStr.slice(0, 100));
+            }
         }
         Logger.separator();
     }
