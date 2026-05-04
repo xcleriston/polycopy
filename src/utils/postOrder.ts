@@ -1,5 +1,5 @@
-import { Side, OrderType } from "@polymarket/clob-sdk";
-import { User } from "../models/user.js";
+import { Side, OrderType } from "@polymarket/clob-client";
+import User from "../models/user.js";
 import { Activity } from "../models/userHistory.js";
 import Logger from "./logger.js";
 import telegram from "./telegram.js";
