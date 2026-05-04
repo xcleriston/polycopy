@@ -1766,10 +1766,10 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
   <aside>
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
-      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
-      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>ðŸ“</span> Posições Abertas</div>
-      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>⚙️</span> Configurações</div>
-      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>🚫</span> Sair</div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>&#129302;</span> Meu Rob&ocirc;</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>&#128202;</span> Posi&ccedil;&otilde;es Abertas</div>
+      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>&#9881;</span> Configura&ccedil;&otilde;es</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>&#128683;</span> Sair</div>
     </div>
   </aside>
   <main>
