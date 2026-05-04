@@ -93,6 +93,7 @@
         "ora": "^8.2.0",
         "socks-proxy-agent": "^8.0.5",
         "swagger-ui-express": "^5.0.1",
+        "undici": "^7.25.0",
         "viem": "^2.48.4",
         "web-push": "^3.6.7"
     }
