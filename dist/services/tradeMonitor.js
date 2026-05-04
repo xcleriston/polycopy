@@ -8,9 +8,14 @@ const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 // Tracking seen trades locally for extreme speed (bypass DB read for de-dupe)
 const seenTradesLocal = new Set();
 const getUniqueTraders = async () => {
-    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' }, 'config.enabled': true });
+    // REQUISITO CRÍTICO: Monitorar qualquer um que tenha traderAddress, ignorando travas de status se necessário
+    const users = await User.find({ 'config.traderAddress': { $exists: true, $ne: '' } });
     const addresses = users.map(u => u.config.traderAddress.toLowerCase());
-    return Array.from(new Set(addresses));
+    const unique = Array.from(new Set(addresses));
+    if (unique.length > 0) {
+        Logger.debug(`[MONITOR] Active Traders: ${unique.join(', ')}`);
+    }
+    return unique;
 };
 const fetchTradeDataForTrader = async (address) => {
     try {
@@ -23,6 +28,10 @@ const fetchTradeDataForTrader = async (address) => {
             return;
         }
         const cutoffTimestamp = Date.now() / 1000 - TOO_OLD_TIMESTAMP * 3600;
+        console.log(`[DEBUG] Fetched ${activities?.length || 0} activities for ${address.slice(0, 6)}`);
+        if (activities?.length > 0) {
+            console.log(`[DEBUG] Latest activity timestamp: ${activities[0].timestamp} vs cutoff: ${cutoffTimestamp}`);
+        }
         // Process activities in reverse (oldest first) to ensure correct sequence
         for (const activity of [...activities].reverse()) {
             const tradeId = activity.transactionHash || activity.id;
@@ -36,17 +45,25 @@ const fetchTradeDataForTrader = async (address) => {
             const exists = await UserActivity.findOne({ transactionHash: activity.transactionHash }).exec();
             if (exists) {
                 seenTradesLocal.add(tradeId);
+                // CRITICAL FIX: If it's very recent (e.g., last 15 mins), try processing it anyway 
+                // in case it was missed by this specific follower during a restart.
+                // The executor has its own de-dupe logic (processedBy array).
+                const ageMinutes = (Date.now() / 1000 - activity.timestamp) / 60;
+                if (ageMinutes < 15) {
+                    processDetectedTrade(exists, address).catch(e => Logger.error(`Retry execution failed: ${e.message}`));
+                }
                 continue;
             }
+            const usdcSize = activity.usdcSize || (parseFloat(activity.size) * parseFloat(activity.price)) || 0;
             const newTrade = UserActivity({
                 proxyWallet: activity.proxyWallet,
                 timestamp: activity.timestamp * 1000,
                 conditionId: activity.conditionId,
                 type: activity.type,
-                size: activity.size,
-                usdcSize: activity.usdcSize,
+                size: parseFloat(activity.size),
+                usdcSize: usdcSize,
                 transactionHash: activity.transactionHash,
-                price: activity.price,
+                price: parseFloat(activity.price),
                 asset: activity.asset,
                 side: activity.side,
                 outcomeIndex: activity.outcomeIndex,
@@ -62,7 +79,7 @@ const fetchTradeDataForTrader = async (address) => {
             await newTrade.save();
             seenTradesLocal.add(tradeId);
             const detectLatency = (Date.now() / 1000) - (activity.timestamp);
-            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${activity.usdcSize} USDC (Detected in ${detectLatency.toFixed(2)}s)`);
+            Logger.info(`⚡ [FAST-DETECT] New trade for ${address.slice(0, 6)}: ${activity.side} ${usdcSize.toFixed(2)} USDC (Detected in ${detectLatency.toFixed(2)}s)`);
             // DIRECT TRIGGER: Bypass tradeExecutor's 100ms DB polling loop
             processDetectedTrade(newTrade.toObject(), address).catch(e => Logger.error(`Direct execution failed: ${e.message}`));
         }

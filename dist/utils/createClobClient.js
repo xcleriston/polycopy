@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { polygon } from 'viem/chains';
@@ -5,9 +6,25 @@ import { ClobClient, Chain, SignatureTypeV2 } from '@polymarket/clob-client-v2';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
 import fetchData from './fetchData.js';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { fetch as undiciFetch } from 'undici';
 const PRIVATE_KEY = ENV.PRIVATE_KEY;
 const CLOB_HTTP_URL = ENV.CLOB_HTTP_URL || 'https://clob.polymarket.com/';
+// Setup global fetch proxy for the entire process (affects @polymarket/clob-client-v2)
+if (process.env.USE_PROXY === 'true') {
+    console.log('🛡️ [NETWORK] Enabling SOCKS5 Proxy Tunnel...');
+    const socksAgent = new SocksProxyAgent('socks5h://127.0.0.1:40000');
+    // @ts-ignore
+    global.fetch = (url, options = {}) => {
+        // @ts-ignore
+        return undiciFetch(url, {
+            ...options,
+            dispatcher: socksAgent
+        });
+    };
+}
 const clobClientCache = new Map();
+const builderClientCache = new Map();
 export const findProxyWallet = async (eoaOrUser, retries = 3) => {
     const eoa = typeof eoaOrUser === 'string' ? eoaOrUser : eoaOrUser?.wallet?.address;
     if (!eoa)
@@ -54,7 +71,6 @@ export const getClobClientForUser = async (user) => {
     const cacheKey = user.wallet.address.toLowerCase();
     if (clobClientCache.has(cacheKey))
         return clobClientCache.get(cacheKey);
-    // 1. Check if user has verified info in DB
     let proxyInfo = null;
     if (user.wallet.proxyAddress && user.wallet.signatureType && user.wallet.isProxyVerified) {
         proxyInfo = {
@@ -63,25 +79,11 @@ export const getClobClientForUser = async (user) => {
         };
     }
     else {
-        // 2. Detect via Gamma API
         proxyInfo = await findProxyWallet(user);
-        // 3. Persist to DB if found or explicitly confirmed EOA
-        try {
-            const User = (await import('../models/user.js')).default;
-            await User.updateOne({ _id: user._id }, {
-                $set: {
-                    'wallet.proxyAddress': proxyInfo?.address || null,
-                    'wallet.signatureType': proxyInfo?.type || SignatureTypeV2.EOA,
-                    'wallet.isProxyVerified': true
-                }
-            });
-        }
-        catch (err) {
-            Logger.warning(`[PROXY] Could not persist proxy info for ${user._id}: ${err}`);
-        }
     }
     try {
-        const client = await createClobClient(user.wallet.privateKey, proxyInfo?.address, proxyInfo?.type);
+        // IMPORTANT: Never use Builder creds for user balance/dashboard info
+        const client = await createClobClient(user.wallet.privateKey, proxyInfo?.address, proxyInfo?.type, false);
         clobClientCache.set(cacheKey, client);
         return client;
     }
@@ -90,55 +92,72 @@ export const getClobClientForUser = async (user) => {
         return null;
     }
 };
-const createClobClient = async (customPk, proxyAddress, forcedSigType) => {
+const createClobClient = async (customPk, proxyAddress, forcedSigType, useBuilderCreds = false) => {
     const host = CLOB_HTTP_URL;
     const pk = (customPk || PRIVATE_KEY);
     if (!pk)
         throw new Error('PRIVATE_KEY is required to create CLOB client');
     const account = privateKeyToAccount(pk.startsWith('0x') ? pk : `0x${pk}`);
+    const cacheKey = account.address.toLowerCase();
+    // Check appropriate cache
+    if (useBuilderCreds && builderClientCache.has(cacheKey))
+        return builderClientCache.get(cacheKey);
+    if (!useBuilderCreds && clobClientCache.has(cacheKey))
+        return clobClientCache.get(cacheKey);
     const walletClient = createWalletClient({
         account,
         chain: polygon,
         transport: http(ENV.RPC_URL)
     });
     const signatureType = forcedSigType ?? (proxyAddress ? SignatureTypeV2.POLY_GNOSIS_SAFE : SignatureTypeV2.EOA);
-    Logger.info(`[CLOB] Initializing for ${account.address.slice(0, 6)} with SigType: ${signatureType} ${proxyAddress ? `(Proxy: ${proxyAddress.slice(0, 6)})` : '(EOA)'}`);
     let client = new ClobClient({
         host,
         chain: Chain.POLYGON,
         signer: walletClient,
         signatureType,
     });
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-    // We only silence if NOT in debug mode
-    if (process.env.DEBUG !== 'true') {
-        console.log = function () { };
-        console.error = function () { };
-    }
     try {
-        const creds = await client.createOrDeriveApiKey();
-        client = new ClobClient({
-            host,
-            chain: Chain.POLYGON,
-            signer: walletClient,
-            creds,
-            signatureType,
-        });
-        return client;
+        let finalClient;
+        // Use Builder credentials ONLY if explicitly requested and available
+        if (useBuilderCreds && ENV.POLY_BUILDER_API_KEY && ENV.POLY_BUILDER_SECRET && ENV.POLY_BUILDER_PASSPHRASE) {
+            Logger.info(`[CLOB] Using Builder credentials for ${account.address.slice(0, 6)}`);
+            finalClient = new ClobClient({
+                host,
+                chain: Chain.POLYGON,
+                signer: walletClient,
+                creds: {
+                    key: ENV.POLY_BUILDER_API_KEY,
+                    secret: ENV.POLY_BUILDER_SECRET,
+                    passphrase: ENV.POLY_BUILDER_PASSPHRASE,
+                },
+                signatureType,
+            });
+        }
+        else {
+            // Standard path: Use derived or existing credentials for the user
+            const creds = await client.createOrDeriveApiKey();
+            finalClient = new ClobClient({
+                host,
+                chain: Chain.POLYGON,
+                signer: walletClient,
+                creds,
+                signatureType,
+            });
+        }
+        // Cache the final client
+        if (useBuilderCreds) {
+            builderClientCache.set(cacheKey, finalClient);
+        }
+        else {
+            clobClientCache.set(cacheKey, finalClient);
+        }
+        return finalClient;
     }
     catch (err) {
-        // Restore console to log the error properly
-        console.log = originalConsoleLog;
-        console.error = originalConsoleError;
         if (err.message?.includes('invalid signature') || err.message?.includes('401')) {
             throw new Error(`Invalid Signature: The derived key does not match. Signer: ${account.address}, Proxy: ${proxyAddress || 'None'}, Type: ${signatureType}. Check if your Proxy is correctly linked on Polymarket.`);
         }
         throw err;
-    }
-    finally {
-        console.log = originalConsoleLog;
-        console.error = originalConsoleError;
     }
 };
 export default createClobClient;

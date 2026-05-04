@@ -9,7 +9,7 @@ import swaggerUi from 'swagger-ui-express';
 
 import { setupNewUser } from './setup.js';
 
-import cookieParser from 'cookie-parser';
+import cookieParserá from 'cookie-parser';
 
 import { authenticateToken, authorizeAdmin, login, signup, AuthRequest } from './auth.js';
 
@@ -33,7 +33,7 @@ const app = express();
 
 app.use(express.json());
 
-app.use(cookieParser());
+app.use(cookieParserá());
 
 
 
@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 
     res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; connect-src 'self' https:;");
 
-    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Content-Type-Options", "nãosniff");
 
     next();
 
@@ -199,7 +199,7 @@ app.use('/api', async (req: any, res, next) => {
 
         try {
 
-            req.fullUser = await User.findById(req.user.id);
+            req.fullUser = await User.findById(req.userid);
 
         } catch (error) {
 
@@ -259,9 +259,9 @@ app.get('/api/status', async (req: AuthRequest, res) => {
 
 app.get('/api/config', authorizeAdmin, async (_req, res) => {
 
-    // Return summary of first few users for dashboard overview
+    // Return summary of first few user for dashboard overview
 
-    const users = await User.find().limit(5).lean();
+    const user = await User.find().limit(5).lean();
 
     
 
@@ -277,7 +277,7 @@ app.get('/api/config', authorizeAdmin, async (_req, res) => {
 
         },
 
-        users: users.map(u => ({
+        user: user.map(u => ({
 
             chatId: u.chatId,
 
@@ -349,17 +349,17 @@ app.get('/api/trades', async (req, res) => {
 
 
 
-app.get('/api/users', authorizeAdmin, async (_req, res) => {
+app.get('/api/user', authorizeAdmin, async (_req, res) => {
 
     try {
 
-        const users = await User.find().lean();
+        const user = await User.find().lean();
 
-        res.json(users);
+        res.json(user);
 
     } catch (error) {
 
-        res.status(500).json({ error: 'Failed to fetch users' });
+        res.status(500).json({ error: 'Failed to fetch user' });
 
     }
 
@@ -367,7 +367,7 @@ app.get('/api/users', authorizeAdmin, async (_req, res) => {
 
 
 
-app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
+app.get('/api/user/:id', authorizeAdmin, async (req, res) => {
 
     try {
 
@@ -395,7 +395,7 @@ app.get('/api/users/:id', authorizeAdmin, async (req, res) => {
 
 
 
-app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
+app.post('/api/user/:id/config', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
 
     try {
 
@@ -443,7 +443,7 @@ app.post('/api/users/:id/config', authenticateToken, authorizeAdmin, async (req:
 
 
 
-app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
+app.post('/api/user/:id/reset', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
 
     try {
 
@@ -485,7 +485,7 @@ app.post('/api/users/:id/reset', authenticateToken, authorizeAdmin, async (req: 
 
 
 
-app.delete('/api/users/:id', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
+app.delete('/api/user/:id', authenticateToken, authorizeAdmin, async (req: AuthRequest, res) => {
 
     try {
 
@@ -887,7 +887,7 @@ app.get('/setup', (_req, res) => {
 
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>PolyCopy - Novo Usuário</title>
+<title>PolyCopy - Nãovo Usuário</title>
 
 <style>
 
@@ -895,7 +895,7 @@ app.get('/setup', (_req, res) => {
 
 :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
 
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:20px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seráif;background:var(--bg);color:var(--text);padding:20px}
 
 .container{max-width:800px;margin:0 auto}
 
@@ -983,7 +983,7 @@ button:disabled{background:#484f58;cursor:not-allowed}
 
 <h3>2. Gerar Carteira</h3>
 
-<button onclick="generateWallet()">Gerar Nova Carteira</button>
+<button onclick="generateWallet()">Gerar Nãova Carteira</button>
 
 <div id="walletResult"></div>
 
@@ -1081,7 +1081,7 @@ async function generateWallet() {
 
     btn.disabled = false;
 
-    btn.textContent = 'Gerar Nova Carteira';
+    btn.textContent = 'Gerar Nãova Carteira';
 
 }
 
@@ -1145,7 +1145,7 @@ async function completeSetup() {
 
                 '<div class="result">' +
 
-                '<h4>Bot Configurado com Sucesso!</h4>' +
+                '<h4>Bot Configuração com Sucesso!</h4>' +
 
                 '<p><strong>Carteira:</strong> ' + result.wallet.address + '</p>' +
 
@@ -1245,7 +1245,7 @@ const html = `<!DOCTYPE html>
 
 }
 
-* { margin:0; padding:0; box-sizing:border-box; font-family: 'Outfit', sans-serif; }
+* { margin:0; padding:0; box-sizing:border-box; font-family: 'Outfit', sans-seráif; }
 
 body { background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }
 
@@ -1293,7 +1293,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 
 
 
-.user-id { display: flex; align-items: center; gap: 8px; }
+.userid { display: flex; align-items: center; gap: 8px; }
 
 .avatar { width: 32px; height: 32px; background: #2d3748; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
 
@@ -1375,7 +1375,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
 
       <div class="stat-label">Total de Usuários</div>
 
-      <div id="st-users" class="stat-value">0</div>
+      <div id="st-user" class="stat-value">0</div>
 
       <div class="stat-sub"><span>↑</span> Registrados</div>
 
@@ -1425,7 +1425,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
 
   <div class="card animate" style="animation-delay: 0.4s">
 
-    <table id="user-table">
+    <table id="usertable">
 
       <thead>
 
@@ -1449,7 +1449,7 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
 
       </thead>
 
-      <tbody id="user-body">
+      <tbody id="userbody">
 
         <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">Carregando usuários...</td></tr>
 
@@ -1565,11 +1565,11 @@ async function refresh() {
 
   try {
 
-    const [status, users, trades] = await Promise.all([
+    const [status, user, trades] = await Promise.all([
 
       fetch('/api/status').then(r => r.json()),
 
-      fetch('/api/users').then(r => r.json()),
+      fetch('/api/user').then(r => r.json()),
 
       fetch('/api/trades?limit=10').then(r => r.json())
 
@@ -1579,7 +1579,7 @@ async function refresh() {
 
     document.getElementById('uptime').textContent = 'Uptime: ' + Math.floor(status.uptime/3600) + 'h ' + Math.floor((status.uptime%3600)/60) + 'm';
 
-    document.getElementById('st-users').textContent = status.totalUsers;
+    document.getElementById('st-user').textContent = status.totalUsers;
 
     document.getElementById('st-active').textContent = status.activeUsers;
 
@@ -1587,7 +1587,7 @@ async function refresh() {
 
     // Count unique traders
 
-    const tradersSet = new Set(users.map(u => u.config?.traderAddress).filter(a => !!a));
+    const tradersSet = new Set(user.map(u => u.config?.traderAddress).filter(a => !!a));
 
     document.getElementById('st-traders').textContent = tradersSet.size;
 
@@ -1623,9 +1623,9 @@ async function refresh() {
 
     // Update Users
 
-    const userBody = document.getElementById('user-body');
+    const userody = document.getElementById('userbody');
 
-    userBody.innerHTML = users.map(u => {
+    userody.innerHTML = user.map(u => {
 
       const isReady = u.step === 'ready';
 
@@ -1635,7 +1635,7 @@ async function refresh() {
 
           <td>
 
-            <div class="user-id">
+            <div class="userid">
 
               <div class="avatar">\${u.chatId.slice(-2)}</div>
 
@@ -1723,7 +1723,7 @@ async function refresh() {
 
 async function toggleUser(chatId, enabled) {
 
-  await fetch(\`/api/users/\${chatId}/config\`, {
+  await fetch(\`/api/user/\${chatId}/config\`, {
 
     method: 'POST',
 
@@ -1741,9 +1741,9 @@ async function toggleUser(chatId, enabled) {
 
 async function resetUser(chatId) {
 
-  if (!confirm('Deseja resetar este usuário? A carteira será removida e ele voltará ao início.')) return;
+  if (!confirm('Deseja resetar este usuário? A carteira seráá removida e ele voltará ao início.')) return;
 
-  await fetch(\`/api/users/\${chatId}/reset\`, { method: 'POST' });
+  await fetch(\`/api/user/\${chatId}/reset\`, { method: 'POST' });
 
   refresh();
 
@@ -1755,7 +1755,7 @@ async function deleteUser(chatId) {
 
   if (!confirm('Deseja excluir permanentemente este usuário?')) return;
 
-  await fetch(\`/api/users/\${chatId}\`, { method: 'DELETE' });
+  await fetch(\`/api/user/\${chatId}\`, { method: 'DELETE' });
 
   refresh();
 
@@ -1803,7 +1803,7 @@ async function saveUserConfig() {
 
   
 
-  await fetch(\`/api/users/\${chatId}/config\`, {
+  await fetch(\`/api/user/\${chatId}/config\`, {
 
     method: 'POST',
 
@@ -1843,7 +1843,7 @@ const authStyles = `
 
   --success: #238636; --warning: #d29922; --danger: #da3633;
 
-  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Robôoto, Helvetica, Arial, sans-seráif;
 
 }
 
@@ -1989,7 +1989,7 @@ const loginHtml = `<!DOCTYPE html>
 
       </div>
 
-      <button type="submit" class="btn-auth">Entrar no Sistema</button>
+      <button type="submit" class="btn-auth">Entrar não Sistema</button>
 
     </form>
 
@@ -2061,9 +2061,9 @@ const signupHtml = `<!DOCTYPE html>
 
       <div class="form-group">
 
-        <label>Nome de Usuário</label>
+        <label>Nãome de Usuário</label>
 
-        <input type="text" id="username" placeholder="Como deseja ser chamado" required>
+        <input type="text" id="username" placeholder="Como deseja será chamado" required>
 
       </div>
 
@@ -2143,7 +2143,7 @@ const adminDashboardHtml = `<!DOCTYPE html>
 
 <title>PolyCopy SaaS Admin</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Monão:wght@400&display=swap" rel="stylesheet">
 
 <style>
 
@@ -2155,7 +2155,7 @@ const adminDashboardHtml = `<!DOCTYPE html>
 
   --success: #238636; --warning: #d29922; --danger: #da3633;
 
-  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Robôoto, Helvetica, Arial, sans-seráif;
 
 }
 
@@ -2189,7 +2189,7 @@ main { flex: 1; margin-left: 240px; padding: 30px; width: calc(100% - 240px); }
 
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 
-.user-info { display: flex; align-items: center; gap: 12px; }
+.userinfo { display: flex; align-items: center; gap: 12px; }
 
 .avatar { width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
 
@@ -2327,7 +2327,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       </div>
 
-      <div class="nav-item" onclick="showSection('users', this)">
+      <div class="nav-item" onclick="showSection('user', this)">
 
         <span>👥</span> Gerenciar Usuários
 
@@ -2363,7 +2363,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       <h2 id="section-title">Dashboard Overview</h2>
 
-      <div class="user-info">
+      <div class="userinfo">
 
         <div style="text-align: right">
 
@@ -2395,7 +2395,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
           <div class="stat-label">Total de Usuários</div>
 
-          <div id="st-total-users" class="stat-value">0</div>
+          <div id="st-total-user" class="stat-value">0</div>
 
           <div class="stat-sub" style="color: var(--success)">SaaS Members</div>
 
@@ -2405,7 +2405,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
           <div class="stat-label">Usuários Ativos</div>
 
-          <div id="st-active-users" class="stat-value">0</div>
+          <div id="st-active-user" class="stat-value">0</div>
 
           <div class="stat-sub" style="color: var(--accent)">Bots Executando</div>
 
@@ -2473,7 +2473,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
     <!-- Section: Users -->
 
-    <div id="section-users" class="section">
+    <div id="section-user" class="section">
 
       <div class="card">
 
@@ -2499,7 +2499,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
           </thead>
 
-          <tbody id="user-body"></tbody>
+          <tbody id="userbody"></tbody>
 
         </table>
 
@@ -2673,9 +2673,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
             <div class="form-group">
 
-                <label>Nome / Usuário</label>
+                <label>Nãome / Usuário</label>
 
-                <input type="text" id="edit-username" placeholder="Nome">
+                <input type="text" id="edit-username" placeholder="Nãome">
 
             </div>
 
@@ -2689,7 +2689,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
             <div class="form-group" style="margin-bottom: 0">
 
-                <label>Nova Senha</label>
+                <label>Nãova Senha</label>
 
                 <input type="password" id="edit-password" placeholder="•••••••• (deixe vazio)">
 
@@ -2827,7 +2827,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
                <input type="checkbox" id="edit-copyBuy" style="width:18px; height:18px">
 
-               <label style="margin-bottom:0">Copiar Compras (BUY)</label>
+               <label style="margin-bottom:0">Cópiar Compras (BUY)</label>
 
             </div>
 
@@ -2835,7 +2835,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
                <input type="checkbox" id="edit-copySell" style="width:18px; height:18px">
 
-               <label style="margin-bottom:0">Copiar Vendas (SELL)</label>
+               <label style="margin-bottom:0">Cópiar Vendas (SELL)</label>
 
             </div>
 
@@ -2885,11 +2885,11 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       try {
 
-        const [status, users, trades] = await Promise.all([
+        const [status, user, trades] = await Promise.all([
 
           fetch('/api/status').then(r => r.json()),
 
-          fetch('/api/users').then(r => r.json()),
+          fetch('/api/user').then(r => r.json()),
 
           fetch('/api/trades?limit=20').then(r => r.json())
 
@@ -2901,9 +2901,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
         document.getElementById('admin-name').textContent = status.username || 'Admin';
 
-        document.getElementById('st-total-users').textContent = status.totalUsers;
+        document.getElementById('st-total-user').textContent = status.totalUsers;
 
-        document.getElementById('st-active-users').textContent = status.activeUsers;
+        document.getElementById('st-active-user').textContent = status.activeUsers;
 
         document.getElementById('st-uptime').textContent = formatUptime(status.uptime);
 
@@ -2939,7 +2939,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
         // Users Table
 
-        document.getElementById('user-body').innerHTML = users.map(u => \`
+        document.getElementById('userbody').innerHTML = user.map(u => \`
 
           <tr>
 
@@ -3031,7 +3031,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
     async function toggleUser(id, enabled) {
 
-      await fetch(\`/api/users/\${id}/config\`, {
+      await fetch(\`/api/user/\${id}/config\`, {
 
         method: 'POST',
 
@@ -3053,7 +3053,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       try {
 
-        const res = await fetch(\`/api/users/\${id}\`);
+        const res = await fetch(\`/api/user/\${id}\`);
 
         const u = await res.json();
 
@@ -3161,7 +3161,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
 
 
-      const res = await fetch(\`/api/users/\${id}/config\`, {
+      const res = await fetch(\`/api/user/\${id}/config\`, {
 
         method: 'POST',
 
@@ -3197,7 +3197,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       try {
 
-        const res = await fetch(\`/api/users/\${id}/reset\`, { method: 'POST' });
+        const res = await fetch(\`/api/user/\${id}/reset\`, { method: 'POST' });
 
         if (res.ok) {
 
@@ -3227,7 +3227,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
       try {
 
-        const res = await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
+        const res = await fetch(\`/api/user/\${id}\`, { method: 'DELETE' });
 
         if (res.ok) {
 
@@ -3395,7 +3395,7 @@ const userDashboardHtml = `<!DOCTYPE html>
 
   --success: #238636; --warning: #d29922; --danger: #da3633;
 
-  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Robôoto, Helvetica, Arial, sans-seráif;
 
 }
 
@@ -3477,7 +3477,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
     <div class="nav">
 
-      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robô</div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>🤖</span> Meu Robôô</div>
 
       <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>📍</span> Posições Abertas</div>
 
@@ -3643,7 +3643,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                             <th>P&L TRADER</th>
 
-                            <th title="Quanto você colocou nessa operação">MINHA ENTRADA</th>
+                            <th title="Quanto vocêê colocou nessa operação">MINHA ENTRADA</th>
 
                             <th title="Seu lucro/prejuízo atual em USD">MEU LUCRO</th>
 
@@ -3653,7 +3653,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     </thead>
 
-                    <tbody id="user-trade-body"></tbody>
+                    <tbody id="usertrade-body"></tbody>
 
                 </table>
 
@@ -3701,7 +3701,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     </thead>
 
-                    <tbody id="user-positions-body">
+                    <tbody id="userpositions-body">
 
                         <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Carregando posições...</td></tr>
 
@@ -3851,7 +3851,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                         <label class="switch-container">
 
-                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menor</span>
+                            <input type="checkbox" id="bot-buyAtMin"> <span>Comprar Mínimo ($1) se cálculo for menãor</span>
 
                         </label>
 
@@ -3863,13 +3863,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                         <label class="switch-container">
 
-                            <input type="checkbox" id="bot-copyBuy" checked> <span>Copiar Ordens de COMPRA</span>
+                            <input type="checkbox" id="bot-copyBuy" checked> <span>Cópiar Ordens de COMPRA</span>
 
                         </label>
 
                         <label class="switch-container">
 
-                            <input type="checkbox" id="bot-copySell" checked> <span>Copiar Ordens de VENDA</span>
+                            <input type="checkbox" id="bot-copySell" checked> <span>Cópiar Ordens de VENDA</span>
 
                         </label>
 
@@ -4021,7 +4021,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <input type="number" id="bot-sniperModeSec" step="1" placeholder="Ex: 60">
 
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades feitos nos primeiros X segs. do mercado.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades feitos nãos primeiros X segs. do mercado.</small>
 
                 </div>
 
@@ -4031,7 +4031,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <input type="number" id="bot-lastMinuteModeSec" step="1" placeholder="Ex: 60">
 
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades se o mercado fechar em menos de X segs.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Só copia trades se o mercado fechar em menãos de X segs.</small>
 
                 </div>
 
@@ -4041,7 +4041,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <input type="number" id="bot-maxMarketCount" step="1" placeholder="Ex: 10">
 
-                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso você já esteja em posições de muitos mercados.</small>
+                    <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso vocêê já esteja em posições de muitos mercados.</small>
 
                 </div>
 
@@ -4071,7 +4071,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px">CARTEIRA OPERACIONAL</div>
 
-                    <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
+                    <div id="user.wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
 
                 </div>
 
@@ -4079,7 +4079,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
 
-                ⚠️ <strong>Robô em Operação:</strong> Você precisa desativar o robô no dashboard principal para alterar a carteira.
+                ⚠️ <strong>Robôô em Operação:</strong> Você precisa desativar o robô não dashboard principal para alterar a carteira.
 
             </div>
 
@@ -4101,7 +4101,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <div class="form-group" style="margin-top: 16px">
 
-                        <label>Proxy Wallet Address (Gnosis Safe)</label>
+                        <label>Proxy Wallet Address (Gnãosis Safe)</label>
 
                         <input type="text" id="bot-proxyAddress" placeholder="0x... (Opcional se auto-detectado)">
 
@@ -4119,11 +4119,11 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 <div style="border-left: 1px solid var(--border); padding-left: 24px">
 
-                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um novo endereço exclusivo:</p>
+                    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 15px">Ou gerar um nãovo endereço exclusivo:</p>
 
-                    <button id="btn-generate-settings" class="btn btn-sm" onclick="generateWalletSettings(this)">Gerar Nova Carteira</button>
+                    <button id="btn-generate-settings" class="btn btn-sm" onclick="generateWalletSettings(this)">Gerar Nãova Carteira</button>
 
-                    <small style="display:block; margin-top:10px; color:var(--text-dim)">Atenção: A carteira antiga será substituída no sistema.</small>
+                    <small style="display:block; margin-top:10px; color:var(--text-dim)">Atenção: A carteira antiga seráá substituída não sistema.</small>
 
                 </div>
 
@@ -4199,7 +4199,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/me');
+            const res = await fetch('/api/userme');
 
             if (res.status === 401) { window.location.href = '/login'; return; }
 
@@ -4223,7 +4223,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         // Sync wallet address globally as soon as data is available
 
-        const walletAddr = document.getElementById('user-wallet-addr');
+        const walletAddr = document.getElementById('user.wallet-addr');
 
         if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
 
@@ -4285,9 +4285,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         document.getElementById('step-content').innerHTML = \`
 
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para voc\u00EA. Gere uma nova ou importe uma existente via Chave Privada.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">A plataforma utiliza uma carteira exclusiva para você\u00EA. Gere uma nãova ou importe uma existente via Chave Privada.</p>
 
-            <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nova Carteira</button>
+            <button class="btn" onclick="generateWallet(this)" style="margin-bottom:12px">Gerar Nãova Carteira</button>
 
             <div style="margin: 20px 0; display:flex; align-items:center; gap:10px; color:var(--border)">
 
@@ -4331,7 +4331,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const res = await fetch('/api/usergenerate-wallet', { method: 'POST' });
 
             const data = await res.json();
 
@@ -4343,7 +4343,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                         <h4 style="color:var(--success); margin-bottom:16px">\u2705 Carteira Gerada com Sucesso!</h4>
 
-                        <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, voc\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
+                        <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px">Esta \u00E9 a sua chave secreta. **Guarde-a com cuidado**, você\u00EA precisar\u00E1 dela para acessar sua conta na Polymarket.</p>
 
                         
 
@@ -4367,7 +4367,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                                 <li>Copie sua <b>Chave Privada</b> acima.</li>
 
-                                <li>No seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
+                                <li>Não seu navegador, abra sua <b>MetaMask</b> e escolha "Importar Conta".</li>
 
                                 <li>Cole a chave e clique em "Importar".</li>
 
@@ -4381,7 +4381,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
 
 
-                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se voc\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
+                        <p style="font-size:0.75rem; color:var(--danger); font-weight:700; margin-bottom:20px">\u26A0\uFE0F AVISO: Se você\u00EA perder esta chave, perder\u00E1 o acesso definitivo aos seus fundos.</p>
 
                         
 
@@ -4395,7 +4395,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 showBanner(data.error || 'Erro ao gerar carteira', 'danger');
 
-                btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+                btn.disabled = false; btn.textContent = 'Gerar Nãova Carteira';
 
             }
 
@@ -4403,7 +4403,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             showBanner('Erro de conex\u00E3o', 'danger');
 
-            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            btn.disabled = false; btn.textContent = 'Gerar Nãova Carteira';
 
         }
 
@@ -4433,7 +4433,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             // Step 1: Preview the wallet info without saving
 
-            const previewRes = await fetch('/api/user/validate-wallet-preview', {
+            const previewRes = await fetch('/api/uservalidate-wallet-preview', {
 
                 method: 'POST',
 
@@ -4501,7 +4501,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             console.error('Validate error:', e);
 
-            showBanner('Erro de conexão com o servidor', 'danger');
+            showBanner('Erro de conexão com o serávidor', 'danger');
 
         } finally {
 
@@ -4519,7 +4519,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/import-wallet', {
+            const res = await fetch('/api/userimport-wallet', {
 
                 method: 'POST',
 
@@ -4545,7 +4545,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         } catch (e) {
 
-            showBanner('Erro de conexão com o servidor', 'danger');
+            showBanner('Erro de conexão com o serávidor', 'danger');
 
         }
 
@@ -4565,7 +4565,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         document.getElementById('step-content').innerHTML = \`
 
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele no Polymarket.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Informe o endereço do trader que deseja copiar. O bot monitorará cada aposta dele não Polymarket.</p>
 
             <div class="form-group">
 
@@ -4589,7 +4589,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             <button class="btn btn-outline" onclick="enterMirrorMode(this)">Usar Mirror 100% (Sem Filtros)</button>
 
-            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Copia exatamente cada trade do alvo, ignorando limites de preço e tamanho.</p>
+            <p style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); text-align:center">Cópia exatamente cada trade do alvo, ignãorando limites de preço e tamanho.</p>
 
         \`;
 
@@ -4607,7 +4607,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            await fetch('/api/user/update-config', {
+            await fetch('/api/userupdate-config', {
 
                 method: 'POST',
 
@@ -4653,7 +4653,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         btn.disabled = true; btn.textContent = 'Salvando...';
 
-        await fetch('/api/user/update-config', {
+        await fetch('/api/userupdate-config', {
 
             method: 'POST',
 
@@ -4683,7 +4683,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         document.getElementById('step-content').innerHTML = \`
 
-            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como voc\u00EA deseja copiar os trades? Defina o valor inicial da opera\u00E7\u00E3o.</p>
+            <p style="margin-bottom:20px; color:var(--text-dim); line-height:1.5">Como você\u00EA deseja copiar os trades? Defina o valor inicial da opera\u00E7\u00E3o.</p>
 
             
 
@@ -4731,7 +4731,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 <p style="font-size: 0.85rem; line-height: 1.4; color: var(--accent)">
 
-                    \uD83D\uDCA1 Voc\u00EA poder\u00E1 alterar essas e outras configura\u00E7\u00F5es avan\u00E7adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
+                    \uD83D\uDCA1 Você\u00EA poder\u00E1 alterar essas e outras configura\u00E7\u00F5es avan\u00E7adas (Slippage, Filtros, TP/SL) a qualquer momento no seu Painel de Controle.
 
                 </p>
 
@@ -4763,7 +4763,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         btn.disabled = true; btn.textContent = 'Iniciando Opera\u00E7\u00E3o...';
 
-        await fetch('/api/user/update-config', {
+        await fetch('/api/userupdate-config', {
 
             method: 'POST',
 
@@ -4785,7 +4785,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             const c = currentUser.config || {};
 
-            const walletAddr = document.getElementById('user-wallet-addr');
+            const walletAddr = document.getElementById('user.wallet-addr');
 
             if (walletAddr) walletAddr.textContent = currentUser.wallet?.address || '---';
 
@@ -4977,7 +4977,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const previewRes = await fetch('/api/user/validate-wallet-preview', {
+            const previewRes = await fetch('/api/uservalidate-wallet-preview', {
 
                 method: 'POST',
 
@@ -5043,7 +5043,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 previewContainer.id = 'settings-import-preview';
 
-                btn.parentNode.parentNode.appendChild(previewContainer);
+                btn.parentNãode.parentNãode.appendChild(previewContainer);
 
             }
 
@@ -5055,7 +5055,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             console.error('Validate error:', e);
 
-            showBanner('Erro de conexão com o servidor', 'danger');
+            showBanner('Erro de conexão com o serávidor', 'danger');
 
         } finally {
 
@@ -5077,7 +5077,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/import-wallet', {
+            const res = await fetch('/api/userimport-wallet', {
 
                 method: 'POST',
 
@@ -5111,7 +5111,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             if (btn) { btn.disabled = false; btn.textContent = 'Atualizar Chave Privada'; }
 
-            showBanner('Erro de conexão com o servidor', 'danger');
+            showBanner('Erro de conexão com o serávidor', 'danger');
 
         }
 
@@ -5121,17 +5121,17 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
     async function generateWalletSettings(btn) {
 
-        if (!confirm('Deseja gerar uma NOVA carteira? A atual ser\u00E1 substit\u00EDda no sistema.')) return;
+        if (!confirm('Deseja gerar uma NOVA carteira? A atual será\u00E1 substit\u00EDda não sistema.')) return;
 
         btn.disabled = true; btn.textContent = 'Gerando...';
 
         try {
 
-            const res = await fetch('/api/user/generate-wallet', { method: 'POST' });
+            const res = await fetch('/api/usergenerate-wallet', { method: 'POST' });
 
             const data = await res.json();
 
-            btn.disabled = false; btn.textContent = 'Gerar Nova Carteira';
+            btn.disabled = false; btn.textContent = 'Gerar Nãova Carteira';
 
             if (res.ok && data.success) {
 
@@ -5139,7 +5139,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                     <div style="max-width:600px; margin:0 auto; background:rgba(16,185,129,0.05); border:1px solid var(--success); padding:32px; border-radius:16px; animation:fadeIn 0.3s ease">
 
-                        <h3 style="color:var(--success); margin-bottom:20px">\u2705 Nova Carteira Criada!</h3>
+                        <h3 style="color:var(--success); margin-bottom:20px">\u2705 Nãova Carteira Criada!</h3>
 
                         <p style="color:var(--text-dim); margin-bottom:20px">Sua carteira anterior foi substitu\u00EDda. Salve os dados abaixo imediatamente.</p>
 
@@ -5173,9 +5173,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                              <ul style="font-size:0.75rem; color:var(--text-dim); padding-left:18px; line-height:1.6">
 
-                                <li>Importe esta <b>Chave Privada</b> no seu MetaMask.</li>
+                                <li>Importe esta <b>Chave Privada</b> não seu MetaMask.</li>
 
-                                <li>Conecte sua MetaMask no site da Polymarket.</li>
+                                <li>Conecte sua MetaMask não site da Polymarket.</li>
 
                              </ul>
 
@@ -5213,7 +5213,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/stats');
+            const res = await fetch('/api/userstats');
 
             const data = await res.json();
 
@@ -5257,13 +5257,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/trades');
+            const res = await fetch('/api/usertrades');
 
             if (!res.ok) return;
 
             const trades = await res.json();
 
-            const tbody = document.getElementById('user-trade-body');
+            const tbody = document.getElementById('usertrade-body');
 
             if (!tbody) return;
 
@@ -5443,7 +5443,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             const nextState = !(currentUser.config?.enabled);
 
-            await fetch('/api/user/update-config', {
+            await fetch('/api/userupdate-config', {
 
                 method: 'POST',
 
@@ -5525,7 +5525,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         };
 
-        const res = await fetch('/api/user/update-config', {
+        const res = await fetch('/api/userupdate-config', {
 
             method: 'POST',
 
@@ -5575,13 +5575,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         try {
 
-            const res = await fetch('/api/user/positions');
+            const res = await fetch('/api/userpositions');
 
             if (!res.ok) return;
 
             const positions = await res.json();
 
-            const tbody = document.getElementById('user-positions-body');
+            const tbody = document.getElementById('userpositions-body');
 
             if (!tbody) return;
 
@@ -5589,7 +5589,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
             if (!positions || positions.length === 0) {
 
-                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada no momento.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posição ativa encontrada não momento.</td></tr>\`;
 
                 return;
 
@@ -5645,13 +5645,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
 
 
-// Enrichen AuthRequest with full User data for all /api/user/ routes
+// Enrichen AuthRequest with full User data for all /api/user routes
 
-app.use('/api/user/', async (req: any, _res, next) => {
+app.use('/api/user', async (req: any, _res, next) => {
 
     if (req.user?.id) {
 
-        req.fullUser = await User.findById(req.user.id).lean();
+        req.fullUser = await User.findById(req.userid).lean();
 
     }
 
@@ -5661,11 +5661,11 @@ app.use('/api/user/', async (req: any, _res, next) => {
 
 
 
-app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
+app.get('/api/userme', authenticateToken, async (req: AuthRequest, res) => {
 
     const user = (req as any).fullUser;
 
-    res.json(user ? {
+    res.json(user? {
 
         id: user._id,
 
@@ -5681,13 +5681,13 @@ app.get('/api/user/me', authenticateToken, async (req: AuthRequest, res) => {
 
         step: user.step
 
-    } : { error: 'Not logged in' });
+    } : { error: 'Nãot logged in' });
 
 });
 
 
 
-app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest, res) => {
+app.post('/api/usergenerate-wallet', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 
@@ -5699,7 +5699,7 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
 
         if (user.config?.enabled) {
 
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de alterar a carteira' });
+            return res.status(400).json({ error: 'Desative o robô não dashboard antes de alterar a carteira' });
 
         }
 
@@ -5739,7 +5739,7 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
 
 // Preview endpoint: derives wallet info from PK without saving
 
-app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: AuthRequest, res) => {
+app.post('/api/uservalidate-wallet-preview', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 
@@ -5789,7 +5789,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
                 }
 
-            } catch (_) { /* ignore */ }
+            } catch (_) { /* ignãore */ }
 
         }
 
@@ -5805,7 +5805,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
             onchainBalance = await getMyBalance(balanceTarget);
 
-        } catch (_) { /* ignore */ }
+        } catch (_) { /* ignãore */ }
 
 
 
@@ -5815,11 +5815,11 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
         try {
 
-            const positions = await fetchData(`https://data-api.polymarket.com/positions?user=${balanceTarget}`);
+            const positions = await fetchData(`https://data-api.polymarket.com/positions?user{balanceTarget}`);
 
             if (Array.isArray(positions)) openPositions = positions.filter((p: any) => p.size > 0).length;
 
-        } catch (_) { /* ignore */ }
+        } catch (_) { /* ignãore */ }
 
 
 
@@ -5847,7 +5847,7 @@ app.post('/api/user/validate-wallet-preview', authenticateToken, async (req: Aut
 
 
 
-app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, res) => {
+app.post('/api/userimport-wallet', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 
@@ -5901,7 +5901,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
 
                 }
 
-            } catch (_) { /* ignore */ }
+            } catch (_) { /* ignãore */ }
 
         }
 
@@ -5915,7 +5915,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
 
         if (user.config?.enabled) {
 
-            return res.status(400).json({ error: 'Desative o robô no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robô não dashboard antes de importar uma nãova carteira' });
 
         }
 
@@ -5937,7 +5937,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
 
         await user.save();
 
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${detectedProxy || 'None'})`);
+        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${eoaAddress} (Proxy: ${detectedProxy || 'Nãone'})`);
 
         res.json({ success: true, address: eoaAddress, proxyAddress: detectedProxy });
 
@@ -5953,7 +5953,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
 
 
 
-app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, res) => {
+app.post('/api/userupdate-config', authenticateToken, async (req: AuthRequest, res) => {
 
     const user = await User.findById(req.user?.id);
 
@@ -6073,7 +6073,7 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
 
 
 
-app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) => {
+app.get('/api/userpositions', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 
@@ -6087,7 +6087,7 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
 
 
 
-        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
+        const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=`);
 
         if (!Array.isArray(positionsData)) {
 
@@ -6163,7 +6163,7 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
 
 
 
-app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => {
+app.get('/api/usertrades', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 
@@ -6173,7 +6173,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
         const userId = req.user?.id?.toString();
 
-        const traderAddress = user?.config?.traderAddress?.toLowerCase();
+        const traderAddress = user.config?.traderAddress?.toLowerCase();
 
 
 
@@ -6241,8 +6241,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
 
 
-            // Determine this user's execution status
-
+            const userId = req.user?.id?.toString();
             const userStatus = userId && t.followerStatuses?.[userId];
 
             let executionStatus: string;
@@ -6252,15 +6251,10 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
 
             if (userStatus) {
-
                 executionStatus = userStatus.status;
-
                 executionDetails = userStatus.details || '';
-
             } else if (t.processedBy?.includes(userId)) {
-
-                executionStatus = 'SUCESSO';
-
+                executionStatus = 'PROCESSANDO';
             } else {
 
                 // Was detected but not attempted for this user yet or not their trader
@@ -6271,15 +6265,23 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
 
 
-            // Extract user's own execution data
+            // Extract users own execution data (fallback to trader's data if missing but user processed)
+            let myEntryAmount: number | null = userStatus?.myEntryAmount || null;
+            let myEntryPrice: number | null = userStatus?.myEntryPrice || null;
 
-            const myEntryAmount: number | null = userStatus?.myEntryAmount || null;
+            if (myEntryAmount === null && t.processedBy?.includes(userId)) {
+                // Estimate: If user followed, they probably used their min/max or similar.
+                // For now, let's just show it as "Pending" or 0 if we can't estimate perfectly,
+                // but at least we recognize they have an entry if it's SUCESSO.
+                if (executionStatus === 'SUCESSO') {
+                   myEntryAmount = userStatus?.myEntryAmount || 0;
+                   myEntryPrice = userStatus?.myEntryPrice || t.price || 0;
+                }
+            }
 
-            const myEntryPrice: number | null = userStatus?.myEntryPrice || null;
 
 
-
-            // Calculate user's real P&L in USD
+            // Calculate users real P&L in USD
 
             let myPnlUSD: number | null = null;
 
@@ -6371,7 +6373,7 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
 
 
 
-app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
+app.get('/api/userstats', authenticateToken, async (req: AuthRequest, res) => {
 
     try {
 

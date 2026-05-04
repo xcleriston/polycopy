@@ -202,13 +202,26 @@ const postOrder = async (
                 await new Promise(r => setTimeout(r, 1000));
             }
         }
+        
+        // If we finished the loop but still haven't recorded SUCESSO (e.g. remaining was 0 or loop never ran)
+        // Check if we already recorded something for this trade.
+        // Actually, if remaining was 0 from the start, we should record why.
+        if (orderCalc.finalAmount === 0) {
+            await recordStatus(trade._id, followerId, 'PULADO (SALDO)', orderCalc.reasoning);
+        }
     } else if (effectiveCondition === 'sell') {
-        if (!my_position) return;
+        if (!my_position) {
+            await recordStatus(trade._id, followerId, 'PULADO (SEM POSIÇÃO)', 'Você não possui posição aberta neste mercado para vender.');
+            return;
+        }
         let trader_sell_percent = 1.0;
         if (user_position) trader_sell_percent = trade.size / (user_position.size + trade.size);
         
         let remaining = my_position.size * trader_sell_percent;
-        if (remaining < MIN_ORDER_SIZE_TOKENS) return;
+        if (remaining < MIN_ORDER_SIZE_TOKENS) {
+            await recordStatus(trade._id, followerId, 'PULADO (TAMANHO)', `Tamanho da venda ${remaining.toFixed(2)} tokens é muito pequeno.`);
+            return;
+        }
 
         let retry = 0;
         while (remaining > 0.05 && retry < retryLimit) {
