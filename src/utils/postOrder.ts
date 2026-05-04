@@ -35,10 +35,20 @@ const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boo
 
 export const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
+        const updateData: any = {
+            [`followerStatuses.${followerId}`]: { 
+                status, 
+                details, 
+                timestamp: new Date(), 
+                ...extra 
+            }
+        };
+        
         await Activity.updateOne(
             { _id: activityId },
-            { $set: { [`followerStatuses.${followerId}`]: { status, details, timestamp: new Date(), ...extra } } }
+            { $set: updateData }
         );
+        Logger.info(`[STATUS] Recorded "${status}" for follower ${followerId} on activity ${activityId}`);
     } catch (e) {
         Logger.error(`Failed to record status for ${followerId}: ${e}`);
     }
