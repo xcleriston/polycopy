@@ -1,11 +1,11 @@
 import { ClobClient } from '@polymarket/clob-client';
 import { UserActivityInterface, UserPositionInterface } from '../interfaces/User.js';
 import { ENV } from '../config/env.js';
-import { Activity, getUserActivityModel, IUserActivity, recordStatus } from '../models/userHistory.js';
+import { Activity, getUserActivityModel, IUserActivity } from '../models/userHistory.js';
 import User, { IUser } from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';
-import postOrder from '../utils/postOrder.js';
+import postOrder, { recordStatus } from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
 import telegram from '../utils/telegram.js';
 import createClobClient from '../utils/createClobClient.js';

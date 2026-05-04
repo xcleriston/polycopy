@@ -8,11 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { ENV } from '../config/env.js';
-import { Activity, recordStatus } from '../models/userHistory.js';
+import { Activity } from '../models/userHistory.js';
 import User from '../models/user.js';
 import fetchData from '../utils/fetchData.js';
 import getMyBalance from '../utils/getMyBalance.js';
-import postOrder from '../utils/postOrder.js';
+import postOrder, { recordStatus } from '../utils/postOrder.js';
 import Logger from '../utils/logger.js';
 import { broadcastTrade } from '../utils/push.js';
 const RETRY_LIMIT = ENV.RETRY_LIMIT;

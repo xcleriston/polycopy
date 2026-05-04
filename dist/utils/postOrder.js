@@ -41,7 +41,7 @@ const isInsufficientBalanceOrAllowanceError = (message) => {
     const lower = message.toLowerCase();
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
-const recordStatus = (activityId, followerId, status, details, extra) => __awaiter(void 0, void 0, void 0, function* () {
+export const recordStatus = (activityId, followerId, status, details, extra) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield Activity.updateOne({ _id: activityId }, { $set: { [`followerStatuses.${followerId}`]: Object.assign({ status, details, timestamp: new Date() }, extra) } });
     }

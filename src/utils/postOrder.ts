@@ -33,7 +33,7 @@ const isInsufficientBalanceOrAllowanceError = (message: string | undefined): boo
     return lower.includes('not enough balance') || lower.includes('allowance');
 };
 
-const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
+export const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
         await Activity.updateOne(
             { _id: activityId },
