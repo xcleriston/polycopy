@@ -113,20 +113,19 @@ const doTrading = (trade) => __awaiter(void 0, void 0, void 0, function* () {
                 Logger.balance(my_balance, user_balance, followerId);
                 // Execute the trade with FOLLOWER'S config
                 yield postOrder(clobClient, trade.side === 'BUY' ? 'buy' : 'sell', my_position, user_position, trade, my_balance, followerId, follower.config, // Pass individual user config
-                my_positions, // Pass all positions for exposure calculation
-                targetAddr // Pass proxyAddress
-                );
-                // Final mark as processed
-                yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
+                // Final mark as processed with status in ONE ATOMIC CALL
+                yield recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
+                    processed: true // This will signal the executor to add to processedBy
+                }));
             }
         }
         catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
-            // Also mark as processed on error to avoid infinite retry loops unless it's a transient network error
             const errStr = (error === null || error === void 0 ? void 0 : error.toString().toLowerCase()) || '';
             if (!errStr.includes('network') && !errStr.includes('timeout') && !errStr.includes('429')) {
-                yield Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
-                yield recordStatus(trade._id, followerId, 'ERRO (EXECUÇÃO)', errStr.slice(0, 100));
+                yield recordStatus(trade._id, followerId, 'ERRO (EXECUÇÃO)', errStr.slice(0, 100), {
+                    processed: true
+                });
             }
         }
         Logger.separator();

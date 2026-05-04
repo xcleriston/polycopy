@@ -153,22 +153,18 @@ const doTrading = async (trade: any) => {
                     my_balance,
                     followerId,
                     follower.config, // Pass individual user config
-                    my_positions, // Pass all positions for exposure calculation
-                    targetAddr // Pass proxyAddress
-                );
-                // Final mark as processed
-                await Activity.updateOne(
-                    { _id: trade._id }, 
-                    { $addToSet: { processedBy: followerId } }
-                );
+                // Final mark as processed with status in ONE ATOMIC CALL
+                await recordStatus(trade._id, followerId, 'SUCESSO', 'Executado com sucesso', {
+                    processed: true // This will signal the executor to add to processedBy
+                });
             }
         } catch (error) {
             Logger.error(`Error processing trade for follower ${followerId}: ${error}`);
-            // Also mark as processed on error to avoid infinite retry loops unless it's a transient network error
             const errStr = error?.toString().toLowerCase() || '';
             if (!errStr.includes('network') && !errStr.includes('timeout') && !errStr.includes('429')) {
-                await Activity.updateOne({ _id: trade._id }, { $addToSet: { processedBy: followerId } });
-                await recordStatus(trade._id, followerId, 'ERRO (EXECUÇÃO)', errStr.slice(0, 100));
+                await recordStatus(trade._id, followerId, 'ERRO (EXECUÇÃO)', errStr.slice(0, 100), {
+                    processed: true
+                });
             }
         }
         Logger.separator();
