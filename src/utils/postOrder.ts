@@ -14,21 +14,38 @@ const extractOrderError = (resp: any): string => {
 
 export const recordStatus = async (activityId: string, followerId: string, status: string, details?: string, extra?: Record<string, any>) => {
     try {
-        const { processed, ...restExtra } = extra || {};
+        const { processed, myEntryPrice, myEntryAmount, ...restExtra } = extra || {};
+        
+        // Redundant fields for dashboard compatibility
+        const dashboardData = {
+            status,
+            details,
+            timestamp: new Date(),
+            // Price fields
+            price: myEntryPrice,
+            myEntryPrice: myEntryPrice,
+            entryPrice: myEntryPrice,
+            executedPrice: myEntryPrice,
+            // Amount fields
+            amount: myEntryAmount,
+            myEntryAmount: myEntryAmount,
+            value: myEntryAmount,
+            // Profit fields (initial placeholder or calculated)
+            pnl: extra?.pnl || 0,
+            profit: extra?.profit || 0,
+            percentPnl: extra?.percentPnl || 0,
+            ...restExtra
+        };
+
         const updateData: any = {
-            [`followerStatuses.${followerId}`]: { 
-                status, 
-                details, 
-                timestamp: new Date(), 
-                ...restExtra 
-            }
+            [`followerStatuses.${followerId}`]: dashboardData
         };
         const updateQuery: any = { $set: updateData };
         if (processed) {
             updateQuery.$addToSet = { processedBy: followerId };
         }
         await Activity.updateOne({ _id: activityId }, updateQuery);
-        Logger.info(`[STATUS] Recorded "${status}" for ${followerId}: ${details || ''}`);
+        Logger.info(`[STATUS] Recorded "${status}" for ${followerId} with full metadata`);
     } catch (e) {
         Logger.error(`Failed to record status: ${e}`);
     }
