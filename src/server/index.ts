@@ -1159,12 +1159,12 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
   <aside>
     <div class="logo">PREDIZ<span>COPY</span></div>
     <div class="nav">
-      <div class="nav-item active" onclick="showSection('dashboard', this)">
-        <span>📊</span> Dashboard
-      </div>
-      <div class="nav-item" onclick="showSection('users', this)">
-        <span>ðŸ‘¥</span> Gerenciar Usuários
-      </div>
+      <div id="nav-bot" class="nav-item active" onclick="switchTab('bot')"><span>&#129302;</span> Meu Rob&ocirc;</div>
+      <div id="nav-positions" class="nav-item" onclick="switchTab('positions')"><span>&#128202;</span> Posi&ccedil;&otilde;es Abertas</div>
+      <div id="nav-config" class="nav-item" onclick="switchTab('config')"><span>&#9881;</span> Configura&ccedil;&otilde;es</div>
+      <div class="nav-item" onclick="logout()" style="margin-top: 40px"><span>&#128683;</span> Sair</div>
+    </div>
+  </aside>
       <div class="nav-item" onclick="showSection('config', this)">
         <span>⚙️</span> Configurações Globais
       </div>
