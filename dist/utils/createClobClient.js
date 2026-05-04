@@ -101,7 +101,7 @@ const createClobClient = (customPk, proxyAddress, creds) => __awaiter(void 0, vo
         throw new Error('PRIVATE_KEY is required to create CLOB client');
     const wallet = new ethers.Wallet(pk);
     const signatureType = proxyAddress ? SignatureType.POLY_GNOSIS_SAFE : SignatureType.EOA;
-    return new ClobClient(host, chainId, wallet, creds, signatureType, proxyAddress, proxyAddress);
+    return new ClobClient(host, chainId, wallet, creds, signatureType, undefined, undefined);
 });
 const createClobClientAndDerive = (customPk, proxyAddress) => __awaiter(void 0, void 0, void 0, function* () {
     const chainId = 137;

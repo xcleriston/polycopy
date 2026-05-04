@@ -109,8 +109,8 @@ const createClobClient = async (customPk?: string, proxyAddress?: string, creds?
         wallet,
         creds,
         signatureType,
-        proxyAddress,
-        proxyAddress
+        undefined,
+        undefined
     );
 };
 
