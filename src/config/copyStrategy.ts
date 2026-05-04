@@ -80,6 +80,20 @@ export function calculateOrderSize(
     let baseAmount: number;
     let reasoning: string;
 
+    // HIGH PRIORITY BYPASS: MIRROR_100 and bypassFilters
+    if (config.mode === 'MIRROR_100' || (config as any).bypassFilters) {
+        return {
+            traderOrderSize,
+            baseAmount: traderOrderSize,
+            finalAmount: traderOrderSize,
+            multiplier: 1.0,
+            cappedByMax: false,
+            reducedByBalance: false,
+            belowMinimum: false,
+            reasoning: `${config.mode === 'MIRROR_100' ? 'MIRROR_100 Mode' : 'BypassFilters ACTIVE'}: Mirroring trader amount ($${traderOrderSize.toFixed(2)}) regardless of any filters or balance.`
+        };
+    }
+
     // Step 1: Calculate base amount based on strategy
     switch (config.strategy) {
         case CopyStrategy.PERCENTAGE:
