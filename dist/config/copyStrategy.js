@@ -25,7 +25,7 @@ export function calculateOrderSize(config, traderOrderSize, availableBalance, cu
             traderOrderSize,
             baseAmount: traderOrderSize,
             finalAmount: traderOrderSize,
-            multiplier: 1.0,
+            strategy: config.strategy,
             cappedByMax: false,
             reducedByBalance: false,
             belowMinimum: false,
