@@ -8,7 +8,7 @@
         "help": "ts-node src/scripts/help.ts",
         "setup": "ts-node src/scripts/setup.ts",
         "build": "tsc",
-        "prestart": "npm audit --omit=dev || true",
+        "prestart": "node -e \"try{require('child_process').execSync('npm audit --omit=dev',{stdio:'inherit'})}catch(_){}\"",
         "start": "node dist/index.js",
         "dev": "ts-node src/index.ts",
         "telegram": "node dist/telegram/index.js",
@@ -41,6 +41,9 @@
         "audit": "ts-node src/scripts/auditCopyTradingAlgorithmFixed.ts",
         "audit-old": "ts-node src/scripts/auditCopyTradingAlgorithm.ts",
         "health-check": "ts-node src/scripts/healthCheck.ts",
+        "test-order-v2": "ts-node src/scripts/testOrderV2.ts",
+        "dry-run-order-v2": "ts-node src/scripts/dryRunOrderV2.ts",
+        "migrate-users-sigtype-v2": "ts-node src/scripts/migrateUsersSigTypeV2.ts",
         "lint": "eslint .",
         "lint:fix": "eslint --fix .",
         "check-secrets": "bash scripts/check-env-safety.sh",
@@ -79,6 +82,7 @@
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
         "@polymarket/clob-client": "^4.14.0",
+        "@polymarket/clob-client-v2": "^1.0.4",
         "@seald-io/nedb": "^4.1.2",
         "axios": "^1.7.9",
         "bcryptjs": "^3.0.3",
@@ -92,6 +96,7 @@
         "mongoose": "^8.12.1",
         "ora": "^8.2.0",
         "swagger-ui-express": "^5.0.1",
+        "viem": "^2.48.8",
         "web-push": "^3.6.7"
     }
 }

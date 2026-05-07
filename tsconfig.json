@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         /* Language and Environment */
-        "target": "es2016" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */,
+        "target": "es2022" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. Bumped from es2016 to suport viem/ox which use BigInt literals + ES2021 String.replaceAll. */,
 
         /* Modules */
         "module": "esnext" /* Specify what module code is generated. */,

@@ -157,6 +157,23 @@ Por favor, envie sua **Chave Privada** (Private Key) da Polygon/Ethereum.
         const wallet = this.generateWallet();
         await User.updateOne({ chatId }, { $set: { wallet, step: 'wallet' } });
 
+        // Wallet nova provavelmente NÃO tem profile na Polymarket (chamada vai retornar null).
+        // Se eventualmente o user importou uma PK velha aqui, tenta auto-popular sigType+proxy.
+        try {
+            const { enrichWalletV2 } = await import('../utils/orderV2.js');
+            const enriched = await enrichWalletV2({
+                eoa: wallet.address,
+                rpcUrl: process.env.RPC_HTTP_URL ?? 'https://polygon-bor-rpc.publicnode.com',
+            });
+            if (enriched) {
+                await User.updateOne({ chatId }, { $set: {
+                    'wallet.proxyAddress': enriched.proxyAddress,
+                    'wallet.proxySignatureType': enriched.sigType,
+                }});
+                console.log(`[telegram] enrich V2 ${chatId}: proxy=${enriched.proxyAddress.slice(0,10)}… sigType=${enriched.sigType}`);
+            }
+        } catch (e) { console.error('[telegram] enrich failed:', e); }
+
         const depositLinks = this.getDepositLinks(wallet.address);
 
         const walletMessage = `*✅ CARTEIRA CRIADA COM SUCESSO!*
@@ -512,13 +529,36 @@ Se precisar de ajuda, contate nosso suporte.
 
         try {
             const walletDerived = new ethers.Wallet(cleanKey);
-            await User.updateOne({ chatId }, { 
-                $set: { 
+            // PK importada — limpa qualquer estado antigo + atualiza identity.
+            await User.updateOne({ chatId }, {
+                $set: {
                     'wallet.address': walletDerived.address,
-                    'wallet.privateKey': cleanKey
-                } 
-            });
-            
+                    'wallet.privateKey': cleanKey,
+                },
+                $unset: {
+                    'wallet.proxyAddress': 1,
+                    'wallet.proxySignatureType': 1,
+                    'wallet.clobCreds': 1,
+                },
+            } as any);
+
+            // Auto-detecta proxyWallet + sigType via Gamma /public-profile + on-chain.
+            // PK importada tem alta chance de já ter sido usada na Polymarket.
+            try {
+                const { enrichWalletV2 } = await import('../utils/orderV2.js');
+                const enriched = await enrichWalletV2({
+                    eoa: walletDerived.address,
+                    rpcUrl: process.env.RPC_HTTP_URL ?? 'https://polygon-bor-rpc.publicnode.com',
+                });
+                if (enriched) {
+                    await User.updateOne({ chatId }, { $set: {
+                        'wallet.proxyAddress': enriched.proxyAddress,
+                        'wallet.proxySignatureType': enriched.sigType,
+                    }});
+                    console.log(`[telegram] enrich V2 ${chatId}: proxy=${enriched.proxyAddress.slice(0,10)}… sigType=${enriched.sigType} (${enriched.detectionReason})`);
+                }
+            } catch (e) { console.error('[telegram] enrich failed:', e); }
+
             await this.sendMessage(
                 chatId,
                 `✅ *Conta Conectada com Sucesso!*\n\n📍 *Endereço:* \`${walletDerived.address}\`\n\nAgora vamos configurar quem você deseja copiar.`

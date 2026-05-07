@@ -11,7 +11,8 @@ import telegram from '../utils/telegram.js';
 import User from '../models/user.js';
 import getMyBalance from '../utils/getMyBalance.js';
 import fetchData from '../utils/fetchData.js';
-import { getClobClientForUser, findProxyWallet } from '../utils/createClobClient.js';
+import { getClobClientForUser, findProxyWallet, readProxyOwner, detectProxyType, callMultiRpc } from '../utils/createClobClient.js';
+import { ENV } from '../config/env.js';
 
 const app = express();
 app.use(express.json());
@@ -57,7 +58,7 @@ const bootstrapAdmin = async () => {
         const hashedPassword = await bcrypt.hash(adminPass, 10);
 
         if (!user) {
-            console.log(`&#55357;&#56960; [BOOTSTRAP] Criando Administrador: ${adminUser}`);
+            console.log(`🚀 [BOOTSTRAP] Criando Administrador: ${adminUser}`);
             user = new User({
                 username: adminUser,
                 email: adminEmail,
@@ -73,7 +74,7 @@ const bootstrapAdmin = async () => {
             await user.save();
         }
     } catch (error) {
-        console.error('&#226;&#157;&#338; [BOOTSTRAP] Erro cr&#237;tico:', error);
+        console.error('❌ [BOOTSTRAP] Erro cr&#237;tico:', error);
     }
 };
 
@@ -690,17 +691,17 @@ input, select { width: 100%; background: var(--bg); border: 1px solid var(--bord
     <div class="stat-card animate">
       <div class="stat-label">Total de Usu&#225;rios</div>
       <div id="st-users" class="stat-value">0</div>
-      <div class="stat-sub"><span>&#226;&#8224;&#8216;</span> Registrados</div>
+      <div class="stat-sub"><span>↑</span> Registrados</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.1s">
       <div class="stat-label">Usu&#225;rios Ativos</div>
       <div id="st-active" class="stat-value">0</div>
-      <div class="stat-sub"><span>&#226;&#8212;&#8240;</span> Trading agora</div>
+      <div class="stat-sub"><span>◉</span> Trading agora</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.2s">
       <div class="stat-label">Traders Monitorados</div>
       <div id="st-traders" class="stat-value">0</div>
-      <div class="stat-sub"><span>&#226;&#8212;&#8240;</span> Unique traders</div>
+      <div class="stat-sub"><span>◉</span> Unique traders</div>
     </div>
     <div class="stat-card animate" style="animation-delay: 0.3s">
       <div class="stat-label">Modo do Sistema</div>
@@ -835,9 +836,9 @@ async function refresh() {
             </label>
           </td>
           <td>
-            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">&#9881;&#65039;&#143;</button>
-            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">&#55357;&#56589;&#8222;</button>
-            <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">&#240;&#376;&#8212;&#8216;&#239;&#184;&#143;</button>
+            <button class="action-btn" onclick="openEditModal('\${u.chatId}', '\${u.config?.traderAddress}', '\${u.config?.strategy}', \${u.config?.copySize})">⚙️</button>
+            <button class="action-btn btn-reset" onclick="resetUser('\${u.chatId}')">🔄</button>
+            <button class="action-btn btn-delete" onclick="deleteUser('\${u.chatId}')">🗑️</button>
           </td>
         </tr>
       \`;
@@ -853,7 +854,7 @@ async function refresh() {
         <td><span style="color: \${t.side === 'BUY' ? 'var(--success)' : 'var(--danger)'}">\${t.side}</span></td>
         <td>$\${(t.usdcSize || 0).toFixed(2)}</td>
         <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">\${t.title || t.slug}</td>
-        <td>\${t.bot ? '<span style="color: var(--success)">&#226;&#339;&#8220; Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
+        <td>\${t.bot ? '<span style="color: var(--success)">✓ Executado</span>' : '<span style="color: var(--text-dim)">Pendente</span>'}</td>
       </tr>
     \`).join('');
 
@@ -994,7 +995,7 @@ const loginHtml = `<!DOCTYPE html>
       </div>
       <div class="form-group">
         <label>Senha de Acesso</label>
-        <input type="password" id="password" placeholder="&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;" required>
+        <input type="password" id="password" placeholder="••••••••" required>
       </div>
       <button type="submit" class="btn-auth">Entrar no Sistema</button>
     </form>
@@ -1169,10 +1170,10 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     </div>
   </aside>
       <div class="nav-item" onclick="showSection('config', this)">
-        <span>&#9881;&#65039;&#143;</span> Configura&#231;&#245;es Globais
+        <span>&#9881;&#65039;</span> Configura&#231;&#245;es Globais
       </div>
       <div class="nav-item" onclick="showSection('logs', this)">
-        <span>&#240;&#376;&#8220;&#339;</span> Logs de Trading
+        <span>📜</span> Logs de Trading
       </div>
     </div>
     <div style="padding: 30px; border-top: 1px solid var(--border)">
@@ -1331,7 +1332,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
   <div id="modal-edit" class="modal">
     <div class="modal-content">
       <h2 style="margin-bottom:24px; color: var(--accent); display: flex; align-items: center; gap: 10px">
-        <span>&#9881;&#65039;&#143;</span> Configurar Membro SaaS
+        <span>&#9881;&#65039;</span> Configurar Membro SaaS
       </h2>
       <input type="hidden" id="edit-chatId">
       
@@ -1340,7 +1341,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         <div>
           <div style="margin-bottom: 20px; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px">
             <h3 style="margin-bottom: 12px; font-size: 0.85rem; color: var(--accent); display: flex; align-items: center; gap: 8px">
-              &#55357;&#56420; Conta do Usu&#225;rio
+              👤 Conta do Usu&#225;rio
             </h3>
             <div class="form-group">
                 <label>Nome / Usu&#225;rio</label>
@@ -1352,7 +1353,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             </div>
             <div class="form-group" style="margin-bottom: 0">
                 <label>Nova Senha</label>
-                <input type="password" id="edit-password" placeholder="&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162;&#226;&#8364;&#162; (deixe vazio)">
+                <input type="password" id="edit-password" placeholder="•••••••• (deixe vazio)">
             </div>
           </div>
 
@@ -1374,7 +1375,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
           <div class="form-group">
             <label>Tipo de Ordem</label>
             <select id="edit-orderType">
-              <option value="MARKET">Market (Instant&#195;&#162;nea)</option>
+              <option value="MARKET">Market (Instantânea)</option>
               <option value="LIMIT">Limit (Pre&#231;o Alvo)</option>
             </select>
           </div>
@@ -1452,7 +1453,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
         const [status, users, trades] = await Promise.all([
           fetch('/api/status').then(r => r.json()),
           fetch('/api/users').then(r => r.json()),
-          fetch('/api/activity?limit=50').then(r => r.json())
+          fetch('/api/trades?limit=50').then(r => r.json())
         ]);
 
         const modeEl = document.getElementById('engine-mode');
@@ -1489,9 +1490,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
             </td>
             <td>
               <div style="display: flex; gap: 8px">
-                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u._id}')">&#9881;&#65039;</button>
-                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u._id}')">&#55357;&#56580;</button>
-                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u._id}')">&#55357;&#56785;&#65039;</button>
+                <button class="btn btn-accent" style="padding: 4px 8px" onclick="editUser('\${u._id}')">⚙️</button>
+                <button class="btn btn-warning" style="padding: 4px 8px" onclick="resetUser('\${u._id}')">🔄</button>
+                <button class="btn btn-danger" style="padding: 4px 8px" onclick="deleteUser('\${u._id}')">🗑️</button>
               </div>
             </td>
           </tr>
@@ -1642,7 +1643,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
     }
 
     async function deleteUser(id) {
-      if (!confirm('CONFIRMAR EXCLUS&#195;&#402;O PERMANENTE?')) return;
+      if (!confirm('CONFIRMAR EXCLUSÃO PERMANENTE?')) return;
       try {
         const res = await fetch(\`/api/users/\${id}\`, { method: 'DELETE' });
         if (res.ok) {
@@ -1777,7 +1778,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
   </aside>
   <main>
     <div id="setup-wizard" class="wizard-card" style="display:none">
-        <h2 id="wizard-title" style="margin-bottom: 8px">&#55358;&#56598; Configura&#231;&#227;o Inicial</h2>
+        <h2 id="wizard-title" style="margin-bottom: 8px">🤖 Configura&#231;&#227;o Inicial</h2>
         <p id="wizard-desc" style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem">Siga os passos para ativar sua c&#243;pia autom&#225;tica.</p>
         <div class="step-indicator">
             <div id="s1" class="step active">1</div>
@@ -1804,21 +1805,21 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px">
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">&#55357;&#56496;</div>
+                <div style="background: rgba(59, 130, 246, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">💰</div>
                 <div>
                     <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Saldo Dispon&#237;vel</div>
                     <div id="stat-balance" style="font-weight: 700; font-size: 1.1rem; color: #fff">$0.00</div>
                 </div>
             </div>
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">&#55357;&#56522;</div>
+                <div style="background: rgba(16, 185, 129, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">📊</div>
                 <div>
                     <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Volume em Posi&#231;&#245;es</div>
                     <div id="stat-exposure" style="font-weight: 700; font-size: 1.1rem; color: var(--success)">$0.00</div>
                 </div>
             </div>
             <div class="card" style="padding: 15px; display: flex; align-items: center; gap: 15px">
-                <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">&#55356;&#57263;</div>
+                <div style="background: rgba(245, 158, 11, 0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem">🎯</div>
                 <div>
                     <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px">Trader Monitorado</div>
                     <div id="stat-trader" style="font-weight: 700; font-size: 0.9rem; color: #fff">Desconhecido</div>
@@ -1829,7 +1830,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px">
             <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 20px">
                 <div style="display: flex; align-items: center; gap: 15px">
-                    <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">&#55357;&#56420;</div>
+                    <div id="trader-avatar" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border: 1px solid var(--border)">👤</div>
                     <div>
                         <div id="trader-name" style="font-weight: 700; color: #fff">Nenhum</div>
                         <div id="trader-addr-display" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent)">0x...</div>
@@ -1891,13 +1892,13 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
     <div id="tab-config" class="tab-view" style="display: none">
         <h1 style="margin-bottom: 10px">Configura&#231;&#245;es <span>Avan&#231;adas</span></h1>
-        <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os par&#195;&#162;metros de risco e execu&#231;&#227;o do seu bot.</p>
+        <p style="color: var(--text-dim); margin-bottom: 30px">Ajuste os parâmetros de risco e execu&#231;&#227;o do seu bot.</p>
 
         <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px">
-            <!-- COLUNA ESQUERDA: ESTRAT&#195;&#8240;GIA E EXECU&#195;&#8225;&#195;&#402;O -->
+            <!-- COLUNA ESQUERDA: ESTRATÉGIA E EXECUÇÃO -->
             <div style="display: flex; flex-direction: column; gap: 24px">
                 <div class="card">
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>&#55356;&#57263;</span> Trader & Estrat&#233;gia</h3>
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🎯</span> Trader & Estrat&#233;gia</h3>
                     <div class="form-group">
                         <label>Modo de Opera&#231;&#227;o</label>
                         <select id="bot-mode">
@@ -1974,7 +1975,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             <!-- COLUNA DIREITA: RISCO E SALVAMENTO -->
             <div style="display: flex; flex-direction: column; gap: 24px">
                 <div class="card">
-                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>&#240;&#376;&#8250;&#161;&#239;&#184;&#143;</span> Filtros de Risco</h3>
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px"><span>🛡️</span> Filtros de Risco</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
                         <div class="form-group">
                             <label>Pre&#231;o M&#237;nimo</label>
@@ -1996,7 +1997,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                         </div>
                     </div>
                     <div class="form-group" style="margin-top: 16px">
-                        <label style="color:var(--danger)">&#240;&#376;&#8250;&#8216; Balance SL ($) - Kill Switch</label>
+                        <label style="color:var(--danger)">🛑 Balance SL ($) - Kill Switch</label>
                         <input type="number" id="bot-balanceSl" step="1">
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px">
@@ -2029,7 +2030,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                             <input type="number" id="bot-maxExposure" step="1">
                         </div>
                     </div>
-                    <button class="btn" style="margin-top: 40px; width: 100%" onclick="updateBotConfig()">SALVAR ALTERA&#195;&#8225;&#195;&#8226;ES</button>
+                    <button class="btn" style="margin-top: 40px; width: 100%" onclick="updateBotConfig()">SALVAR ALTERAÇÕES</button>
                 </div>
             </div>
         </div>
@@ -2049,7 +2050,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                     <small style="color:var(--text-dim); display:block; margin-top:4px">S&#243; copia trades se o mercado fechar em menos de X segs.</small>
                 </div>
                 <div class="form-group">
-                    <label>M&#225;ximo de Mercados Simult&#195;&#162;neos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
+                    <label>M&#225;ximo de Mercados Simultâneos <span style="font-size:0.7em;color:var(--text-dim)">(0 = Infinito)</span></label>
                     <input type="number" id="bot-maxMarketCount" step="1" placeholder="Ex: 10">
                     <small style="color:var(--text-dim); display:block; margin-top:4px">Bloqueia trades caso voc&#234; j&#225; esteja em posi&#231;&#245;es de muitos mercados.</small>
                 </div>
@@ -2063,14 +2064,14 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
         <div class="card" style="margin-top: 24px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
-                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>&#55357;&#56496;</span> Gest&#227;o da Carteira</h3>
+                <h3 style="display: flex; align-items: center; gap: 8px; margin: 0"><span>💰</span> Gest&#227;o da Carteira</h3>
                 <div style="text-align: right">
                     <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px">CARTEIRA OPERACIONAL</div>
                     <div id="user-wallet-addr" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); background: rgba(var(--accent-rgb), 0.05); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.1)">0x...</div>
                 </div>
             </div>
             <div id="wallet-active-warning" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; display: none">
-                &#226;&#353;&#160;&#239;&#184;&#143; <strong>Rob&#244; em Opera&#231;&#227;o:</strong> Voc&#234; precisa desativar o rob&#244; no dashboard principal para alterar a carteira.
+                ⚠️ <strong>Rob&#244; em Opera&#231;&#227;o:</strong> Voc&#234; precisa desativar o rob&#244; no dashboard principal para alterar a carteira.
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
@@ -2554,7 +2555,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             if (!tbody) return;
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">&#55357;&#56589;&#141; Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-dim)">🔍 Monitorando... Nenhuma oportunidade detectada ainda.</td></tr>\`;
                 return;
             }
 
@@ -2564,18 +2565,18 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                 // Status styling
                 const statusStyles = {
                     'SUCESSO':    { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)', icon: '\u2705' },
-                    '&#55357;&#56589;&#141; PREVIEW': { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa',        icon: '\uD83D\uDD0D' },
+                    '🔍 PREVIEW': { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa',        icon: '\uD83D\uDD0D' },
                     'DETECTADO':  { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa',        icon: '\u26A1' },
                     'PULADO (SALDO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCB8' },
-                    'PULADO (EXPOSI&#195;&#8225;&#195;&#402;O)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCCA' },
+                    'PULADO (EXPOSIÇÃO)': { bg: 'rgba(239,68,68,0.1)', color: 'var(--danger)', icon: '\uD83D\uDCCA' },
                     'PULADO (SLIPPAGE)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\u26A0\uFE0F' },
                     'PULADO (TAMANHO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCCF' },
                     'PULADO (LADO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDEAB' },
-                    'PULADO (PRE&#195;&#8225;O)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
-                    'PULADO (ESTRAT&#195;&#8240;GIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
-                    'PULADO (LIQUIDEZ)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '&#55357;&#56487;' },
-                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '&#226;&#157;&#338;' },
-                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '&#55357;&#56628;' }
+                    'PULADO (PREÇO)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCB2' },
+                    'PULADO (ESTRATÉGIA)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '\uD83D\uDCE9' },
+                    'PULADO (LIQUIDEZ)': { bg: 'rgba(245,158,11,0.1)', color: 'var(--warning)', icon: '💧' },
+                    'ERRO (SALDO)': { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '❌' },
+                    'ERRO (API)':   { bg: 'rgba(239,68,68,0.15)', color: 'var(--danger)', icon: '🔴' }
                 };
                 const style = statusStyles[status] || { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', icon: '\uD83D\uDD35' };
 
@@ -2593,7 +2594,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
 
                 // Chain vs API detection badge
                 const sourceBadge = t.isChainDetected
-                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">&#195;&#162;&#197;&#161;&#194;&#161;ON-CHAIN</span>\`
+                    ? \`<span style="font-size:0.6rem; background:rgba(59,130,246,0.2); color:#60a5fa; padding:1px 5px; border-radius:3px; margin-left:4px">âš¡ON-CHAIN</span>\`
                     : '';
 
                 // Market link
@@ -2612,9 +2613,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${entryPrice}</td>
                     <td style="font-family:var(--font-mono); font-size:0.8rem">\${curPrice}</td>
                     <td>\${pnlHtml}</td>
-                    <td style="font-weight:700; color:#adf">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? '$' + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
-                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:default">\${style.icon} \${status}</span></td>
+                    <td style="font-weight:700; color:\${t.myEntryWasExecuted ? '#adf' : 'var(--text-dim)'}; \${t.myEntryWasExecuted === false ? 'font-style:italic' : ''}" title="\${t.myEntryWasExecuted === false ? 'Tentativa (n\u00e3o executada)' : ''}">\${t.myEntryAmount !== null && t.myEntryAmount !== undefined ? (t.myEntryWasExecuted ? '$' : '~$') + t.myEntryAmount.toFixed(2) : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
+                    <td>\${t.myPnlUSD !== null && t.myPnlUSD !== undefined ? '<span style="color:' + (t.myPnlUSD >= 0 ? 'var(--success)' : 'var(--danger)') + '; font-weight:700; ' + (t.myEntryWasExecuted === false ? 'opacity:0.55; font-style:italic' : '') + '" title="' + (t.myEntryWasExecuted === false ? 'Hipot\u00e9tico (ordem n\u00e3o executada)' : '') + '">' + (t.myPnlUSD >= 0 ? '+' : '') + '$' + t.myPnlUSD.toFixed(2) + '</span>' : '<span style="color:var(--text-dim)">\u2014</span>'}</td>
+                    <td><span class="badge"\${tooltip} style="background:\${style.bg}; color:\${style.color}; cursor:\${t.executionDetails ? 'help' : 'default'}">\${style.icon} \${status}</span></td>
                 </tr>\`;
             }).join('');
 
@@ -2675,7 +2676,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
-        if (res.ok) { showBanner('Configura&#195;&#402;&#194;&#167;&#195;&#402;&#194;&#181;es Salvas', 'success'); loadUser(); }
+        if (res.ok) { showBanner('ConfiguraÃ§Ãµes Salvas', 'success'); loadUser(); }
     }
 
     function showBanner(msg, type = 'success') {
@@ -2702,22 +2703,22 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 0.85
             if (!tbody) return;
 
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posi&#195;&#402;&#194;&#167;&#195;&#402;&#194;&#163;o ativa encontrada no momento.</td></tr>\`;
+                tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-dim)">Nenhuma posiÃ§Ã£o ativa encontrada no momento.</td></tr>\`;
                 return;
             }
 
             tbody.innerHTML = positions.map(p => {
                 const pnl = p.pnlPercent !== undefined ? p.pnlPercent : 0;
                 const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
-                const pnlIcon = pnl >= 0 ? '&#195;&#162;&#226;&#8364;&#160;&#226;&#8364;&#732;' : '&#195;&#162;&#226;&#8364;&#160;&#226;&#8364;&#339;';
+                const pnlIcon = pnl >= 0 ? '↗️' : '↘️';
                 
                 const mktLink = \`<a href="https://polymarket.com/event/\${p.slug || ''}" target="_blank" style="color:var(--accent); font-size:0.85rem">\${(p.title || 'Mercado Desconhecido').slice(0, 45)}...</a>\`;
 
                 return \`<tr>
                     <td>\${mktLink}</td>
                     <td><span style="font-weight:700">\${p.assetName || p.asset.slice(0,6)}</span></td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}&#195;&#8218;&#194;&#162;</td>
-                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}&#195;&#8218;&#194;&#162;</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.avgPrice * 100).toFixed(1)}Â¢</td>
+                    <td style="font-family:var(--font-mono); font-size:0.85rem">\${(p.curPrice * 100).toFixed(1)}Â¢</td>
                     <td style="font-weight:700">\${p.size.toFixed(2)}</td>
                     <td style="font-weight:700; color:#fff">$\${p.currentValue.toFixed(2)}</td>
                     <td><span style="color:\${pnlColor}; font-weight:700">\${pnlIcon} \${(pnl>=0?'+':'')}\${pnl.toFixed(2)}%</span></td>
@@ -2757,27 +2758,69 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         if (!user) return res.status(404).json({ error: 'User not found' });
         
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o rob&#195;&#402;&#194;&#180; no dashboard antes de alterar a carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de alterar a carteira' });
         }
 
         const newWallet = ethers.Wallet.createRandom();
-        user.wallet = {
-            address: newWallet.address,
-            privateKey: newWallet.privateKey
-        };
-        // Only set to setup if not already ready (to allow seamless swaps)
-        if (user.step !== 'ready') user.step = 'setup';
-        await user.save();
-        
-        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        await User.findByIdAndUpdate(user._id, {
+            $set: {
+                'wallet.address': newWallet.address,
+                'wallet.privateKey': newWallet.privateKey,
+            },
+            $unset: {
+                'wallet.proxyAddress': 1,
+                'wallet.proxySignatureType': 1,
+                'wallet.clobCreds': 1,
+            },
+            ...(user.step !== 'ready' ? { step: 'setup' } : {}) as any,
+        } as any);
+        // Wallet nova nunca foi usada na Polymarket — enrich provavelmente retorna null.
+        // Mantemos o try p/ casos onde user importa PK velha (não comum em /generate).
         try {
-            await getClobClientForUser(user);
-        } catch (clobErr) {
-            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+            const { enrichWalletV2 } = await import('../utils/orderV2.js');
+            const enriched = await enrichWalletV2({
+                eoa: newWallet.address,
+                rpcUrl: process.env.RPC_HTTP_URL ?? 'https://polygon-bor-rpc.publicnode.com',
+            });
+            if (enriched) {
+                await User.findByIdAndUpdate(user._id, {
+                    $set: {
+                        'wallet.proxyAddress': enriched.proxyAddress,
+                        'wallet.proxySignatureType': enriched.sigType,
+                    },
+                });
+                console.log(`[WALLET] enrich V2: proxy=${enriched.proxyAddress.slice(0,10)}… sigType=${enriched.sigType} (${enriched.detectionReason})`);
+            }
+        } catch (enrichErr) {
+            console.error('[WALLET] enrichWalletV2 failed (non-fatal):', enrichErr);
+        }
+        const refreshed = await User.findById(user._id);
+        if (!refreshed) return res.status(500).json({ error: 'User reload failed' });
+
+        const cc = await import('../utils/createClobClient.js');
+        if ((cc as any).refreshClobCreds) {
+            await (cc as any).refreshClobCreds(refreshed);
         }
 
-        console.log(`[WALLET] Generated new wallet for ${user.username || user.chatId}: ${newWallet.address}`);
-        res.json({ success: true, address: newWallet.address, privateKey: newWallet.privateKey });
+        try {
+            await getClobClientForUser(refreshed);
+        } catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${refreshed.username}: ${clobErr}`);
+        }
+
+        console.log(`[WALLET] Generated new wallet for ${refreshed.username || refreshed.chatId}: ${newWallet.address}`);
+        res.json({
+            success: true,
+            address: newWallet.address,
+            privateKey: newWallet.privateKey,
+            instructions: [
+                '1. Salve esta privateKey em local seguro (gerenciador de senhas).',
+                '2. Importe-a no MetaMask/Rabby (Import Account → Private Key).',
+                '3. Acesse polymarket.com → Connect Wallet → use essa wallet. NÃO use login email/Google.',
+                '4. Deposite USDC (mín. $5) — isto DEPLOYA o proxy on-chain.',
+                '5. Volte ao bot. O sistema detecta automaticamente o proxy + signatureType (1=POLY_PROXY, 2=GNOSIS_SAFE, 3=POLY_SAFE/Privy).',
+            ],
+        });
     } catch (e) {
         console.error('[WALLET] Generation error:', e);
         res.status(500).json({ error: 'Failed to generate wallet' });
@@ -2794,7 +2837,7 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         if (!privateKey.startsWith('0x')) privateKey = '0x' + privateKey;
         
         if (privateKey.length !== 66) {
-            return res.status(400).json({ error: 'Chave privada inv&#195;&#402;&#194;&#161;lida (formato incorreto)' });
+            return res.status(400).json({ error: 'Chave privada invÃ¡lida (formato incorreto)' });
         }
 
         const wallet = new ethers.Wallet(privateKey);
@@ -2802,29 +2845,80 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         if (!user) return res.status(404).json({ error: 'User not found' });
         
         if (user.config?.enabled) {
-            return res.status(400).json({ error: 'Desative o rob&#195;&#402;&#194;&#180; no dashboard antes de importar uma nova carteira' });
+            return res.status(400).json({ error: 'Desative o robÃ´ no dashboard antes de importar uma nova carteira' });
         }
 
-        user.wallet = {
-            address: wallet.address,
-            privateKey: wallet.privateKey
-        };
-        // Keep ready state if swapping wallet
-        if (user.step !== 'ready') user.step = 'setup';
-        await user.save();
-
-        // Trigger CLOB derivation now and save it to prevent future Cloudflare blocks
+        // CRITICAL: when swapping wallets, every state tied to the OLD EOA
+        // must be wiped — proxy address, detected signature type, and the
+        // CLOB API credentials. If any of these survive, the new EOA tries
+        // to sign orders against the OLD identity → order_version_mismatch.
+        await User.findByIdAndUpdate(user._id, {
+            $set: {
+                'wallet.address': wallet.address,
+                'wallet.privateKey': wallet.privateKey,
+            },
+            $unset: {
+                'wallet.proxyAddress': 1,
+                'wallet.proxySignatureType': 1,
+                'wallet.clobCreds': 1,
+            },
+            ...(user.step !== 'ready' ? { step: 'setup' } : {}) as any,
+        } as any);
+        // Pra wallet importada (PK existente), grande chance de já ter profile na
+        // Polymarket (Gamma /public-profile). Enrichment auto-popula proxy + sigType
+        // sem esperar o user fazer um trade pra detecção on-the-fly.
         try {
-            await getClobClientForUser(user);
-        } catch (clobErr) {
-            console.error(`[CLOB] Initial derivation failed for ${user.username}: ${clobErr}`);
+            const { enrichWalletV2 } = await import('../utils/orderV2.js');
+            const enriched = await enrichWalletV2({
+                eoa: wallet.address,
+                rpcUrl: process.env.RPC_HTTP_URL ?? 'https://polygon-bor-rpc.publicnode.com',
+            });
+            if (enriched) {
+                await User.findByIdAndUpdate(user._id, {
+                    $set: {
+                        'wallet.proxyAddress': enriched.proxyAddress,
+                        'wallet.proxySignatureType': enriched.sigType,
+                    },
+                });
+                console.log(`[WALLET] enrich V2: proxy=${enriched.proxyAddress.slice(0,10)}… sigType=${enriched.sigType} (${enriched.detectionReason})`);
+            } else {
+                console.log(`[WALLET] enrich V2: EOA ${wallet.address.slice(0,10)}… sem profile na Polymarket — vai detectar on-the-fly`);
+            }
+        } catch (enrichErr) {
+            console.error('[WALLET] enrichWalletV2 failed (non-fatal):', enrichErr);
+        }
+        // Re-fetch the user with the new wallet so derivation uses fresh state
+        const refreshed = await User.findById(user._id);
+        if (!refreshed) return res.status(500).json({ error: 'User reload failed' });
+
+        // Force the CLOB client cache to drop stale entries for the old EOA.
+        const cc = await import('../utils/createClobClient.js');
+        if ((cc as any).refreshClobCreds) {
+            await (cc as any).refreshClobCreds(refreshed);
         }
 
-        console.log(`[WALLET] Imported wallet for ${user.username || user.chatId}: ${wallet.address}`);
-        res.json({ success: true, address: wallet.address });
+        // Now derive FRESH creds for the new EOA / proxy / sigType combination.
+        try {
+            await getClobClientForUser(refreshed);
+        } catch (clobErr) {
+            console.error(`[CLOB] Initial derivation failed for ${refreshed.username}: ${clobErr}`);
+        }
+
+        console.log(`[WALLET] Imported wallet for ${refreshed.username || refreshed.chatId}: ${wallet.address} — old proxy/creds wiped`);
+        res.json({
+            success: true,
+            address: wallet.address,
+            instructions: [
+                '✓ Wallet importada e estado antigo limpo. Próximos passos:',
+                '1. Garanta que essa EOA já está conectada à Polymarket (login feito uma vez).',
+                '2. Garanta que tem USDC depositado (proxy precisa estar deployado).',
+                '3. Verifique em /api/user/diagnostics que `proxyHasCode: true` e `proxyUsdcBalance` ou `clob` > 0.',
+                '4. Sistema detecta automaticamente sigType=1/2/3 — incluindo wallets Privy/Polymarket Safe.',
+            ],
+        });
     } catch (e) {
         console.error('[WALLET] Import error:', e);
-        res.status(400).json({ error: 'Chave Privada Inv&#195;&#402;&#194;&#161;lida ou Malformada' });
+        res.status(400).json({ error: 'Chave Privada InvÃ¡lida ou Malformada' });
     }
 });
 
@@ -2876,23 +2970,57 @@ app.post('/api/user/update-config', authenticateToken, async (req: AuthRequest, 
     if (minMarketLiquidity !== undefined) user.config.minMarketLiquidity = minMarketLiquidity;
     if (mode !== undefined) user.config.mode = mode;
 
-    // Wallet settings
+    // Wallet settings — track if any signing-related field changed so we can
+    // re-derive the CLOB API credentials. The Polymarket API binds a derived
+    // key to the (EOA, signatureType, funder) tuple at creation time. Using a
+    // key from the wrong tuple → every order rejected with order_version_mismatch.
+    let signingTupleChanged = false;
     if (proxyAddress !== undefined && user.wallet) {
+        if (user.wallet.proxyAddress !== proxyAddress) signingTupleChanged = true;
         user.wallet.proxyAddress = proxyAddress;
+        (user.wallet as any).proxySignatureType = undefined;
     }
-    
+    if (req.body.proxySignatureType !== undefined && user.wallet) {
+        const v = parseInt(req.body.proxySignatureType, 10);
+        if (v === 0 || v === 1 || v === 2 || v === 3) {
+            if (user.wallet.proxySignatureType !== v) signingTupleChanged = true;
+            user.wallet.proxySignatureType = v as 0 | 1 | 2 | 3;
+        }
+    }
+
     if (req.body.finalize === true) {
         user.step = 'ready';
     }
     await user.save();
-    res.json({ success: true });
+
+    // If proxy or sigType changed, the persisted clobCreds are now stale.
+    // Wipe them and re-derive against the new tuple, so the next order's
+    // POLY_API_KEY actually authorizes the correct (maker, signatureType).
+    if (signingTupleChanged) {
+        try {
+            await User.findByIdAndUpdate(user._id, { $unset: { 'wallet.clobCreds': 1 } });
+            const cc = await import('../utils/createClobClient.js');
+            if ((cc as any).refreshClobCreds) {
+                await (cc as any).refreshClobCreds(user);
+            }
+            const refreshed = await User.findById(user._id);
+            if (refreshed) {
+                try { await getClobClientForUser(refreshed); } catch (_) { /* ignore */ }
+            }
+            Logger.info(`[CLOB_DEBUG] Re-derived creds for user ${(user._id as any).toString()} after signing-tuple change`);
+        } catch (e: any) {
+            Logger.error(`[CLOB_DEBUG] Re-derivation failed: ${e?.message}`);
+        }
+    }
+
+    res.json({ success: true, signingTupleChanged });
 });
 
 app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) => {
     try {
         const user = (req as any).fullUser;
         if (!user || !user.wallet || !user.wallet.address) {
-            return res.status(400).json({ error: 'Carteira n&#195;&#402;&#194;&#163;o configurada' });
+            return res.status(400).json({ error: 'Carteira nÃ£o configurada' });
         }
 
         const positionsData = await fetchData(`https://data-api.polymarket.com/positions?user=${user.wallet.address}`);
@@ -2929,7 +3057,7 @@ app.get('/api/user/positions', authenticateToken, async (req: AuthRequest, res) 
         res.json(activePositions);
     } catch (e) {
         console.error('Error fetching positions:', e);
-        res.status(500).json({ error: 'Erro ao buscar posi&#195;&#402;&#194;&#167;&#195;&#402;&#194;&#181;es' });
+        res.status(500).json({ error: 'Erro ao buscar posiÃ§Ãµes' });
     }
 });
 
@@ -2987,18 +3115,28 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 executionStatus = t.traderAddress === traderAddress ? 'DETECTADO' : 'OUTRO';
             }
 
-            // Extract user's own execution data
-            const myEntryAmount: number | null = userStatus?.myEntryAmount || null;
-            const myEntryPrice: number | null = userStatus?.myEntryPrice || null;
+            // Extract user's own execution data. Fall back to "attempted"
+            // values if the order failed, so the dashboard always shows
+            // what we WOULD have spent / earned.
+            const myEntryAmount: number | null = userStatus?.myEntryAmount ?? null;
+            const myEntryPrice: number | null = userStatus?.myEntryPrice ?? null;
+            const attemptedAmount: number | null = userStatus?.attemptedAmount ?? null;
+            const attemptedPrice: number | null = userStatus?.attemptedPrice ?? null;
+            const wasExecuted = myEntryAmount !== null && myEntryAmount !== undefined;
 
-            // Calculate user's real P&L in USD
+            const displayEntryAmount = wasExecuted ? myEntryAmount : attemptedAmount;
+            const displayEntryPrice = wasExecuted ? myEntryPrice : attemptedPrice;
+
+            // Calculate user's P&L in USD (real if executed, hypothetical if attempted)
             let myPnlUSD: number | null = null;
             let myPnlLabel = '';
             let myCurrentValue: number | null = null;
-            if (myEntryAmount !== null && myEntryPrice !== null && curPrice !== null) {
-                const myTokens = myEntryAmount / myEntryPrice;
+            if (displayEntryAmount !== null && displayEntryAmount !== undefined
+                && displayEntryPrice !== null && displayEntryPrice !== undefined
+                && curPrice !== null) {
+                const myTokens = displayEntryAmount / displayEntryPrice;
                 myCurrentValue = myTokens * curPrice;
-                myPnlUSD = myCurrentValue - myEntryAmount;
+                myPnlUSD = myCurrentValue - displayEntryAmount;
                 myPnlLabel = (myPnlUSD >= 0 ? '+$' : '-$') + Math.abs(myPnlUSD).toFixed(2);
             }
 
@@ -3014,8 +3152,9 @@ app.get('/api/user/trades', authenticateToken, async (req: AuthRequest, res) => 
                 curPrice,
                 pnlPercent,
                 pnlLabel,
-                myEntryAmount,
-                myEntryPrice,
+                myEntryAmount: displayEntryAmount,
+                myEntryPrice: displayEntryPrice,
+                myEntryWasExecuted: wasExecuted,
                 myCurrentValue,
                 myPnlUSD,
                 myPnlLabel,
@@ -3096,6 +3235,415 @@ app.get('/api/user/stats', authenticateToken, async (req: AuthRequest, res) => {
     }
 });
 
+// ---------------------------------------------------------------------------
+// HARD ownership check — reads the proxy's `wallet()` via 6 different public
+// RPCs with aggressive retry, AND verifies by querying Polymarket's own
+// `/auth/derive-api-key` endpoint to see what address the API key is
+// actually bound to. This is the definitive answer to "does my EOA control
+// the proxy?" — if NO, every order will fail with order_version_mismatch
+// no matter what we do in code.
+//   GET /api/user/verify-ownership
+// ---------------------------------------------------------------------------
+app.get('/api/user/verify-ownership', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const user = await User.findById(req.user?.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const eoa = user.wallet?.address?.toLowerCase();
+        const proxy = user.wallet?.proxyAddress?.toLowerCase();
+        if (!eoa) return res.json({ ok: false, error: 'No EOA configured' });
+
+        const result: any = {
+            eoa,
+            proxy,
+            checks: {} as any,
+            verdict: 'unknown',
+        };
+
+        // --- Multi-RPC `wallet()` read ---
+        const { ethers: e2 } = await import('ethers');
+        const RPCS = [
+            'https://polygon-rpc.com',
+            'https://polygon.llamarpc.com',
+            'https://1rpc.io/matic',
+            'https://rpc.ankr.com/polygon',
+            'https://polygon-bor-rpc.publicnode.com',
+            'https://polygon-mainnet.public.blastapi.io',
+        ];
+        const ABIS = [
+            ['function wallet() view returns (address)'],
+            ['function getOwners() view returns (address[])'],
+            ['function owner() view returns (address)'],
+            ['function _owner() view returns (address)'],
+            ['function getOwner() view returns (address)'],
+        ];
+        let proxyOwner: string | null = null;
+        let proxyHasCode = false;
+        let triedRpcs: string[] = [];
+        if (proxy) {
+            outer: for (const rpc of RPCS) {
+                try {
+                    const p = new e2.providers.JsonRpcProvider({ url: rpc, skipFetchSetup: true } as any, 137);
+                    const code = await Promise.race([
+                        p.getCode(proxy),
+                        new Promise<string>((_, rej) => setTimeout(() => rej(new Error('to')), 6000))
+                    ]);
+                    triedRpcs.push(rpc);
+                    if (code === '0x' || code.length < 10) {
+                        result.checks[rpc] = 'no contract';
+                        continue;
+                    }
+                    proxyHasCode = true;
+                    for (const abi of ABIS) {
+                        try {
+                            const c = new e2.Contract(proxy, abi, p);
+                            const fn = abi[0].split('function ')[1].split('(')[0];
+                            const r: any = await Promise.race([
+                                (c as any)[fn](),
+                                new Promise((_, rej) => setTimeout(() => rej(new Error('to')), 6000))
+                            ]);
+                            if (typeof r === 'string' && r !== e2.constants.AddressZero) {
+                                proxyOwner = r.toLowerCase();
+                                result.checks[rpc] = `${fn}() → ${proxyOwner}`;
+                                break outer;
+                            }
+                            if (Array.isArray(r) && r.length > 0) {
+                                proxyOwner = (r[0] as string).toLowerCase();
+                                result.checks[rpc] = `${fn}()[0] → ${proxyOwner}`;
+                                break outer;
+                            }
+                        } catch (_) { /* try next abi */ }
+                    }
+                    result.checks[rpc] = 'no readable owner method';
+                } catch (e: any) {
+                    result.checks[rpc] = `error: ${e?.message?.slice(0, 60)}`;
+                }
+            }
+        }
+        result.proxyHasCode = proxyHasCode;
+        result.proxyOwner = proxyOwner;
+        result.eoaControlsProxy = !!(proxyOwner && proxyOwner === eoa);
+
+        // --- Verify Polymarket itself thinks this EOA owns the proxy ---
+        // The data-api endpoint returns the user's most recent activity. If
+        // the proxy listed there is NOT the one we have, our detection is
+        // wrong. If it matches, the EOA has been seen by Polymarket as
+        // operating that proxy (strong signal of ownership).
+        try {
+            const url = `https://data-api.polymarket.com/activity?user=${eoa}&type=TRADE&limit=5`;
+            const r: any = await fetchData(url);
+            if (Array.isArray(r) && r.length > 0) {
+                const proxiesSeen = Array.from(new Set(r.map((a: any) => a.proxyWallet?.toLowerCase()).filter(Boolean)));
+                result.polymarketSeesProxies = proxiesSeen;
+                result.polymarketAgreesWithDB = proxiesSeen.includes(proxy);
+            } else {
+                result.polymarketSeesProxies = [];
+                result.polymarketAgreesWithDB = false;
+            }
+        } catch (e: any) {
+            result.polymarketCheckError = e?.message;
+        }
+
+        // --- Ask Polymarket DIRECTLY which proxy it links to this EOA ---
+        // gamma-api.polymarket.com is their public profile API. If the EOA was
+        // created via email/Google (Privy), the embedded wallet shows up here
+        // alongside the proxyWallet that Polymarket actually credits.
+        try {
+            const profile = await fetchData(`https://gamma-api.polymarket.com/profiles?address=${eoa}`);
+            if (Array.isArray(profile) && profile.length > 0) {
+                result.polymarketProfile = profile.map((p: any) => ({
+                    proxyWallet: p.proxyWallet,
+                    name: p.name,
+                    pseudonym: p.pseudonym,
+                    bio: p.bio?.slice(0, 60),
+                    createdAt: p.createdAt,
+                }));
+            } else {
+                result.polymarketProfile = [];
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            // Alternative: the data-api positions endpoint — what does Polymarket
+            // think the EOA's proxy is?
+            const eoaPositions = await fetchData(`https://data-api.polymarket.com/positions?user=${eoa}`);
+            result.polymarketPositionsForEOA = Array.isArray(eoaPositions) ? eoaPositions.length : 0;
+            if (Array.isArray(eoaPositions) && eoaPositions.length > 0) {
+                result.polymarketProxyFromPositions = eoaPositions[0].proxyWallet?.toLowerCase();
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            const eoaActivity = await fetchData(`https://data-api.polymarket.com/activity?user=${eoa}&limit=20`);
+            if (Array.isArray(eoaActivity) && eoaActivity.length > 0) {
+                const proxies = Array.from(new Set(eoaActivity.map((a: any) => a.proxyWallet?.toLowerCase()).filter(Boolean)));
+                result.polymarketProxiesFromActivity = proxies;
+            }
+        } catch (_) { /* ignore */ }
+
+        // --- USDC balance on the proxy (off-chain proof of activity) ---
+        try {
+            const usdcAddr = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+            const bal = await callMultiRpc<any>(
+                usdcAddr,
+                ['function balanceOf(address) view returns (uint256)'],
+                'balanceOf', proxy
+            );
+            if (bal) result.proxyUsdcBalance = e2.utils.formatUnits(bal, 6);
+        } catch (_) { /* ignore */ }
+
+        // --- CLOB API view of this address ---
+        try {
+            const clobView = await fetchData(`https://data-api.polymarket.com/positions?user=${proxy}`);
+            result.polymarketPositionsForProxy = Array.isArray(clobView) ? clobView.length : 0;
+        } catch (_) { /* ignore */ }
+
+        // --- Verdict ---
+        if (proxyOwner && proxyOwner === eoa) {
+            result.verdict = '✅ EOA controls the proxy on-chain. If orders still fail, the API key was derived for a different (eoa, sigType, funder) tuple — call /api/user/reset-credentials.';
+        } else if (proxyOwner && proxyOwner !== eoa) {
+            result.verdict = `🚨 EOA ${eoa} does NOT control proxy ${proxy} on-chain (real owner: ${proxyOwner}). Import the private key of ${proxyOwner} to copy-trade.`;
+        } else if (!proxyHasCode) {
+            result.verdict = `🚨 NO CONTRACT at ${proxy} on Polygon. The proxy was never deployed (you've never deposited into Polymarket with this EOA). Even though py-clob-client computes this deterministic address, it only exists ON-CHAIN after the first deposit. Solution: log into polymarket.com with this EOA, deposit any amount of USDC, and the proxy will be deployed. Then orders will start succeeding.`;
+        } else if (!proxyOwner) {
+            result.verdict = `⚠️ Proxy ${proxy} has bytecode but no owner method responded. Non-standard contract — likely a Polymarket smart-account/Privy wallet that requires EIP-1271 signing. Not supported by any standard SDK.`;
+        }
+        res.json(result);
+    } catch (e: any) {
+        res.status(500).json({ error: e?.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Returns the most recent ORDER_DEBUG / SIGN_DEBUG / RESPONSE_DEBUG /
+// PAYLOAD_DEBUG / [ORDER-MANUAL] log lines from today's bot log file. Use
+// this when an order fails to capture EVERY detail of the request the bot
+// sent and the response Polymarket returned.
+//   GET /api/user/last-order-log?count=80
+// ---------------------------------------------------------------------------
+app.get('/api/user/log-tail', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const logsDir = path.join(process.cwd(), 'logs');
+        if (!fs.existsSync(logsDir)) return res.json({ lines: [] });
+        const files = fs.readdirSync(logsDir)
+            .filter(f => f.startsWith('bot-') && f.endsWith('.log'))
+            .sort()
+            .reverse();
+        if (files.length === 0) return res.json({ lines: [] });
+        const file = path.join(logsDir, files[0]);
+        const content = fs.readFileSync(file, 'utf8');
+        const allLines = content.split('\n');
+        const count = Math.max(20, Math.min(500, parseInt(String(req.query.count || '100'), 10)));
+        res.json({ file: files[0], totalLines: allLines.length, lines: allLines.slice(-count) });
+    } catch (e: any) {
+        res.status(500).json({ error: e?.message || 'log read failed' });
+    }
+});
+
+app.get('/api/user/last-order-log', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const logsDir = path.join(process.cwd(), 'logs');
+        if (!fs.existsSync(logsDir)) return res.json({ lines: [], note: 'no logs dir' });
+        // Find today's file (or most recent) — logger writes bot-YYYY-MM-DD.log
+        const files = fs.readdirSync(logsDir)
+            .filter(f => f.startsWith('bot-') && f.endsWith('.log'))
+            .sort()
+            .reverse();
+        if (files.length === 0) return res.json({ lines: [], note: 'no log files' });
+        const file = path.join(logsDir, files[0]);
+        const wantedTags = ['[ORDER_DEBUG]', '[SIGN_DEBUG]', '[PAYLOAD_DEBUG]', '[RESPONSE_DEBUG]', '[ORDER-MANUAL]', '[CLOB_DEBUG]', '[ORDER]', '[STATUS]', '[CRITICAL]', 'REJECTED', 'order_version_mismatch'];
+        const count = Math.max(20, Math.min(500, parseInt(String(req.query.count || '120'), 10)));
+        const content = fs.readFileSync(file, 'utf8');
+        const allLines = content.split('\n');
+        // Walk backwards, collect matching lines, until we have `count` of them.
+        const collected: string[] = [];
+        for (let i = allLines.length - 1; i >= 0 && collected.length < count; i--) {
+            const ln = allLines[i];
+            if (wantedTags.some(t => ln.includes(t))) {
+                collected.push(ln);
+            }
+        }
+        collected.reverse();
+        res.json({ file: files[0], totalLines: allLines.length, matched: collected.length, lines: collected });
+    } catch (e: any) {
+        res.status(500).json({ error: e?.message || 'log read failed' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Reset CLOB credentials & cached proxy info — forces the bot to re-detect
+// proxy + sigType + derive fresh creds from the current private key on the
+// next order. Use when you swap wallets and orders start failing with
+// order_version_mismatch.
+// ---------------------------------------------------------------------------
+app.post('/api/user/reset-credentials', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const user = await User.findById(req.user?.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await User.findByIdAndUpdate(user._id, {
+            $unset: {
+                'wallet.proxyAddress': 1,
+                'wallet.proxySignatureType': 1,
+                'wallet.clobCreds': 1,
+            },
+        });
+        const cc = await import('../utils/createClobClient.js');
+        if ((cc as any).refreshClobCreds) {
+            await (cc as any).refreshClobCreds(user);
+        }
+
+        // Trigger fresh derivation so the next order finds creds ready.
+        const refreshed = await User.findById(user._id);
+        if (refreshed) {
+            try { await getClobClientForUser(refreshed); } catch (_) { /* ignore */ }
+        }
+
+        res.json({ success: true, message: 'CLOB credentials, proxy and signature type reset. Next order will derive fresh state.' });
+    } catch (e: any) {
+        res.status(500).json({ error: e?.message || 'Reset failed' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Diagnostics: dump everything the bot needs to execute an order, plus the
+// last 10 failed trades with full error details. Call from the dashboard or
+// via curl when an order fails so we can pinpoint the cause.
+//   GET /api/user/diagnostics
+// ---------------------------------------------------------------------------
+app.get('/api/user/diagnostics', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const user = (req as any).fullUser || await User.findById(req.user?.id).lean();
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const eoa: string = user.wallet?.address || '';
+        const proxy: string | null = user.wallet?.proxyAddress || (await findProxyWallet(user));
+        const sigType = user.wallet?.proxySignatureType ?? null;
+        const hasCreds = !!(user.wallet?.clobCreds?.key && user.wallet?.clobCreds?.secret);
+
+        // CRITICAL: read on-chain who controls the proxy. readProxyOwner now
+        // tries multiple Polygon RPCs so a single failure doesn't blind us.
+        const proxyOwner: string | null = proxy ? await readProxyOwner(proxy) : null;
+        const proxyTypeDetected: number | null = proxy ? await detectProxyType(proxy) : null;
+        const eoaControlsProxy = !!(eoa && proxyOwner && eoa.toLowerCase() === proxyOwner);
+
+        // Read the bytecode size to confirm there IS a contract at the proxy.
+        let proxyHasCode: boolean | null = null;
+        try {
+            const { ethers: ethersLib } = await import('ethers');
+            const rpcs = ['https://polygon-rpc.com', 'https://polygon.llamarpc.com'];
+            for (const rpc of rpcs) {
+                try {
+                    const p = new ethersLib.providers.JsonRpcProvider({ url: rpc, skipFetchSetup: true } as any, 137);
+                    if (proxy) {
+                        const code = await Promise.race([
+                            p.getCode(proxy),
+                            new Promise<string>((_, rej) => setTimeout(() => rej(new Error('rpc-timeout')), 5000))
+                        ]);
+                        proxyHasCode = code !== '0x' && code.length > 4;
+                        break;
+                    }
+                } catch (_) { /* try next */ }
+            }
+        } catch (_) { /* ignore */ }
+
+        // Balances from every source
+        const balances: any = { eoa: null, proxy: null, clob: null, error: null };
+        try {
+            balances.eoa = eoa ? await getMyBalance(eoa) : null;
+        } catch (e: any) { balances.error = `eoa: ${e?.message}`; }
+        try {
+            balances.proxy = proxy && proxy !== eoa ? await getMyBalance(proxy) : null;
+        } catch (e: any) { balances.error = `${balances.error || ''} proxy: ${e?.message}`; }
+        try {
+            const clobClient = await getClobClientForUser(user);
+            balances.clob = clobClient ? await getMyBalance(clobClient) : null;
+        } catch (e: any) { balances.error = `${balances.error || ''} clob: ${e?.message}`; }
+
+        // USDC allowance to Polymarket Exchange contracts (the most common
+        // silent rejection cause after order_version_mismatch).
+        const allowanceInfo: any = {};
+        try {
+            const { ethers } = await import('ethers');
+            const usdcAddr = ENV.USDC_CONTRACT_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+            const provider = new ethers.providers.JsonRpcProvider({ url: ENV.RPC_URL, skipFetchSetup: true } as any, 137);
+            const usdcAbi = [
+                'function allowance(address owner, address spender) view returns (uint256)'
+            ];
+            const usdc = new ethers.Contract(usdcAddr, usdcAbi, provider);
+            const exchanges = (process.env.POLYMARKET_EXCHANGE_ADDRS
+                || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E,0xC5d563A36AE78145C45a50134d48A1215220f80a').split(',');
+            const owner = proxy || eoa;
+            for (const exch of exchanges) {
+                try {
+                    const a = await usdc.allowance(owner, exch.trim());
+                    allowanceInfo[exch.trim()] = ethers.utils.formatUnits(a, 6);
+                } catch (e: any) {
+                    allowanceInfo[exch.trim()] = `error: ${e?.message}`;
+                }
+            }
+        } catch (e: any) {
+            allowanceInfo.error = e?.message;
+        }
+
+        // Last 10 trades with this user's status
+        const { Activity } = await import('../models/userHistory.js');
+        const userId = (user._id as any).toString();
+        const traderAddress = user.config?.traderAddress?.toLowerCase();
+        const tradesQ = traderAddress
+            ? { $or: [{ traderAddress }, { processedBy: userId }], type: 'TRADE' }
+            : { processedBy: userId, type: 'TRADE' };
+        const recent = await Activity.find(tradesQ).sort({ timestamp: -1 }).limit(10).lean();
+        const recentDigest = (recent as any[]).map(t => ({
+            timestamp: t.timestamp,
+            tx: t.transactionHash?.slice(0, 16),
+            side: t.side,
+            usdcSize: t.usdcSize,
+            price: t.price,
+            asset: t.asset?.slice(0, 14),
+            isChainDetected: !!t.isChainDetected,
+            myStatus: t.followerStatuses?.[userId]?.status,
+            myError: t.followerStatuses?.[userId]?.details
+        }));
+
+        res.json({
+            timestamp: new Date().toISOString(),
+            user: {
+                id: userId,
+                username: user.username,
+                step: user.step,
+                enabled: user.config?.enabled,
+                mode: user.config?.mode,
+                traderAddress: user.config?.traderAddress
+            },
+            wallet: {
+                eoa,
+                proxy,
+                proxyOwnerOnChain: proxyOwner,
+                proxyHasCode,
+                eoaControlsProxy,
+                proxyTypeDetectedOnChain: proxyTypeDetected,
+                proxySignatureType: sigType,
+                proxySignatureTypeHuman: sigType === 1 ? 'POLY_PROXY' : sigType === 2 ? 'POLY_GNOSIS_SAFE' : sigType === 0 ? 'EOA' : 'NOT_SET (will auto-detect)',
+                hasClobCreds: hasCreds,
+                diagnosis: !proxy ? 'No proxy detected — EOA mode'
+                    : proxyHasCode === false ? `🚨 No contract at ${proxy} on Polygon mainnet — wrong proxy address`
+                    : !proxyOwner ? '⚠️ Could not read proxy owner via RPC (not a standard Polymarket Proxy). Will try anyway, but if orders fail with order_version_mismatch, the proxy is non-standard.'
+                    : eoaControlsProxy ? '✅ EOA controls the proxy'
+                    : `🚨 EOA ${eoa} does NOT control proxy ${proxy} (owner: ${proxyOwner}). Every order will fail with order_version_mismatch. Import the correct private key.`
+            },
+            balances,
+            allowances: allowanceInfo,
+            recentTrades: recentDigest,
+            previewMode: process.env.PREVIEW_MODE === 'true'
+        });
+    } catch (e: any) {
+        console.error('[DIAGNOSTICS]', e);
+        res.status(500).json({ error: e?.message || 'diagnostics failed' });
+    }
+});
+
 app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     const userRole = req.user?.role || 'follower';
     console.log(`[DASHBOARD] Routing user ${req.user?.username} with role ${userRole}`);
@@ -3111,9 +3659,9 @@ export const startServer = async (port: number = parseInt(process.env.PORT || '3
     await bootstrapAdmin();
     botStartTime = Date.now();
     app.listen(port, '0.0.0.0', () => {
-        console.log(`\n&#195;&#176;&#197;&#184;&#197;&#8217;&#194;&#144; Web UI:  http://0.0.0.0:${port}`);
-        console.log(`&#195;&#176;&#197;&#184;&#226;&#8364;&#339;&#226;&#8364;&#8220; Swagger: http://0.0.0.0:${port}/docs`);
-        console.log(`&#195;&#176;&#197;&#184;&#226;&#8364;&#157;&#197;&#8217; API:     http://0.0.0.0:${port}/api/health\n`);
+        console.log(`\n🌐 Web UI:  http://0.0.0.0:${port}`);
+        console.log(`📖 Swagger: http://0.0.0.0:${port}/docs`);
+        console.log(`🩺 API:     http://0.0.0.0:${port}/api/health\n`);
     });
 };
 

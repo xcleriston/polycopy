@@ -11,6 +11,9 @@ export interface IUser extends Document {
         address: string;
         privateKey: string;
         proxyAddress?: string;
+        // 0 = EOA-direct, 1 = POLY_PROXY (email/Magic), 2 = POLY_GNOSIS_SAFE (MetaMask),
+        // 3 = POLY_1271 (Polymarket Deposit Wallet — V2; ERC-7739 nested sig)
+        proxySignatureType?: 0 | 1 | 2 | 3;
         clobCreds?: {
             key: string;
             secret: string;
@@ -72,6 +75,7 @@ const UserSchema: Schema = new Schema({
         address: { type: String, index: true },
         privateKey: { type: String },
         proxyAddress: { type: String, index: true },
+        proxySignatureType: { type: Number, enum: [0, 1, 2, 3] },
         clobCreds: {
             key: { type: String },
             secret: { type: String },

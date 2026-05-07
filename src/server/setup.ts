@@ -38,41 +38,23 @@ export async function createWallet(): Promise<{ address: string; privateKey: str
     };
 }
 
+/**
+ * V2: descobre o proxyWallet de uma EOA via Polymarket Gamma /public-profile.
+ * É a fonte da verdade — Polymarket retorna o proxy real associado ao address.
+ * Pra wallets nunca usadas em polymarket.com, retorna null (esperado).
+ *
+ * O implementation antigo tentava varrer eventos de uma factory antiga e nunca
+ * funcionou (sempre retornava o primeiro proxy aleatório do scan, ignorando owner).
+ */
 export async function findPolymarketProxy(eoaAddress: string): Promise<string | null> {
     try {
-        const RPC_URL = process.env.RPC_URL || 'https://poly.api.pocket.network';
-        const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-        
-        // Polymarket Proxy Factory on Polygon
-        const POLYMARKET_PROXY_FACTORY = '0xab45c5a4b0c941a2f231c04c3f49182e1a254052';
-        const proxyFactoryAbi = ['event ProxyCreation(address indexed proxy, address singleton)'];
-        
-        const polymarketProxyFactory = new ethers.Contract(
-            POLYMARKET_PROXY_FACTORY,
-            proxyFactoryAbi,
-            provider
-        );
-        
-        const latestBlock = await provider.getBlockNumber();
-        const fromBlock = Math.max(0, latestBlock - 10000000);
-        
-        const events = await polymarketProxyFactory.queryFilter(
-            polymarketProxyFactory.filters.ProxyCreation(null, null),
-            fromBlock,
-            latestBlock
-        );
-        
-        for (const event of events) {
-            // Check if this proxy belongs to our EOA (simplified check)
-            // In real implementation, you'd need to check ownership
-            if (event.args && event.args.proxy) {
-                return event.args.proxy;
-            }
-        }
-        
-        return null;
+        const gamma = (process.env.GAMMA_HTTP_URL ?? 'https://gamma-api.polymarket.com').replace(/\/$/, '');
+        const r = await fetch(`${gamma}/public-profile?address=${eoaAddress}`);
+        if (!r.ok) return null;
+        const profile: any = await r.json();
+        return profile?.proxyWallet ?? null;
     } catch (error) {
-        console.error('Error finding proxy:', error);
+        console.error('[setup] findPolymarketProxy failed:', error);
         return null;
     }
 }
