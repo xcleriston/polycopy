@@ -3655,6 +3655,34 @@ app.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
     }
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// SystemConfig admin endpoints — endereços de contrato Polymarket, RPCs, hosts.
+// Antes ficavam em .env (não escala SaaS); agora são DB singleton, editáveis
+// via admin sem redeploy.
+// ───────────────────────────────────────────────────────────────────────────
+app.get('/api/admin/system-config', authenticateToken, authorizeAdmin, async (_req: AuthRequest, res: Response) => {
+    try {
+        const { getSystemConfig } = await import('../utils/systemConfig.js');
+        const cfg = await getSystemConfig();
+        res.json({ ok: true, config: cfg.toObject ? cfg.toObject() : cfg });
+    } catch (e: any) {
+        console.error('[ADMIN] system-config GET error:', e);
+        res.status(500).json({ error: e?.message ?? 'failed' });
+    }
+});
+
+app.patch('/api/admin/system-config', authenticateToken, authorizeAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+        const { updateSystemConfig } = await import('../utils/systemConfig.js');
+        const updatedBy = req.user?.id;
+        const cfg = await updateSystemConfig(req.body || {}, updatedBy);
+        res.json({ ok: true, config: cfg.toObject ? cfg.toObject() : cfg });
+    } catch (e: any) {
+        console.error('[ADMIN] system-config PATCH error:', e);
+        res.status(500).json({ error: e?.message ?? 'failed' });
+    }
+});
+
 export const startServer = async (port: number = parseInt(process.env.PORT || '3000')) => {
     await bootstrapAdmin();
     botStartTime = Date.now();

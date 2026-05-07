@@ -2,26 +2,26 @@ import { ethers } from 'ethers';
 import { ClobClient } from '@polymarket/clob-client';
 import { ENV } from '../config/env.js';
 import Logger from './logger.js';
+import { getSystemConfig } from './systemConfig.js';
 
 const USDC_ABI = [
     "function balanceOf(address account) view returns (uint256)",
     "function decimals() view returns (uint8)"
 ];
 
-// V2 cutover (2026-04-28): collateral mudou pra pUSD. Mas users em transição
-// podem ter saldo em ambos (pUSD novo + USDC.e legacy). Lemos os dois e somamos.
-const PUSD_ADDRESS = '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB';        // V2 collateral
-const USDC_E_LEGACY_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // V1 legacy
-
-const RPC_LIST = [
-    ENV.RPC_URL,
-    process.env.RPC_HTTP_URL,
-    'https://polygon-bor-rpc.publicnode.com',
-    'https://polygon-rpc.com',
-    'https://rpc-mainnet.matic.quiknode.pro',
-    'https://1rpc.io/matic',
-    'https://polygon.llamarpc.com'
-].filter(Boolean) as string[];
+/**
+ * Constrói RPC list dinamicamente a partir de SystemConfig (DB) + ENV fallbacks.
+ * SystemConfig.rpcUrls é a fonte canônica; ENV.RPC_URL/RPC_HTTP_URL são overrides
+ * pra dev/local. Defaults V2 ficam só na seed do SystemConfig — não hardcoded aqui.
+ */
+const buildRpcList = (cfgRpcs: string[]): string[] => {
+    const list: string[] = [];
+    if (ENV.RPC_URL) list.push(ENV.RPC_URL);
+    if (process.env.RPC_HTTP_URL) list.push(process.env.RPC_HTTP_URL);
+    list.push(...cfgRpcs);
+    // dedupe preservando ordem
+    return Array.from(new Set(list.filter(Boolean) as string[]));
+};
 
 /**
  * Fetches Polymarket collateral balance for an address.
@@ -35,19 +35,20 @@ const getMyBalance = async (clientOrAddress: ClobClient | string): Promise<numbe
     try {
         if (typeof clientOrAddress === 'string') {
             const address = clientOrAddress;
-            // V2: collateral é pUSD. Lemos pUSD + USDC.e legacy e somamos.
-            // Ignoramos ENV.USDC_CONTRACT_ADDRESS — em .env legados ele aponta
-            // pra USDC.e (V1), o que mascararia saldo pUSD do user. Ler sempre
-            // pUSD via constante hardcoded é mais correto pós-cutover.
-            for (const rpc of RPC_LIST) {
+            // Endereços de contrato vêm da SystemConfig (DB) — editáveis via
+            // admin sem redeploy. Cache TTL de 30s mantém esse path rápido.
+            const cfg = await getSystemConfig();
+            const rpcList = buildRpcList(cfg.rpcUrls || []);
+
+            for (const rpc of rpcList) {
                 try {
                     const provider = new ethers.providers.JsonRpcProvider({
                         url: rpc,
                         skipFetchSetup: true // Some RPCs hate the default headers
                     }, 137);
 
-                    const pusd = new ethers.Contract(PUSD_ADDRESS, USDC_ABI, provider);
-                    const usdcE = new ethers.Contract(USDC_E_LEGACY_ADDRESS, USDC_ABI, provider);
+                    const pusd = new ethers.Contract(cfg.pUSDAddress, USDC_ABI, provider);
+                    const usdcE = new ethers.Contract(cfg.usdcELegacyAddress, USDC_ABI, provider);
                     // Não usar .catch interno aqui — se o RPC falhar, queremos que o
                     // outer catch caia pro próximo RPC. Catch silencioso retornaria 0
                     // falso mesmo quando o saldo real é > 0.
