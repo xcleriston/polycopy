@@ -8,6 +8,18 @@
 
 ---
 
+## ⚠️ AÇÃO MANUAL OBRIGATÓRIA — Railway redeploy
+
+Após merge desta branch (`v2-migration` ou subsequente):
+
+1. **Railway → Project → Settings → Service** → confirmar que **Branch** é `v2-migration` (ou `main` após merge). Branch antiga `restauracao-26-abril-surgical` continua rodando V1 quebrada (`order_version_mismatch` em todas as ordens).
+2. **Trigger deploy manual** ou push qualquer commit pra forçar rebuild com Dockerfile atualizado (`node:20-alpine` é REQUERIDO pelo viem).
+3. Após deploy, verificar logs Railway por `[ORDER_V2] ✓ aceita orderID=…` no próximo trade do leader.
+
+Sem esses passos, dashboard dos users continua mostrando `FALHA — order_version_mismatch` mesmo que a branch local esteja correta.
+
+---
+
 ## 0. Contexto da migração
 
 | | |

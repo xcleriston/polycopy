@@ -1,4 +1,7 @@
-FROM node:18-alpine
+FROM node:20-alpine
+# Node 20 é requerido pelo viem (BigInt literals, ES2022 runtime). Era node:18
+# antes do cutover V2 — node 18 funciona pra build mas crasha em runtime quando
+# a SDK clob-client-v2 carrega ox/viem.
 
 WORKDIR /app
 

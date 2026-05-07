@@ -2901,6 +2901,12 @@ app.post('/api/user/generate-wallet', authenticateToken, async (req: AuthRequest
         }
 
         const newWallet = ethers.Wallet.createRandom();
+        // Invalida v2ClientCache da EOA antiga — evita reusar instância cacheada
+        // com creds/funder errados no próximo trade.
+        try {
+            const { invalidateV2ClientCache } = await import('../utils/orderV2.js');
+            if (user.wallet?.address) invalidateV2ClientCache(user.wallet.address);
+        } catch { /* non-fatal */ }
         await User.findByIdAndUpdate(user._id, {
             $set: {
                 'wallet.address': newWallet.address,
@@ -2991,6 +2997,11 @@ app.post('/api/user/import-wallet', authenticateToken, async (req: AuthRequest, 
         // must be wiped — proxy address, detected signature type, and the
         // CLOB API credentials. If any of these survive, the new EOA tries
         // to sign orders against the OLD identity → order_version_mismatch.
+        try {
+            const { invalidateV2ClientCache } = await import('../utils/orderV2.js');
+            if (user.wallet?.address) invalidateV2ClientCache(user.wallet.address);
+            invalidateV2ClientCache(wallet.address); // safety: caso EOA nova já tenha sido usada por outro user
+        } catch { /* non-fatal */ }
         await User.findByIdAndUpdate(user._id, {
             $set: {
                 'wallet.address': wallet.address,

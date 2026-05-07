@@ -136,6 +136,26 @@ const normalizeApiCreds = (creds: ApiKeyCreds): ApiKeyCreds => ({
   secret: creds.secret.replace(/-/g, '+').replace(/_/g, '/'),
 });
 
+/**
+ * Cache de ClobClient v2 por (eoa, sigType, funder, hasApiKey) tuple.
+ * Cada instância carrega caches internos da própria lib (tickSizes, negRisk,
+ * feeRates, tokenConditionMap) — recriar a cada ordem joga tudo isso fora e
+ * adiciona ~1-3s de network calls. Com cache, copy trades subsequentes ao
+ * mesmo user ficam ≤200ms na assinatura/post.
+ *
+ * Cache invalidado via invalidateV2ClientCache(eoa) — chamado em update wallet
+ * (import/generate) ou quando user explicitamente troca sigType.
+ */
+const v2ClientCache = new Map<string, ClobClient>();
+const cacheKey = (eoa: string, funder: string, sigType: SignatureTypeV2, hasCreds: boolean) =>
+  `${eoa.toLowerCase()}:${funder.toLowerCase()}:${sigType}:${hasCreds ? 'k' : 'n'}`;
+
+export const invalidateV2ClientCache = (eoa?: string): void => {
+  if (!eoa) { v2ClientCache.clear(); return; }
+  const prefix = `${eoa.toLowerCase()}:`;
+  for (const k of v2ClientCache.keys()) if (k.startsWith(prefix)) v2ClientCache.delete(k);
+};
+
 export const createV2Client = async (opts: CreateV2ClientOpts): Promise<CreateV2ClientResult> => {
   let sigType = opts.sigType;
   let detection: DetectResult | undefined;
@@ -148,6 +168,11 @@ export const createV2Client = async (opts: CreateV2ClientOpts): Promise<CreateV2
   // ethers.Wallet v5 já satisfaz a interface EthersSigner do ClobClient
   const signer = opts.ethersWallet as unknown as ConstructorParameters<typeof ClobClient>[0]['signer'];
 
+  // Cache hit: retorna instância existente (preserva tickSize/negRisk/fee caches da lib)
+  const ck = cacheKey(opts.ethersWallet.address, opts.funderAddress, sigType, !!opts.creds);
+  const cached = v2ClientCache.get(ck);
+  if (cached) return { client: cached, sigType, ...(detection && { detection }) };
+
   const client = new ClobClient({
     host: opts.host,
     chain: Chain.POLYGON,
@@ -156,7 +181,7 @@ export const createV2Client = async (opts: CreateV2ClientOpts): Promise<CreateV2
     signatureType: sigType,
     ...(opts.creds && { creds: normalizeApiCreds(opts.creds) }),
   });
-
+  v2ClientCache.set(ck, client);
   return { client, sigType, ...(detection && { detection }) };
 };
 

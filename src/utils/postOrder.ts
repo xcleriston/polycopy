@@ -219,10 +219,12 @@ const signAndPost = async (
         initialSigType = 0;
     }
 
-    // PRE-FLIGHT: if proxy is set, verify on-chain that the user's EOA actually
-    // owns it. If not, every attempt below will be rejected with
-    // `order_version_mismatch`. Surface a clear, actionable error instead.
-    if (proxyAddress && user?.wallet?.address) {
+    // PRE-FLIGHT: skip se sigType já cached em User — significa que esse user
+    // já passou pela detecção em algum trade anterior, então a EOA controla o
+    // proxy. Re-checar a cada copy adiciona ~0.5–4s de RPC + zero benefício.
+    // Pra wallets novas (sigType ausente), valida 1x.
+    const sigTypeCached = user?.wallet?.proxySignatureType;
+    if (proxyAddress && user?.wallet?.address && (sigTypeCached === undefined || sigTypeCached === null)) {
         const eoa = user.wallet.address.toLowerCase();
         const owner = await readProxyOwner(proxyAddress);
         if (owner && owner !== eoa) {
@@ -237,7 +239,23 @@ const signAndPost = async (
         }
     }
 
-    const { tickSize, negRisk: detectedNegRisk } = await resilientTickSizeAndNegRisk(initialClient, tokenID, followerId);
+    // PATH 0 V2 cuida do tickSize/negRisk internamente (clob-client-v2 cacheia).
+    // Esse pre-fetch só é usado se PATH 0 falhar e cair pro fallback V1 (raro).
+    // Lazy: só busca se necessário (default = sem await aqui).
+    let tickSizeCached: string | null = null;
+    let detectedNegRiskCached: boolean | null = null;
+    const ensureTickAndNegRisk = async () => {
+        if (tickSizeCached !== null && detectedNegRiskCached !== null) {
+            return { tickSize: tickSizeCached, negRisk: detectedNegRiskCached };
+        }
+        const r = await resilientTickSizeAndNegRisk(initialClient, tokenID, followerId);
+        tickSizeCached = r.tickSize;
+        detectedNegRiskCached = r.negRisk;
+        return r;
+    };
+    // PATH 0 ainda precisa do tickSize/negRisk pra rounding correto. Buscamos
+    // já — mas como cache hit interno é instant, não há cost real após 1ª copy.
+    const { tickSize, negRisk: detectedNegRisk } = await ensureTickAndNegRisk();
 
     // ---------------------------------------------------------------------
     // PATH 0: @polymarket/clob-client-v2 oficial (V2 cutover 2026-04-28).
@@ -249,6 +267,7 @@ const signAndPost = async (
     Logger.info(`[ORDER_V2_GATE] [${followerId}] proxy=${!!proxyAddress} privKey=${!!user?.wallet?.privateKey} creds=${!!user?.wallet?.clobCreds?.key}`);
     const credsForV2 = user?.wallet?.clobCreds || (initialClient as any)?.creds;
     if (user?.wallet?.privateKey && credsForV2?.key) {
+        const t0 = Date.now();
         try {
             const sideStr: 'BUY' | 'SELL' = orderArgs.side === 0 || orderArgs.side === Side.BUY ? 'BUY' : 'SELL';
             const tickSizeV2 = (tickSize as '0.1' | '0.01' | '0.001' | '0.0001');
@@ -300,15 +319,21 @@ const signAndPost = async (
                 negRisk: detectedNegRisk,
             });
 
+            const elapsedMs = Date.now() - t0;
             if (resp?.success !== false && (resp?.orderID || resp?.orderId)) {
                 const oid = resp.orderID || resp.orderId;
-                Logger.success(`[ORDER_V2] [${followerId}] ✓ aceita orderID=${oid} status=${resp.status ?? 'submitted'}`);
+                Logger.success(`[ORDER_V2] [${followerId}] ✓ aceita orderID=${oid} status=${resp.status ?? 'submitted'} (${elapsedMs}ms)`);
                 return { success: true, orderID: oid };
             }
             const errStr = resp?.errorMsg || resp?.error || JSON.stringify(resp).slice(0, 200);
-            Logger.warning(`[ORDER_V2] [${followerId}] rejeitada: ${String(errStr).slice(0, 200)} — caindo p/ fallback V1`);
+            Logger.warning(`[ORDER_V2] [${followerId}] rejeitada (${elapsedMs}ms): ${String(errStr).slice(0, 200)}`);
+            // NÃO cair pro fallback V1 — V1 dá order_version_mismatch garantido pós-cutover.
+            // Erros V2 são reais (saldo, liquidez, etc) e devem ser surface direto.
+            return { success: false, error: errStr };
         } catch (e: any) {
-            Logger.warning(`[ORDER_V2] [${followerId}] EXCEPTION: ${e?.message ?? e} — caindo p/ fallback V1`);
+            const elapsedMs = Date.now() - t0;
+            Logger.warning(`[ORDER_V2] [${followerId}] EXCEPTION (${elapsedMs}ms): ${e?.message ?? e}`);
+            return { success: false, error: e?.message ?? String(e) };
         }
     } else {
         Logger.warning(`[ORDER_V2_GATE] [${followerId}] missing prerequisites — skipping V2`);
