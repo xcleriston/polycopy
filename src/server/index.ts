@@ -1172,6 +1172,9 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       <div class="nav-item" onclick="showSection('config', this)">
         <span>&#9881;&#65039;</span> Configura&#231;&#245;es Globais
       </div>
+      <div class="nav-item" onclick="showSection('system', this)">
+        <span>&#127760;</span> System V2
+      </div>
       <div class="nav-item" onclick="showSection('logs', this)">
         <span>📜</span> Logs de Trading
       </div>
@@ -1303,6 +1306,81 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       <div class="card" style="padding: 24px; margin-top: 30px; display: flex; gap: 15px">
         <button onclick="saveGlobalConfig()" class="btn btn-accent" style="padding: 12px 30px">Aplicar Mudan&#231;as Globais</button>
         <button onclick="resetToDefaults()" class="btn btn-warning">Resetar para Padr&#245;es</button>
+      </div>
+    </div>
+
+    <!-- Section: System V2 (SystemConfig DB-managed) -->
+    <div id="section-system" class="section">
+      <div class="config-grid">
+        <div class="config-group">
+          <h3>Polymarket V2 Contracts</h3>
+          <div class="form-group">
+            <label>pUSD (collateral V2)</label>
+            <input id="sys-pusd" placeholder="0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB" />
+          </div>
+          <div class="form-group">
+            <label>USDC.e Legacy (V1 — lido p/ users em transi&#231;&#227;o)</label>
+            <input id="sys-usdce" placeholder="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" />
+          </div>
+          <div class="form-group">
+            <label>CTF Exchange V2</label>
+            <input id="sys-ctf-v2" placeholder="0xE111180000d2663C0091e4f400237545B87B996B" />
+          </div>
+          <div class="form-group">
+            <label>Neg-Risk Exchange V2</label>
+            <input id="sys-neg-v2" placeholder="0xe2222d279d744050d28e00520010520000310F59" />
+          </div>
+        </div>
+
+        <div class="config-group">
+          <h3>V1 Legacy (rollback emergency)</h3>
+          <div class="form-group">
+            <label>CTF Exchange V1</label>
+            <input id="sys-ctf-v1" placeholder="0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" />
+          </div>
+          <div class="form-group">
+            <label>Neg-Risk Exchange V1</label>
+            <input id="sys-neg-v1" placeholder="0xC5d563A36AE78145C45a50134d48A1215220f80a" />
+          </div>
+          <div class="form-group">
+            <label>Polymarket Proxy Factory</label>
+            <input id="sys-proxy-factory" placeholder="0xaB45c5A4B0c941a2F231C04C3f49182e1A254052" />
+          </div>
+          <div class="form-group">
+            <label>Polymarket Safe Factory</label>
+            <input id="sys-safe-factory" placeholder="0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b" />
+          </div>
+        </div>
+
+        <div class="config-group">
+          <h3>Polymarket APIs</h3>
+          <div class="form-group">
+            <label>CLOB HTTP URL</label>
+            <input id="sys-clob" placeholder="https://clob.polymarket.com" />
+          </div>
+          <div class="form-group">
+            <label>Gamma HTTP URL</label>
+            <input id="sys-gamma" placeholder="https://gamma-api.polymarket.com" />
+          </div>
+          <div class="form-group">
+            <label>Data HTTP URL</label>
+            <input id="sys-data" placeholder="https://data-api.polymarket.com" />
+          </div>
+        </div>
+
+        <div class="config-group">
+          <h3>RPC Fallbacks (ordem = prioridade)</h3>
+          <div class="form-group">
+            <label>RPC URLs (1 por linha)</label>
+            <textarea id="sys-rpcs" rows="6" style="width:100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 10px; font-family: monospace; font-size: 0.85rem"></textarea>
+          </div>
+          <p style="color: var(--text-dim); font-size: 0.8rem">ENV.RPC_URL e RPC_HTTP_URL (se setados) s&#227;o tentados antes destes.</p>
+        </div>
+      </div>
+      <div class="card" style="padding: 24px; margin-top: 30px; display: flex; gap: 15px; align-items: center">
+        <button onclick="saveSystemConfig()" class="btn btn-accent" style="padding: 12px 30px">Salvar SystemConfig</button>
+        <button onclick="loadSystemConfig()" class="btn">Recarregar</button>
+        <span id="sys-meta" style="color: var(--text-dim); font-size: 0.8rem; margin-left: auto"></span>
       </div>
     </div>
 
@@ -1446,6 +1524,67 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
       el.classList.add('active');
       document.getElementById('section-title').textContent = id.charAt(0).toUpperCase() + id.slice(1);
       if (id === 'config') loadGlobalConfig();
+      if (id === 'system') loadSystemConfig();
+    }
+
+    async function loadSystemConfig() {
+      try {
+        const token = localStorage.getItem('token');
+        const r = await fetch('/api/admin/system-config', { headers: { Authorization: 'Bearer ' + token } });
+        const data = await r.json();
+        if (!data.ok) throw new Error(data.error || 'failed');
+        const c = data.config;
+        document.getElementById('sys-pusd').value = c.pUSDAddress || '';
+        document.getElementById('sys-usdce').value = c.usdcELegacyAddress || '';
+        document.getElementById('sys-ctf-v2').value = c.ctfExchangeV2 || '';
+        document.getElementById('sys-neg-v2').value = c.negRiskExchangeV2 || '';
+        document.getElementById('sys-ctf-v1').value = c.ctfExchangeV1 || '';
+        document.getElementById('sys-neg-v1').value = c.negRiskExchangeV1 || '';
+        document.getElementById('sys-proxy-factory').value = c.proxyFactory || '';
+        document.getElementById('sys-safe-factory').value = c.safeFactory || '';
+        document.getElementById('sys-clob').value = c.clobHttpUrl || '';
+        document.getElementById('sys-gamma').value = c.gammaHttpUrl || '';
+        document.getElementById('sys-data').value = c.dataHttpUrl || '';
+        document.getElementById('sys-rpcs').value = (c.rpcUrls || []).join('\n');
+        const meta = document.getElementById('sys-meta');
+        meta.textContent = 'updated ' + (c.updatedAt ? new Date(c.updatedAt).toLocaleString() : '?')
+          + (c.updatedBy ? ' by ' + String(c.updatedBy).slice(0, 8) : '');
+      } catch (e) {
+        showBanner('Erro ao carregar SystemConfig: ' + (e?.message ?? e), 'error');
+      }
+    }
+
+    async function saveSystemConfig() {
+      try {
+        const token = localStorage.getItem('token');
+        const rpcsRaw = document.getElementById('sys-rpcs').value;
+        const rpcUrls = rpcsRaw.split(/\\n+/).map(s => s.trim()).filter(Boolean);
+        const body = {
+          pUSDAddress: document.getElementById('sys-pusd').value.trim(),
+          usdcELegacyAddress: document.getElementById('sys-usdce').value.trim(),
+          ctfExchangeV2: document.getElementById('sys-ctf-v2').value.trim(),
+          negRiskExchangeV2: document.getElementById('sys-neg-v2').value.trim(),
+          ctfExchangeV1: document.getElementById('sys-ctf-v1').value.trim(),
+          negRiskExchangeV1: document.getElementById('sys-neg-v1').value.trim(),
+          proxyFactory: document.getElementById('sys-proxy-factory').value.trim(),
+          safeFactory: document.getElementById('sys-safe-factory').value.trim(),
+          clobHttpUrl: document.getElementById('sys-clob').value.trim(),
+          gammaHttpUrl: document.getElementById('sys-gamma').value.trim(),
+          dataHttpUrl: document.getElementById('sys-data').value.trim(),
+          rpcUrls,
+        };
+        const r = await fetch('/api/admin/system-config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!data.ok) throw new Error(data.error || 'failed');
+        showBanner('SystemConfig salva. Cache server invalida em ate 30s (ou reload manual).', 'success');
+        loadSystemConfig();
+      } catch (e) {
+        showBanner('Erro ao salvar: ' + (e?.message ?? e), 'error');
+      }
     }
 
     async function refresh() {
