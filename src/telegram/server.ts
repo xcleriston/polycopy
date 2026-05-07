@@ -26,6 +26,9 @@ class TelegramServer {
         Logger.info('⏳ Aguardando mensagens...');
 
         let lastUpdate = 0;
+        let conflictBackoffMs = 30_000; // backoff inicial p/ HTTP 409 (outra instância polling)
+        let consecutiveConflicts = 0;
+        let lastConflictLogAt = 0;
 
         while (true) {
             try {
@@ -33,8 +36,15 @@ class TelegramServer {
                     `https://api.telegram.org/bot${this.token}/getUpdates?offset=${lastUpdate + 1}&timeout=30`
                 );
 
+                // Reset backoff: polling teve sucesso
+                if (consecutiveConflicts > 0) {
+                    Logger.info(`✓ Telegram polling retomado após ${consecutiveConflicts} conflito(s) 409`);
+                    consecutiveConflicts = 0;
+                    conflictBackoffMs = 30_000;
+                }
+
                 const updates = response.data.result;
-                
+
                 for (const update of updates) {
                     lastUpdate = update.update_id;
 
@@ -61,8 +71,22 @@ class TelegramServer {
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
             } catch (error: any) {
-                Logger.error(`Erro no polling do Telegram: ${error.message || error}`);
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                const status = error?.response?.status;
+                if (status === 409) {
+                    // 409 Conflict = outra instância já está pollando o mesmo token.
+                    // Log no máximo a cada 5min pra não floodar; backoff exponencial até 5min.
+                    consecutiveConflicts++;
+                    const now = Date.now();
+                    if (now - lastConflictLogAt > 300_000 || consecutiveConflicts === 1) {
+                        Logger.warning(`⚠ Telegram polling 409 (outra instância já pollando?) — backoff ${Math.round(conflictBackoffMs / 1000)}s [${consecutiveConflicts} conflitos]`);
+                        lastConflictLogAt = now;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, conflictBackoffMs));
+                    conflictBackoffMs = Math.min(conflictBackoffMs * 2, 300_000);
+                } else {
+                    Logger.error(`Erro no polling do Telegram: ${error.message || error}`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
             }
         }
     }

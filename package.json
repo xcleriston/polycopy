@@ -10,7 +10,7 @@
         "build": "tsc",
         "prestart": "node -e \"try{require('child_process').execSync('npm audit --omit=dev',{stdio:'inherit'})}catch(_){}\"",
         "start": "node dist/index.js",
-        "dev": "ts-node src/index.ts",
+        "dev": "node --loader ts-node/esm --no-warnings=ExperimentalWarning src/index.ts",
         "telegram": "node dist/telegram/index.js",
         "telegram-standalone": "node dist/telegram/standalone-index.js",
         "telegram-simple": "node dist/telegram/simple-index.js",

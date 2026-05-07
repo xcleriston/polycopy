@@ -741,3 +741,35 @@ Cada um aparece quando o anterior é resolvido. Use o `testOrderV2.ts` pra itera
 
 **Sucesso end-to-end** = `testOrderV2` retorna `200 OK` + `orderID` + `tx hash` em polygonscan.
 Roxcopy reference: tx [`0xf4415bbde8b127b24efcedc02a97dae250de54cc04c4f7586e0cf63963ff879d`](https://polygonscan.com/tx/0xf4415bbde8b127b24efcedc02a97dae250de54cc04c4f7586e0cf63963ff879d).
+
+---
+
+## 7. Changes pré-existentes (fora do escopo desta migração)
+
+Estavam no working tree na branch `restauracao-26-abril-surgical` quando esta
+migração começou; não foram tocadas e ficaram fora do PR `v2-migration` pra
+manter o diff revisável. Cowork avalia se incluir/descartar:
+
+| Arquivo | Status pré-migração |
+|---|---|
+| `src/__tests__/env.test.ts` | modified (não-stagado) |
+| `src/__tests__/postOrder.test.ts` | modified (V1 fixtures, vão quebrar pós-V2) |
+| `src/models/userHistory.ts` | modified |
+| `src/services/chainMonitor.ts` | modified |
+| `src/services/tpSlMonitor.ts` | modified — chama `clobClient.postOrder` direto (não passa por `postOrder.ts`) |
+| `src/services/tradeExecutor.ts` | modified |
+| `src/services/tradeMonitor.ts` | modified |
+| `src/utils/getMyBalance.ts` | modified |
+| `src/utils/push.ts` | modified |
+| `jest.config.js` → `jest.config.cjs` | rename pre-existente |
+| `scripts/test_real_order.py` | untracked |
+| `src/utils/signOrderManually.ts` | untracked, **DELETÁVEL** após cutover (V1 manual sign quebrado) |
+| `src/utils/signOrderV2.ts` | untracked, **DELETÁVEL** (era reverse-engineering do UI traffic, com bugs no signature wrap) |
+
+**Recomendado pós-merge desta PR**:
+1. Audit dos `services/{tpSlMonitor,arbitrageMonitor}.ts` — eles chamam
+   `clobClient.postOrder` direto (sem passar por `postOrder.ts → PATH 0`).
+   Pra V2: rotear via `submitOrderV2` ou `createV2Client` do `orderV2.ts`.
+2. Atualizar fixtures de `postOrder.test.ts` pra schema V2 (11 campos signed).
+3. Apagar `signOrderManually.ts` + `signOrderV2.ts` se ainda existirem
+   localmente — eles não são mais importados em lugar nenhum (PATH 0 cobre tudo).

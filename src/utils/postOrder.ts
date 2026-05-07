@@ -12,8 +12,9 @@ import {
     KNOWN_EXCHANGES
 } from "./createClobClient.js";
 import fetchData from "./fetchData.js";
-import { signAndSubmitManually, discoverDomain } from "./signOrderManually.js";
-import { signAndSubmitV2 } from "./signOrderV2.js";
+// V1 manual signing path (signOrderManually + signOrderV2 antigos com schema inventado)
+// foi removido pós-V2 cutover — não funciona mais. Tudo passa pelo PATH 0 (orderV2.ts)
+// que usa o SDK oficial @polymarket/clob-client-v2.
 import { createV2Client, detectSigType, submitOrderV2, OrderType as OrderTypeV2, SignatureTypeV2 } from "./orderV2.js";
 import { Wallet as EthersWallet } from "ethers";
 import { ENV } from "../config/env.js";
@@ -466,64 +467,12 @@ const signAndPost = async (
         if (!isVersionMismatch(lastErr)) break;
     }
 
-    // -----------------------------------------------------------------------
-    // Manual fallback: sign the order ourselves with on-chain EIP-712 domain
-    // discovery. This bypasses the entire lib and tries every known exchange
-    // contract Polymarket has used. If even ONE of these works, we persist
-    // the answer so future orders go straight through.
-    // -----------------------------------------------------------------------
-    if (isVersionMismatch(lastErr) && user?.wallet?.privateKey && user?.wallet?.clobCreds?.key) {
-        Logger.warning(`[ORDER] [${followerId}] Lib exhausted — manual signing with on-chain EIP-712 discovery`);
-        const exchangeCandidates = [
-            // Per py-clob-client config.py — these are the ONLY two valid
-            // exchange addresses for Polygon (chainID=137).
-            KNOWN_EXCHANGES.v1,        // 0x4bFb41d5…  CTF Exchange (standard)
-            KNOWN_EXCHANGES.negRiskV1, // 0xC5d563A3…  CTF Exchange (neg-risk)
-        ];
-        const apiCreds = user.wallet.clobCreds;
-        const sizeTokens = orderArgs.size ?? (orderArgs.amount && orderArgs.price ? orderArgs.amount / orderArgs.price : null);
-        if (sizeTokens == null) {
-            return { success: false, error: lastErr + ' | manual: cannot derive sizeTokens' };
-        }
-        const sideStr: 'BUY' | 'SELL' = orderArgs.side === 0 ? 'BUY' : 'SELL';
-
-        for (const exch of exchangeCandidates) {
-            // Per py_order_utils/model/signatures.py — only 3 sigTypes exist:
-            // EOA=0, POLY_PROXY=1, POLY_GNOSIS_SAFE=2.
-            const manualSigTypes: (0 | 1 | 2)[] = proxyAddress ? [1, 2] : [0];
-            for (const st of manualSigTypes) {
-                const tag = `manual/${st}/${exch.slice(0, 10)}…`;
-                Logger.info(`[ORDER] [${followerId}] Trying ${tag}`);
-                const r = await signAndSubmitManually({
-                    side: sideStr,
-                    tokenID,
-                    price: orderArgs.price,
-                    sizeTokens,
-                    eoaPrivateKey: user.wallet.privateKey,
-                    proxyAddress: proxyAddress,
-                    sigType: st,
-                    tickSize,
-                    verifyingContract: exch,
-                    apiCreds,
-                    orderType: isMarket ? 'FOK' : 'GTC',
-                    clobHost: ENV.CLOB_HTTP_URL,
-                });
-                if (r.success) {
-                    Logger.success(`[ORDER] [${followerId}] ${tag} succeeded — persisting sigType=${st}`);
-                    await persistProxySignatureType(user, st);
-                    return { success: true, orderID: r.orderID };
-                }
-                lastErr = r.error || lastErr;
-                Logger.warning(`[ORDER] [${followerId}] ${tag} failed: ${String(r.error || '').slice(0, 100)}`);
-                // Break out if the error is real (balance/liquidity), not signing-related.
-                if (!isVersionMismatch(r.error || '') && !isTransient(r.error || '')) {
-                    Logger.info(`[ORDER] [${followerId}] Non-signing error — stopping manual walk`);
-                    return { success: false, error: lastErr };
-                }
-            }
-        }
-    }
-
+    // V1 manual fallback removido pós-cutover Polymarket V2 (2026-04-28). O
+    // signOrderManually antigo assinava contra exchange V1 (0x4bFb…) com schema
+    // V1 (com taker/expiration/nonce/feeRateBps), que sempre retorna
+    // order_version_mismatch agora. PATH 0 (orderV2.ts via SDK oficial v2) é
+    // o único caminho viável — se ele falhar com signing error, é bug a corrigir
+    // no wrapper, não algo a contornar com fallback V1.
     return { success: false, error: lastErr };
 };
 
